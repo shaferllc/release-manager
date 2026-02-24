@@ -28,7 +28,17 @@ release-manager/
 ├── scripts/
 │   └── ensure-icon.js
 ├── src-main/
-│   ├── main.js         # Electron main: config, project info, version bump, git
+│   ├── lib/            # Testable helpers (all have __tests__)
+│   │   ├── github.js   # getReleasesUrl, getRepoSlug, pickAssetForPlatform
+│   │   ├── config.js   # getStoredConfig, getProjects, setProjects (legacy/backup)
+│   │   ├── projects.js # filterValidProjects
+│   │   ├── theme.js    # THEME_VALUES, isValidTheme, getEffectiveTheme
+│   │   ├── version.js  # isValidBump, formatTag
+│   │   ├── runInDir.js # runInDir (spawn wrapper)
+│   │   ├── migration.js# parseOldConfig (old JSON config migration)
+│   │   ├── packageJson.js # parsePackageInfo
+│   │   └── __tests__/  # Full unit tests for all lib modules
+│   ├── main.js         # Electron main (uses lib modules)
 │   └── preload.js      # IPC bridge
 ├── src-renderer/
 │   ├── index.html
@@ -39,6 +49,10 @@ release-manager/
 └── README.md
 ```
 
+## Theme
+
+Use the **Dark** / **Light** toggle in the nav bar. The choice is saved and applied on next launch.
+
 ## Scripts
 
 | Command        | Description                    |
@@ -48,6 +62,26 @@ release-manager/
 | `npm run watch`| Restart on main/renderer changes (nodemon) |
 | `npm run build:css` | Build Tailwind CSS         |
 | `npm run build`| Package with electron-builder  |
+| `npm test`     | Run test suite (Jest)           |
+| `npm run test:watch` | Run tests in watch mode   |
+| `npm run test:coverage` | Run tests with coverage  |
+
+### Test suite (50 tests)
+
+All logic is in `src-main/lib/` and fully unit-tested:
+
+| Module        | Tests |
+|---------------|-------|
+| **github**    | getReleasesUrl, getRepoSlug, pickAssetForPlatform (GitHub URLs, repo slug, asset pick by platform) |
+| **config**    | getStoredConfig, setStoredConfig, getProjects, setProjects (JSON file config) |
+| **projects**  | filterValidProjects (valid project list filtering) |
+| **theme**     | THEME_VALUES, isValidTheme, getEffectiveTheme (dark/light/system) |
+| **version**   | isValidBump, formatTag (patch/minor/major, v-prefix) |
+| **runInDir**  | runInDir with mock spawn (stdout/stderr, exit code, spawn error) |
+| **migration** | parseOldConfig (old JSON config parsing for one-time migration) |
+| **packageJson** | parsePackageInfo (package.json name/version, errors) |
+
+Main process (`main.js`) uses these libs; coverage is high for all lib modules.
 
 ## How it works
 

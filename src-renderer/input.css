@@ -1,0 +1,251 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root,
+html[data-theme="dark"] {
+  --rm-bg: 22 23 25;
+  --rm-bg-elevated: 28 30 33;
+  --rm-surface: 36 38 42;
+  --rm-surface-hover: 45 48 53;
+  --rm-text: 232 234 238;
+  --rm-muted: 139 142 148;
+  --rm-accent: 34 197 94;
+  --rm-accent-hover: 74 222 128;
+  --rm-border: 48 51 56;
+  --rm-border-focus: 34 197 94;
+  --rm-success: 34 197 94;
+  --rm-warning: 234 179 8;
+}
+
+html[data-theme="light"] {
+  --rm-bg: 245 245 247;
+  --rm-bg-elevated: 255 255 255;
+  --rm-surface: 228 230 235;
+  --rm-surface-hover: 212 215 220;
+  --rm-text: 24 26 30;
+  --rm-muted: 113 117 122;
+  --rm-accent: 22 163 74;
+  --rm-accent-hover: 34 197 94;
+  --rm-border: 212 215 220;
+  --rm-border-focus: 22 163 74;
+  --rm-success: 22 163 74;
+  --rm-warning: 202 138 4;
+}
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+  html {
+    height: 100%;
+    overflow: hidden;
+  }
+  body {
+    @apply m-0 h-full flex flex-col bg-rm-bg text-rm-text text-[13px] antialiased;
+    overflow: hidden;
+  }
+}
+
+.nav-bar {
+  -webkit-app-region: drag;
+}
+.nav-bar button,
+.nav-bar .no-drag {
+  -webkit-app-region: no-drag;
+}
+
+@layer components {
+  .btn-primary {
+    @apply py-2 px-4 rounded-rm bg-rm-accent text-white font-medium text-sm hover:bg-rm-accent-hover transition-colors;
+  }
+.btn-secondary {
+  @apply py-2 px-4 rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm font-medium hover:bg-rm-surface-hover transition-colors;
+}
+.theme-btn {
+  @apply text-rm-muted hover:text-rm-text hover:bg-rm-surface-hover border-none cursor-pointer bg-transparent inline-flex items-center justify-center;
+}
+.theme-btn.is-active {
+  @apply text-rm-accent bg-rm-accent/15;
+}
+.theme-btn svg {
+  display: block;
+}
+  .card {
+    @apply bg-rm-surface border border-rm-border rounded-rm-lg overflow-hidden;
+  }
+  .collapsible-card .collapsible-card-header {
+    @apply flex items-center justify-between gap-2 w-full cursor-pointer p-5 text-left border-none bg-transparent rounded-rm-lg hover:bg-rm-surface-hover transition-colors;
+    font: inherit;
+    color: inherit;
+  }
+  .collapsible-card .collapsible-card-header:focus {
+    @apply outline-none ring-2 ring-rm-accent/50 ring-inset;
+  }
+  .collapsible-card .collapsible-card-title {
+    @apply text-xs font-semibold text-rm-text uppercase tracking-wider m-0;
+  }
+  .collapsible-card .collapsible-card-chevron {
+    @apply shrink-0 text-rm-muted transition-transform duration-200;
+  }
+  .collapsible-card.is-collapsed .collapsible-card-chevron {
+    transform: rotate(-90deg);
+  }
+  .collapsible-card .collapsible-card-body {
+    @apply border-t border-rm-border;
+  }
+  .collapsible-card.is-collapsed .collapsible-card-body {
+    display: none;
+  }
+  .card-sm {
+    @apply p-5;
+  }
+  .card-section {
+    @apply p-5;
+  }
+  .card-section-muted {
+    @apply bg-rm-bg/40;
+  }
+  .card-label {
+    @apply block text-xs font-semibold text-rm-text uppercase tracking-wider mb-3;
+  }
+  .icon-btn {
+    @apply p-2 rounded-rm border border-rm-border bg-rm-surface text-rm-muted hover:bg-rm-surface-hover hover:text-rm-text transition-colors inline-flex items-center justify-center;
+  }
+  .icon-btn-sm {
+    @apply p-1.5;
+  }
+  .icon-btn svg,
+  .icon-btn-sm svg {
+    display: block;
+  }
+  .btn-ghost {
+    @apply border-none bg-transparent cursor-pointer font-medium py-1.5 px-2 rounded-rm hover:bg-rm-surface-hover transition-colors;
+  }
+  .copy-feedback {
+    @apply text-xs font-medium text-rm-accent;
+  }
+  .release-notes-input {
+    @apply w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[5rem] focus:outline-none focus:border-rm-border-focus;
+  }
+  .input-field {
+    @apply w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-2.5 focus:outline-none focus:border-rm-border-focus;
+  }
+  .checkbox-label {
+    @apply flex items-center gap-2 cursor-pointer text-rm-text;
+  }
+  .checkbox-input {
+    @apply rounded border-rm-border text-rm-accent focus:ring-rm-accent;
+  }
+  .btn-prerelease {
+    @apply border-rm-muted/50 text-rm-muted;
+  }
+  .btn-compact {
+    @apply text-xs py-1.5 px-2.5;
+  }
+
+  .aside-panel {
+    @apply w-64 shrink-0 border-r border-rm-border bg-rm-bg-elevated flex flex-col overflow-hidden;
+  }
+  .aside-header {
+    @apply px-3 py-3 border-b border-rm-border flex items-center gap-2 flex-shrink-0;
+  }
+  .aside-tab {
+    @apply text-xs font-medium text-rm-muted hover:text-rm-accent transition-colors border-none bg-transparent cursor-pointer p-0;
+  }
+  .aside-tab-sep {
+    @apply text-rm-border text-xs;
+  }
+  .aside-title {
+    @apply text-xs font-medium text-rm-muted uppercase tracking-wider;
+  }
+  .batch-bar {
+    @apply px-4 py-4 border-b border-rm-border flex-shrink-0;
+    background: rgb(var(--rm-accent) / 0.06);
+    border-left: 3px solid rgb(var(--rm-accent) / 0.5);
+  }
+  .batch-bar-label {
+    @apply m-0 text-xs font-semibold text-rm-text;
+  }
+  .batch-bar-hint {
+    @apply m-0 mt-1.5 text-xs text-rm-muted;
+  }
+  .batch-bar-buttons {
+    @apply flex flex-wrap gap-3 mt-3;
+  }
+  .project-list {
+    @apply flex-1 overflow-y-auto p-3;
+  }
+
+  .dashboard-view {
+    @apply flex-1 flex flex-col min-h-0 overflow-hidden;
+  }
+  .dashboard-toolbar {
+    @apply px-5 py-4 border-b border-rm-border bg-rm-surface/30 flex-shrink-0;
+  }
+  .dashboard-controls {
+    @apply flex flex-wrap items-center gap-4;
+  }
+  .dashboard-label {
+    @apply flex items-center gap-2;
+  }
+  .dashboard-label-text {
+    @apply text-xs font-medium text-rm-muted;
+  }
+  .dashboard-select {
+    @apply rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm px-2.5 py-1.5 focus:outline-none focus:border-rm-border-focus;
+  }
+  .dashboard-scroll {
+    @apply flex-1 overflow-auto p-4;
+  }
+  .dashboard-table {
+    @apply w-full text-sm border-collapse;
+  }
+  .dashboard-table thead th {
+    @apply text-left text-rm-muted font-medium pb-3.5 pr-5 border-b border-rm-border;
+  }
+  .dashboard-table tbody tr {
+    @apply border-b border-rm-border/70 transition-colors;
+  }
+  .dashboard-table tbody tr:hover {
+    @apply bg-rm-surface/50;
+  }
+  .dashboard-table tbody td {
+    @apply py-3 pr-5;
+  }
+
+  .modal-backdrop {
+    @apply fixed inset-0 flex items-center justify-center z-20 p-4;
+    background: rgb(0 0 0 / 0.5);
+    backdrop-filter: blur(4px);
+  }
+  .modal-card {
+    @apply bg-rm-surface border border-rm-border rounded-rm-lg shadow-xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden;
+  }
+  .modal-header {
+    @apply px-5 py-4 border-b border-rm-border flex items-center justify-between flex-shrink-0;
+  }
+  .modal-title {
+    @apply m-0 text-sm font-semibold text-rm-text;
+  }
+  .modal-close {
+    @apply w-8 h-8 flex items-center justify-center rounded-rm text-rm-muted hover:bg-rm-surface-hover hover:text-rm-text transition-colors border-none cursor-pointer text-lg leading-none;
+  }
+  .modal-body {
+    @apply p-5 overflow-auto flex-1 min-h-0;
+  }
+  .modal-status {
+    @apply text-sm text-rm-muted mb-4;
+  }
+  .modal-list {
+    @apply space-y-1;
+  }
+  .modal-list li,
+  .modal-list-item {
+    @apply py-3 px-3.5 rounded-rm text-sm text-rm-text transition-colors cursor-pointer;
+  }
+  .modal-list li:hover,
+  .modal-list-item:hover {
+    @apply bg-rm-surface-hover;
+  }
+}

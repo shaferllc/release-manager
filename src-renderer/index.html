@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta
+    http-equiv="Content-Security-Policy"
+    content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'self';"
+  />
+  <title>Release Manager</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <nav class="nav-bar flex items-center justify-between px-4 py-3 bg-rm-surface border-b border-rm-border select-none">
+    <h1 class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 no-drag">
+      <span class="inline-flex w-8 h-8 rounded-rm bg-rm-accent/20 text-rm-accent items-center justify-center text-sm font-bold">R</span>
+      Release Manager
+    </h1>
+    <div class="flex items-center gap-2 no-drag">
+      <div class="theme-toggle flex items-center rounded-rm border border-rm-border bg-rm-surface overflow-hidden">
+        <button type="button" class="theme-btn p-2 transition-colors" id="theme-dark" title="Dark" aria-label="Dark theme">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+        </button>
+        <button type="button" class="theme-btn p-2 transition-colors" id="theme-light" title="Light" aria-label="Light theme">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+        </button>
+      </div>
+      <button type="button" id="btn-add-project" class="btn-primary flex items-center gap-2">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        Add project
+      </button>
+    </div>
+  </nav>
+
+  <main class="flex-1 flex min-h-0 overflow-hidden">
+    <aside class="aside-panel">
+      <div class="aside-header">
+        <button type="button" id="btn-view-dashboard" class="aside-tab">Dashboard</button>
+        <span class="aside-tab-sep">·</span>
+        <span class="aside-title">Projects</span>
+      </div>
+      <div id="batch-release-bar" class="batch-bar hidden">
+        <p class="batch-bar-label"><span id="batch-release-count">0</span> selected</p>
+        <p class="batch-bar-hint">Release:</p>
+        <div class="batch-bar-buttons">
+          <button type="button" id="btn-batch-patch" class="btn-primary btn-compact" data-bump="patch">Patch</button>
+          <button type="button" id="btn-batch-minor" class="btn-secondary btn-compact" data-bump="minor">Minor</button>
+          <button type="button" id="btn-batch-major" class="btn-secondary btn-compact" data-bump="major">Major</button>
+        </div>
+      </div>
+      <ul id="project-list" class="project-list list-none m-0">
+        <!-- populated by renderer.js -->
+      </ul>
+      <p id="empty-projects-hint" class="p-4 text-sm text-rm-muted hidden">
+        Click “Add project” to add a folder that contains a <code class="bg-rm-surface px-1 rounded text-xs">package.json</code>.
+      </p>
+    </aside>
+
+    <section class="flex-1 flex flex-col min-h-0 overflow-hidden bg-rm-bg">
+      <div id="dashboard-view" class="dashboard-view hidden">
+        <div class="dashboard-toolbar">
+          <div class="dashboard-controls">
+            <label class="dashboard-label">
+              <span class="dashboard-label-text">Filter</span>
+              <select id="dashboard-filter" class="dashboard-select">
+                <option value="all">All</option>
+                <option value="needs-release">Needs release</option>
+              </select>
+            </label>
+            <label class="dashboard-label">
+              <span class="dashboard-label-text">Sort</span>
+              <select id="dashboard-sort" class="dashboard-select">
+                <option value="name">Name</option>
+                <option value="needs-release">Needs release first</option>
+              </select>
+            </label>
+            <button type="button" id="btn-dashboard-refresh" class="btn-secondary btn-compact">Refresh</button>
+          </div>
+        </div>
+        <div class="dashboard-scroll">
+          <table class="dashboard-table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Version</th>
+                <th>Latest tag</th>
+                <th>Branch</th>
+                <th>Ahead / behind</th>
+              </tr>
+            </thead>
+            <tbody id="dashboard-tbody">
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div id="no-selection" class="flex-1 flex items-center justify-center p-8 text-center">
+        <div>
+          <p class="text-rm-muted text-sm mb-1">Select a project from the list</p>
+          <p class="text-rm-muted text-xs">or add one with the button above.</p>
+        </div>
+      </div>
+
+      <div id="project-detail" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
+        <div class="detail-content max-w-2xl mx-auto w-full py-8 px-8">
+        <header class="detail-header mb-8">
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0 flex-1">
+              <h2 id="detail-name" class="m-0 text-xl font-semibold text-rm-text truncate tracking-tight"></h2>
+              <p id="detail-path" class="m-0 mt-1.5 text-sm text-rm-muted font-mono truncate"></p>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" id="btn-open-in-finder" class="icon-btn" title="Open in Finder" aria-label="Open in Finder">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+              </button>
+              <button type="button" id="btn-copy-path" class="icon-btn" title="Copy path" aria-label="Copy path">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+              <span id="copy-path-feedback" class="copy-feedback hidden">Copied!</span>
+              <button type="button" id="btn-remove-project" class="btn-ghost text-rm-muted hover:text-rm-text text-sm" title="Remove from list">Remove</button>
+            </div>
+          </div>
+        </header>
+
+        <section id="detail-git-state" class="card card-sm collapsible-card mb-6 hidden" data-section="Git">
+          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-git-body">
+            <span class="collapsible-card-title">Git</span>
+            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div id="detail-git-body" class="collapsible-card-body">
+          <div class="card-section pt-0">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span id="detail-branch" class="text-rm-muted">Branch: —</span>
+              <span id="detail-ahead-behind" class="text-rm-muted"></span>
+            </div>
+          </div>
+          <div id="detail-uncommitted-wrap" class="card-section border-t border-rm-border pt-4 mt-0">
+            <p id="detail-uncommitted-label" class="m-0 text-xs font-medium text-rm-muted">Working tree clean</p>
+            <ul id="detail-uncommitted-list" class="m-0 mt-2 pl-4 text-xs text-rm-muted max-h-28 overflow-y-auto list-disc space-y-0.5"></ul>
+            <div id="detail-commit-wrap" class="hidden mt-4 pt-4 border-t border-rm-border">
+              <label class="block text-xs font-medium text-rm-text mb-2">Commit changes</label>
+              <div class="flex gap-3">
+                <input type="text" id="detail-commit-message" class="input-field flex-1 text-sm" placeholder="Commit message" />
+                <button type="button" id="btn-commit" class="btn-primary btn-compact shrink-0">Commit</button>
+              </div>
+              <p id="detail-commit-status" class="m-0 mt-2 text-xs text-rm-muted hidden"></p>
+            </div>
+          </div>
+          </div>
+        </section>
+
+        <section id="detail-version-card" class="card mb-6 collapsible-card" data-section="Version">
+          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-version-body">
+            <span class="collapsible-card-title">Version &amp; release</span>
+            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div id="detail-version-body" class="collapsible-card-body">
+          <div class="card-section flex flex-wrap items-center gap-x-4 gap-y-2 pt-0">
+            <div class="flex items-center gap-2">
+              <span class="card-label text-rm-muted">Version</span>
+              <span id="detail-version" class="text-xl font-mono font-semibold text-rm-accent">—</span>
+              <button type="button" id="btn-copy-version" class="icon-btn icon-btn-sm" title="Copy version" aria-label="Copy version">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+              <span id="copy-version-feedback" class="copy-feedback hidden">Copied!</span>
+            </div>
+            <div class="flex items-center gap-2 text-sm">
+              <span class="text-rm-muted">Latest tag</span>
+              <span id="detail-tag" class="font-mono text-rm-text">—</span>
+              <button type="button" id="btn-copy-tag" class="icon-btn icon-btn-sm" title="Copy tag" aria-label="Copy tag">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+              <span id="copy-tag-feedback" class="copy-feedback hidden">Copied!</span>
+            </div>
+          </div>
+
+          <div id="detail-all-versions-wrap" class="card-section border-t border-rm-border hidden">
+            <span class="card-label">Released versions</span>
+            <ul id="detail-all-versions" class="m-0 pl-4 text-sm text-rm-muted max-h-40 overflow-y-auto list-disc space-y-0.5"></ul>
+            <p id="detail-all-versions-empty" class="m-0 mt-1 text-xs text-rm-muted hidden">No tags yet.</p>
+          </div>
+
+          <div class="card-section border-t border-rm-border">
+            <span class="card-label">Release</span>
+            <p class="m-0 mb-5 text-sm text-rm-muted">
+              Bump version, tag <code class="bg-rm-bg px-1.5 py-0.5 rounded text-xs font-mono">vX.Y.Z</code>, push. With a GitHub token you can add notes, draft, or pre-release.
+            </p>
+
+            <div class="release-notes-row mb-5">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <label class="text-xs font-medium text-rm-text">Release notes</label>
+                <button type="button" id="btn-load-commits" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer">Load from commits</button>
+              </div>
+              <textarea id="release-notes" class="release-notes-input" rows="3" placeholder="Optional. Used as GitHub release body."></textarea>
+            </div>
+
+            <div class="flex flex-wrap gap-6 mb-5 text-sm">
+              <label class="checkbox-label">
+                <input type="checkbox" id="release-draft" class="checkbox-input" />
+                <span>Draft release</span>
+              </label>
+              <label class="checkbox-label">
+                <input type="checkbox" id="release-prerelease" class="checkbox-input" />
+                <span>Pre-release</span>
+              </label>
+            </div>
+
+            <div class="flex flex-wrap gap-3">
+              <button type="button" id="btn-release-patch" class="btn-primary" data-bump="patch">Patch</button>
+              <button type="button" id="btn-release-minor" class="btn-secondary" data-bump="minor">Minor</button>
+              <button type="button" id="btn-release-major" class="btn-secondary" data-bump="major">Major</button>
+              <button type="button" id="btn-release-prerelease" class="btn-secondary btn-prerelease" data-bump="prerelease">Pre-release</button>
+            </div>
+
+            <p id="release-status" class="mt-4 text-sm text-rm-muted hidden"></p>
+            <p id="release-actions-wrap" class="mt-2 hidden">
+              <a id="release-actions-link" href="#" class="text-rm-accent hover:underline text-sm" target="_blank" rel="noopener">Check release status →</a>
+            </p>
+          </div>
+
+          <div class="card-section card-section-muted border-t border-rm-border">
+            <label class="card-label text-rm-muted mb-3">GitHub token</label>
+            <input type="password" id="github-token" class="input-field" placeholder="Optional. For release body, draft, pre-release." autocomplete="off" />
+          </div>
+          </div>
+        </section>
+
+        <section id="detail-sync-card" class="card mb-6 collapsible-card" data-section="Sync">
+          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-sync-body">
+            <span class="collapsible-card-title">Sync &amp; download</span>
+            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div id="detail-sync-body" class="collapsible-card-body">
+          <div class="card-section pt-0">
+            <p class="m-0 mb-5 text-sm text-rm-muted">
+              <strong>Sync</strong> runs <code class="bg-rm-bg px-1 rounded text-xs font-mono">git fetch</code> so your local refs and tags match the remote. Download buttons fetch GitHub Release assets for your platform.
+            </p>
+            <div class="flex flex-wrap gap-3">
+              <button type="button" id="btn-sync" class="btn-secondary" title="Run git fetch in this project">Sync</button>
+              <button type="button" id="btn-download-latest" class="btn-secondary">Download latest</button>
+              <button type="button" id="btn-choose-version" class="btn-secondary">Choose version…</button>
+              <a id="link-releases" href="#" class="btn-secondary inline-flex items-center gap-2 no-underline cursor-pointer hidden" target="_blank" rel="noopener">
+                Open Releases
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+              </a>
+            </div>
+            <p id="sync-download-status" class="mt-4 text-sm text-rm-muted hidden"></p>
+          </div>
+          </div>
+        </section>
+
+        <div id="detail-error" class="mt-6 p-5 rounded-rm bg-rm-warning/10 border border-rm-warning/30 text-sm text-rm-text hidden"></div>
+        </div>
+      </div>
+    </section>
+
+    <div id="modal-pick-release" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Choose release to download</h3>
+          <button type="button" id="modal-pick-release-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+        <div class="modal-body">
+          <p id="modal-pick-release-status" class="modal-status"></p>
+          <ul id="modal-pick-release-list" class="modal-list list-none m-0 p-0"></ul>
+        </div>
+      </div>
+    </div>
+    <div id="modal-pick-asset" class="modal-backdrop hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 class="modal-title">Choose asset</h3>
+          <button type="button" id="modal-pick-asset-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+        <ul id="modal-pick-asset-list" class="modal-list modal-body list-none m-0 flex-1 overflow-auto"></ul>
+      </div>
+    </div>
+  </main>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
