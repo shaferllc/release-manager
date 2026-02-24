@@ -37,5 +37,10 @@ describe('theme', () => {
       expect(getEffectiveTheme('system', true)).toBe('dark');
       expect(getEffectiveTheme('system', false)).toBe('light');
     });
+
+    it('returns setting as-is when not dark/light/system', () => {
+      expect(getEffectiveTheme('auto', true)).toBe('auto');
+      expect(getEffectiveTheme('', false)).toBe('');
+    });
   });
 });

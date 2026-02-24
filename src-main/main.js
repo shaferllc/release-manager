@@ -11,7 +11,20 @@ const { THEME_VALUES, getEffectiveTheme: getEffectiveThemeFromSetting } = requir
 const { isValidBump, isPrereleaseBump, formatTag, PRERELEASE_PREID } = require('./lib/version');
 const { runInDir: runInDirLib } = require('./lib/runInDir');
 const { parseOldConfig } = require('./lib/migration');
-const { parsePackageInfo } = require('./lib/packageJson');
+const { getProjectNameVersionAndType } = require('./lib/projectDetection');
+const { getReleasePlan } = require('./lib/releaseStrategy');
+const { getRecentCommits: getRecentCommitsLib } = require('./lib/gitLog');
+const { suggestBumpFromCommits } = require('./lib/conventionalCommits');
+const { getShortcutAction } = require('./lib/shortcuts');
+const {
+  generate: ollamaGenerate,
+  listModels: ollamaListModels,
+  buildCommitMessagePrompt,
+  buildReleaseNotesPrompt,
+  DEFAULT_BASE_URL,
+  DEFAULT_MODEL,
+} = require('./lib/ollama');
+const { getGitDiffForCommit: getGitDiffForCommitLib } = require('./lib/gitDiff');
 
 // Use same app name in dev and prod so userData is shared (dev no longer uses "Electron")
 const pkg = require(path.join(__dirname, '..', 'package.json'));
@@ -58,16 +71,9 @@ function runInDir(dirPath, command, args, options = {}) {
 }
 
 async function getProjectInfoAsync(dirPath) {
-  const pkgPath = path.join(dirPath, 'package.json');
-  let content;
-  try {
-    content = fs.readFileSync(pkgPath, 'utf8');
-  } catch {
-    return { ok: false, error: 'No package.json or invalid JSON', path: dirPath };
-  }
-  const parsed = parsePackageInfo(content, dirPath, path);
-  if (!parsed.ok) return parsed;
-  const { name, version } = parsed;
+  const resolved = getProjectNameVersionAndType(dirPath, path, fs);
+  if (!resolved.ok) return { ok: false, error: resolved.error, path: resolved.path };
+  const { name, version, projectType } = resolved;
   let latestTag = null;
   let gitRemote = null;
   const gitDir = path.join(dirPath, '.git');
@@ -78,6 +84,7 @@ async function getProjectInfoAsync(dirPath) {
   let behind = null;
   let uncommittedLines = [];
   let allTags = [];
+  let commitsSinceLatestTag = null;
 
   if (hasGit) {
     try {
@@ -90,6 +97,13 @@ async function getProjectInfoAsync(dirPath) {
       const tags = (tagOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
       latestTag = tags[0] || null;
       allTags = tags.slice(0, 100);
+      if (latestTag) {
+        try {
+          const countOut = await runInDir(dirPath, 'git', ['rev-list', '--count', `${latestTag}..HEAD`]).catch(() => ({ stdout: '' }));
+          const count = parseInt((countOut.stdout || '').trim(), 10);
+          commitsSinceLatestTag = Number.isFinite(count) ? count : null;
+        } catch (_) {}
+      }
       if (remoteName) {
         const urlOut = await runInDir(dirPath, 'git', ['remote', 'get-url', remoteName]).catch(() => ({ stdout: '' }));
         gitRemote = (urlOut.stdout || '').trim() || null;
@@ -112,7 +126,9 @@ async function getProjectInfoAsync(dirPath) {
     path: dirPath,
     name,
     version,
+    projectType,
     latestTag,
+    commitsSinceLatestTag,
     allTags,
     gitRemote,
     hasGit,
@@ -141,10 +157,13 @@ async function getPushRemote(dirPath) {
   }
 }
 
-async function runVersionBump(dirPath, bump) {
+async function runVersionBump(dirPath, bump, projectType = 'npm') {
   const validBump = isValidBump(bump) || isPrereleaseBump(bump);
   if (!validBump) {
     return { ok: false, error: 'Invalid bump type' };
+  }
+  if (projectType !== 'npm') {
+    return { ok: false, error: 'Version bump from app is only supported for npm. For Rust/Go/Python, update the version in your manifest and use "Tag and push".' };
   }
   try {
     if (isPrereleaseBump(bump)) {
@@ -160,20 +179,27 @@ async function runVersionBump(dirPath, bump) {
   }
 }
 
-async function gitTagAndPush(dirPath, tagMessage) {
+async function gitTagAndPush(dirPath, tagMessage, options = {}) {
+  const versionOverride = options.version;
   try {
-    const pkgPath = path.join(dirPath, 'package.json');
-    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-    const version = pkg.version;
+    let version;
+    if (versionOverride != null && typeof versionOverride === 'string') {
+      version = versionOverride;
+    } else {
+      const pkgPath = path.join(dirPath, 'package.json');
+      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      version = pkg.version;
+    }
     const tag = formatTag(version);
     if (!tag) throw new Error('Invalid version');
-    await runInDir(dirPath, 'git', ['add', 'package.json']);
-    if (fs.existsSync(path.join(dirPath, 'package-lock.json'))) {
-      await runInDir(dirPath, 'git', ['add', 'package-lock.json']);
+    if (versionOverride == null) {
+      await runInDir(dirPath, 'git', ['add', 'package.json']);
+      if (fs.existsSync(path.join(dirPath, 'package-lock.json'))) {
+        await runInDir(dirPath, 'git', ['add', 'package-lock.json']);
+      }
+      await runInDir(dirPath, 'git', ['commit', '-m', tagMessage || `chore: release ${tag}`]);
     }
-    await runInDir(dirPath, 'git', ['commit', '-m', tagMessage || `chore: release ${tag}`]);
     await runInDir(dirPath, 'git', ['tag', tag]);
-    // Use same push as terminal: branch upstream + --follow-tags (no remote name needed)
     await runInDir(dirPath, 'git', ['push', '--follow-tags']);
     return { ok: true, tag };
   } catch (e) {
@@ -236,6 +262,14 @@ async function getCommitsSinceTag(dirPath, sinceTag) {
   } catch (e) {
     return { ok: false, error: e.message || 'git log failed', commits: [] };
   }
+}
+
+async function getRecentCommits(dirPath, n = 10) {
+  return getRecentCommitsLib(runInDir, dirPath, n);
+}
+
+async function getGitDiffForCommit(dirPath) {
+  return getGitDiffForCommitLib(runInDir, dirPath);
 }
 
 const GITHUB_API_USER_AGENT = 'Release-Manager-Electron/1.0';
@@ -327,14 +361,23 @@ function createWindow() {
   });
 }
 
-if (process.env.NODE_ENV === 'development' || !app.isPackaged) {
+// Only enable file watcher + hard reset when explicitly in dev (npm run dev).
+// Enabling reload for all unpackaged runs (npm start) can cause SIGABRT on macOS when the watcher restarts the process.
+const devReloadEnabled =
+  process.env.NODE_ENV === 'development' &&
+  process.env.DISABLE_ELECTRON_RELOAD !== '1';
+if (devReloadEnabled) {
   try {
     const electronReload = require('electron-reload');
-    electronReload(path.join(__dirname, '..', 'src-renderer'), {
-      electron: require('electron'),
-      hardResetMethod: 'exit',
-      ignoreSubdirectories: true,
-    });
+    const root = path.join(__dirname, '..');
+    const electronPath = path.join(root, 'node_modules', 'electron', 'cli.js');
+    if (fs.existsSync(electronPath)) {
+      electronReload([path.join(root, 'src-main'), path.join(root, 'src-renderer')], {
+        electron: electronPath,
+        hardResetMethod: 'exit',
+        forceHardReset: true,
+      });
+    }
   } catch (_) {}
 }
 
@@ -387,14 +430,28 @@ app.whenReady().then(() => {
         return { ok: false, dirty: true, error: 'Uncommitted changes. Commit or stash before releasing.' };
       }
     }
-    const bumpResult = await runVersionBump(dirPath, bump);
-    if (!bumpResult.ok) return bumpResult;
-    const pushResult = await gitTagAndPush(dirPath, `chore: release v${bumpResult.version}`);
-    if (!pushResult.ok) return pushResult;
-    const tag = pushResult.tag;
-    const token = getStore().get('githubToken') || options.githubToken;
     const info = await getProjectInfoAsync(dirPath);
-    const gitRemote = info.ok && info.gitRemote ? info.gitRemote : null;
+    if (!info.ok) return { ok: false, error: info.error };
+    const projectType = info.projectType || 'npm';
+    const plan = getReleasePlan(projectType, info.version);
+    if (plan.action === 'error') return { ok: false, error: plan.error };
+    let version;
+    let tag;
+    if (plan.action === 'bump_and_tag') {
+      const bumpResult = await runVersionBump(dirPath, bump, projectType);
+      if (!bumpResult.ok) return bumpResult;
+      version = bumpResult.version;
+      const pushResult = await gitTagAndPush(dirPath, `chore: release v${version}`);
+      if (!pushResult.ok) return pushResult;
+      tag = pushResult.tag;
+    } else {
+      tag = formatTag(plan.versionForTag);
+      const pushResult = await gitTagAndPush(dirPath, `chore: release ${tag}`, { version: plan.versionForTag });
+      if (!pushResult.ok) return pushResult;
+      version = plan.versionForTag;
+    }
+    const token = getStore().get('githubToken') || options.githubToken;
+    const gitRemote = info.gitRemote || null;
     const slug = gitRemote ? getRepoSlug(gitRemote) : null;
     const actionsUrl = gitRemote ? getActionsUrl(gitRemote) : null;
     if (token && slug) {
@@ -409,17 +466,54 @@ app.whenReady().then(() => {
           token
         );
       } catch (e) {
-        return { ok: true, tag, version: bumpResult.version, actionsUrl, releaseError: e.message };
+        return { ok: true, tag, version, actionsUrl, releaseError: e.message };
       }
     }
-    return { ok: true, tag, version: bumpResult.version, actionsUrl };
+    return { ok: true, tag, version, actionsUrl };
   });
   ipcMain.handle('rm-get-commits-since-tag', (_e, dirPath, sinceTag) => getCommitsSinceTag(dirPath, sinceTag));
+  ipcMain.handle('rm-get-recent-commits', (_e, dirPath, n) => getRecentCommits(dirPath, n));
+  ipcMain.handle('rm-get-suggested-bump', (_e, commits) => suggestBumpFromCommits(commits));
+  ipcMain.handle('rm-get-shortcut-action', (_e, viewMode, selectedPath, key, metaKey, ctrlKey, inInput) =>
+    getShortcutAction(viewMode, selectedPath, key, metaKey, ctrlKey, inInput)
+  );
   ipcMain.handle('rm-get-actions-url', (_e, gitRemote) => getActionsUrl(gitRemote) || null);
   ipcMain.handle('rm-get-github-token', () => getStore().get('githubToken') || '');
   ipcMain.handle('rm-set-github-token', (_e, token) => {
     getStore().set('githubToken', typeof token === 'string' ? token : '');
     return null;
+  });
+  ipcMain.handle('rm-get-ollama-settings', () => ({
+    baseUrl: getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL,
+    model: getStore().get('ollamaModel') || DEFAULT_MODEL,
+  }));
+  ipcMain.handle('rm-set-ollama-settings', (_e, baseUrl, model) => {
+    getStore().set('ollamaBaseUrl', typeof baseUrl === 'string' ? baseUrl : DEFAULT_BASE_URL);
+    getStore().set('ollamaModel', typeof model === 'string' ? model : DEFAULT_MODEL);
+    return null;
+  });
+  ipcMain.handle('rm-ollama-list-models', async (_e, baseUrl) => {
+    const url = typeof baseUrl === 'string' && baseUrl.trim() ? baseUrl.trim() : getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
+    return ollamaListModels(url, undefined, { onlyGenerate: true });
+  });
+  ipcMain.handle('rm-ollama-generate-commit-message', async (_e, dirPath) => {
+    const { baseUrl, model } = getStore().get('ollamaBaseUrl') != null
+      ? { baseUrl: getStore().get('ollamaBaseUrl'), model: getStore().get('ollamaModel') }
+      : { baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
+    const diff = await getGitDiffForCommit(dirPath);
+    const prompt = buildCommitMessagePrompt(diff);
+    const result = await ollamaGenerate(baseUrl, model, prompt);
+    return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
+  });
+  ipcMain.handle('rm-ollama-generate-release-notes', async (_e, dirPath, sinceTag) => {
+    const { baseUrl, model } = getStore().get('ollamaBaseUrl') != null
+      ? { baseUrl: getStore().get('ollamaBaseUrl'), model: getStore().get('ollamaModel') }
+      : { baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
+    const commitsResult = await getCommitsSinceTag(dirPath, sinceTag || null);
+    const commits = commitsResult.ok && commitsResult.commits ? commitsResult.commits : [];
+    const prompt = buildReleaseNotesPrompt(commits);
+    const result = await ollamaGenerate(baseUrl, model, prompt);
+    return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
   });
   ipcMain.handle('rm-get-git-status', (_e, dirPath) => getGitStatus(dirPath));
   ipcMain.handle('rm-commit-changes', (_e, dirPath, message) => gitCommit(dirPath, message));
@@ -430,6 +524,43 @@ app.whenReady().then(() => {
   ipcMain.handle('rm-open-path-in-finder', (_e, dirPath) => {
     if (dirPath != null && typeof dirPath === 'string') return shell.openPath(dirPath);
     return Promise.resolve('');
+  });
+  ipcMain.handle('rm-open-in-terminal', (_e, dirPath) => {
+    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
+    const platform = process.platform;
+    const { spawn: spawnProc } = require('child_process');
+    try {
+      if (platform === 'darwin') {
+        const escaped = dirPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const script = `tell application "Terminal" to do script "cd \\"${escaped}\\""`;
+        spawnProc('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
+      } else if (platform === 'win32') {
+        spawnProc('cmd.exe', ['/c', 'start', 'cmd', '/k', 'cd', '/d', dirPath], { detached: true, stdio: 'ignore' });
+      } else {
+        spawnProc('x-terminal-emulator', ['-e', `cd "${dirPath}" && exec $SHELL`], { detached: true, stdio: 'ignore' }).on('error', () => {
+          spawnProc('gnome-terminal', ['--working-directory', dirPath], { detached: true, stdio: 'ignore' });
+        });
+      }
+      return Promise.resolve({ ok: true });
+    } catch (e) {
+      return Promise.resolve({ ok: false, error: e.message });
+    }
+  });
+  ipcMain.handle('rm-open-in-editor', (_e, dirPath) => {
+    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
+    const { spawn: spawnProc } = require('child_process');
+    const tryEditor = (cmd, args) =>
+      new Promise((resolve) => {
+        const child = spawnProc(cmd, args || [dirPath], { detached: true, stdio: 'ignore', shell: true });
+        child.on('error', () => resolve(false));
+        child.unref();
+        setTimeout(() => resolve(true), 500);
+      });
+    return (async () => {
+      if (await tryEditor('cursor', [dirPath])) return { ok: true, editor: 'cursor' };
+      if (await tryEditor('code', [dirPath])) return { ok: true, editor: 'code' };
+      return { ok: false, error: 'Cursor or VS Code not found in PATH. Install one and ensure the shell command is available.' };
+    })();
   });
   ipcMain.handle('rm-get-releases-url', (_e, gitRemote) => getReleasesUrl(gitRemote));
   ipcMain.handle('rm-sync-from-remote', (_e, dirPath) => gitFetch(dirPath));

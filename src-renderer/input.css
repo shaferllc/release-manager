@@ -92,10 +92,13 @@ html[data-theme="light"] {
     transform: rotate(-90deg);
   }
   .collapsible-card .collapsible-card-body {
-    @apply border-t border-rm-border;
+    @apply border-t border-rm-border pt-1;
   }
   .collapsible-card.is-collapsed .collapsible-card-body {
     display: none;
+  }
+  .collapsible-card .collapsible-card-body > .card-section.pt-0 {
+    @apply pt-5;
   }
   .card-sm {
     @apply p-5;

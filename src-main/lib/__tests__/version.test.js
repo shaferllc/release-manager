@@ -32,6 +32,7 @@ describe('version', () => {
       expect(isPrereleaseBump('patch')).toBe(false);
       expect(isPrereleaseBump('minor')).toBe(false);
       expect(isPrereleaseBump('')).toBe(false);
+      expect(isPrereleaseBump(undefined)).toBe(false);
     });
   });
 
@@ -55,6 +56,16 @@ describe('version', () => {
       expect(formatTag('')).toBe(null);
       expect(formatTag(null)).toBe(null);
       expect(formatTag(undefined)).toBe(null);
+      expect(formatTag(123)).toBe(null);
+    });
+
+    it('handles single digit or short version', () => {
+      expect(formatTag('1')).toBe('v1');
+      expect(formatTag('1.0')).toBe('v1.0');
+    });
+
+    it('does not trim whitespace', () => {
+      expect(formatTag('  1.0.0')).toBe('v  1.0.0');
     });
   });
 });

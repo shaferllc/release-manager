@@ -25,6 +25,7 @@ describe('github', () => {
 
     it('returns null for invalid input', () => {
       expect(getReleasesUrl(123)).toBeNull();
+      expect(getReleasesUrl(undefined)).toBeNull();
     });
   });
 
@@ -37,6 +38,8 @@ describe('github', () => {
     it('returns null for non-GitHub remote', () => {
       expect(getActionsUrl('https://gitlab.com/a/b')).toBeNull();
       expect(getActionsUrl('')).toBeNull();
+      expect(getActionsUrl(null)).toBeNull();
+      expect(getActionsUrl(undefined)).toBeNull();
     });
   });
 
@@ -63,6 +66,8 @@ describe('github', () => {
       expect(getRepoSlug('https://gitlab.com/a/b')).toBeNull();
       expect(getRepoSlug('')).toBeNull();
       expect(getRepoSlug(null)).toBeNull();
+      expect(getRepoSlug(undefined)).toBeNull();
+      expect(getRepoSlug(123)).toBeNull();
     });
   });
 
@@ -109,6 +114,15 @@ describe('github', () => {
     it('returns null for empty or invalid assets', () => {
       expect(pickAssetForPlatform([], 'darwin')).toBeNull();
       expect(pickAssetForPlatform(null, 'darwin')).toBeNull();
+      expect(pickAssetForPlatform(undefined, 'darwin')).toBeNull();
+    });
+
+    it('skips assets with falsy or missing name', () => {
+      const assets = [
+        { name: '', browser_download_url: 'x' },
+        { name: 'real.dmg', browser_download_url: 'y' },
+      ];
+      expect(pickAssetForPlatform(assets, 'darwin').name).toBe('real.dmg');
     });
 
     it('matches extension case-insensitively', () => {

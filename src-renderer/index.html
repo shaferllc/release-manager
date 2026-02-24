@@ -37,6 +37,10 @@
       <div class="aside-header">
         <button type="button" id="btn-view-dashboard" class="aside-tab">Dashboard</button>
         <span class="aside-tab-sep">·</span>
+        <button type="button" id="btn-view-settings" class="aside-tab">Settings</button>
+        <span class="aside-tab-sep">·</span>
+        <button type="button" id="btn-view-docs" class="aside-tab">Documentation</button>
+        <span class="aside-tab-sep">·</span>
         <span class="aside-title">Projects</span>
       </div>
       <div id="batch-release-bar" class="batch-bar hidden">
@@ -52,7 +56,7 @@
         <!-- populated by renderer.js -->
       </ul>
       <p id="empty-projects-hint" class="p-4 text-sm text-rm-muted hidden">
-        Click “Add project” to add a folder that contains a <code class="bg-rm-surface px-1 rounded text-xs">package.json</code>.
+        Click “Add project” to add a folder (npm, Rust, Go, or Python: <code class="bg-rm-surface px-1 rounded text-xs">package.json</code>, <code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code>, <code class="bg-rm-surface px-1 rounded text-xs">go.mod</code>, or <code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code>).
       </p>
     </aside>
 
@@ -84,6 +88,7 @@
                 <th>Name</th>
                 <th>Version</th>
                 <th>Latest tag</th>
+                <th>Unreleased</th>
                 <th>Branch</th>
                 <th>Ahead / behind</th>
               </tr>
@@ -100,6 +105,124 @@
         </div>
       </div>
 
+      <div id="settings-view" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
+        <div class="max-w-2xl mx-auto w-full py-8 px-8">
+          <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Settings</h2>
+          <section class="card mb-6">
+            <div class="card-section">
+              <span class="card-label">GitHub token (default)</span>
+              <p class="m-0 mb-4 text-sm text-rm-muted">
+                Optional. Higher API limits, access to private repos, and ability to create or update releases (and drafts). Stored locally and used as the default for all projects. Override per project in the project’s Version &amp; release section if needed.
+              </p>
+              <input type="password" id="settings-github-token" class="input-field" placeholder="ghp_..." autocomplete="off" />
+            </div>
+          </section>
+          <section class="card mb-6">
+            <div class="card-section">
+              <span class="card-label">Ollama (optional)</span>
+              <p class="m-0 mb-4 text-sm text-rm-muted">
+                Use a local Ollama model to generate commit messages and release notes. Start Ollama in a terminal: <code class="bg-rm-surface px-1 rounded text-xs">ollama serve</code>. Pull a model: <code class="bg-rm-surface px-1 rounded text-xs">ollama pull llama3.2</code>. Then set base URL and model below; use <strong>Generate</strong> next to the commit message or <strong>Generate with Ollama</strong> next to release notes in the project view.
+              </p>
+              <label class="block text-xs font-medium text-rm-muted mb-1">Base URL</label>
+              <input type="text" id="settings-ollama-base-url" class="input-field mb-4" placeholder="http://localhost:11434" autocomplete="off" />
+              <div class="flex items-center gap-2 mb-1">
+                <label class="text-xs font-medium text-rm-muted">Model</label>
+                <button type="button" id="settings-ollama-list-models" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer">List models</button>
+              </div>
+              <input type="text" id="settings-ollama-model" class="input-field" placeholder="llama3.2" autocomplete="off" />
+              <p id="settings-ollama-models-status" class="text-xs text-rm-muted mt-1 hidden"></p>
+              <div id="settings-ollama-models-list" class="flex flex-wrap gap-1.5 mt-1.5 hidden"></div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+      <div id="docs-view" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
+        <div class="docs-content max-w-2xl mx-auto w-full py-8 px-8 text-sm text-rm-text">
+          <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Documentation</h2>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Overview</h3>
+            <p class="m-0 mb-3 text-rm-muted">Release Manager helps you version, tag, and release multiple projects from one place. It supports <strong>npm</strong>, <strong>Rust</strong> (Cargo.toml), <strong>Go</strong> (go.mod), and <strong>Python</strong> (pyproject.toml / setup.py). Add project folders, see version and git status, then bump and push or tag-and-push.</p>
+          </section>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Adding projects</h3>
+            <p class="m-0 mb-2 text-rm-muted">Click <strong>Add project</strong> in the nav and choose a folder that contains one of:</p>
+            <ul class="m-0 mb-3 pl-5 text-rm-muted list-disc space-y-1">
+              <li><code class="bg-rm-surface px-1 rounded text-xs">package.json</code> (npm/Node)</li>
+              <li><code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code> (Rust)</li>
+              <li><code class="bg-rm-surface px-1 rounded text-xs">go.mod</code> (Go)</li>
+              <li><code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code> or <code class="bg-rm-surface px-1 rounded text-xs">setup.py</code> (Python)</li>
+            </ul>
+            <p class="m-0 text-rm-muted">The app detects the type and shows name and version. Projects are stored in app data; use <strong>Remove</strong> on a project to drop it from the list.</p>
+          </section>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Project detail</h3>
+            <p class="m-0 mb-3 text-rm-muted">Select a project to see its detail. Sections are collapsible (click the header to expand/collapse).</p>
+            <ul class="m-0 mb-3 pl-5 text-rm-muted list-disc space-y-1">
+              <li><strong>Git</strong> — Branch, ahead/behind, uncommitted files. If there are changes, you can enter a commit message and <strong>Commit</strong> from the app.</li>
+              <li><strong>Version &amp; release</strong> — Current version and latest tag; list of released versions (with links and <strong>Download</strong> per version for GitHub repos). For <strong>npm</strong>: Patch / Minor / Major / Pre-release bump then tag and push. For <strong>Rust, Go, Python</strong>: <strong>Tag and push</strong> uses the current version in the manifest (no bump; update the version in the file first if needed). Release notes, draft, and pre-release options use your GitHub token when set. The app shows <strong>recent commits</strong> and an optional <strong>suggested bump</strong> from conventional commits (<code class="bg-rm-surface px-1 rounded text-xs">feat:</code> → minor, <code class="bg-rm-surface px-1 rounded text-xs">fix:</code> → patch, breaking change → major); you choose the bump.</li>
+              <li><strong>Sync &amp; download</strong> — <strong>Sync</strong> runs <code class="bg-rm-surface px-1 rounded text-xs">git fetch</code>. <strong>Download latest</strong> / <strong>Choose version…</strong> fetch GitHub Release assets for your platform.</li>
+            </ul>
+            <p class="m-0 mb-2 text-rm-muted">Header actions:</p>
+            <ul class="m-0 mb-3 pl-5 text-rm-muted list-disc space-y-1">
+              <li><strong>Open in Terminal</strong> — Opens the system terminal with the project folder as the working directory.</li>
+              <li><strong>Open in editor</strong> — Opens the project in Cursor or VS Code (whichever is on your PATH).</li>
+              <li><strong>Open in Finder</strong> — Reveals the project folder in the file manager.</li>
+              <li><strong>Copy path</strong> — Copies the project path to the clipboard. <strong>Remove</strong> — Removes the project from the list.</li>
+            </ul>
+            <p class="m-0 mt-3 text-rm-muted"><strong>Keyboard shortcuts</strong> (when a project is selected): <kbd class="px-1 rounded bg-rm-surface text-xs">⌘1</kbd> Patch, <kbd class="px-1 rounded bg-rm-surface text-xs">⌘2</kbd> Minor, <kbd class="px-1 rounded bg-rm-surface text-xs">⌘3</kbd> Major, <kbd class="px-1 rounded bg-rm-surface text-xs">⌘S</kbd> Sync, <kbd class="px-1 rounded bg-rm-surface text-xs">⌘D</kbd> Download latest (Windows/Linux: use <kbd class="px-1 rounded bg-rm-surface text-xs">Ctrl</kbd> instead of <kbd class="px-1 rounded bg-rm-surface text-xs">⌘</kbd>).</p>
+          </section>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Dashboard</h3>
+            <p class="m-0 mb-2 text-rm-muted">Click <strong>Dashboard</strong> in the sidebar to see a table of all projects: name, version, latest tag, branch, ahead/behind. Use <strong>Filter</strong> (All / Needs release) and <strong>Sort</strong> (Name / Needs release first). Click a row to open that project’s detail.</p>
+          </section>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Batch release</h3>
+            <p class="m-0 mb-2 text-rm-muted">Select two or more projects with the checkboxes in the sidebar. A batch bar appears with <strong>Patch</strong>, <strong>Minor</strong>, and <strong>Major</strong>. Click one to run that bump and release for all selected projects in sequence (with confirmation). Only <strong>npm</strong> projects are bumped; non-npm projects would need to be released individually with <strong>Tag and push</strong>.</p>
+          </section>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Settings</h3>
+            <p class="m-0 mb-2 text-rm-muted">Click <strong>Settings</strong> to set a <strong>GitHub token</strong> (optional) and <strong>Ollama</strong> (optional). The token gives higher API limits, access to private repos, and the ability to create or update GitHub releases (and drafts) from the app. See <strong>Generate with Ollama</strong> below for using a local model to generate commit messages and release notes.</p>
+          </section>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Generate with Ollama</h3>
+            <p class="m-0 mb-2 text-rm-muted">You can use a local <strong>Ollama</strong> model to generate commit messages and release notes.</p>
+            <p class="m-0 mb-2 text-rm-muted"><strong>1. Install and start Ollama</strong></p>
+            <ul class="m-0 mb-3 pl-5 text-rm-muted list-disc space-y-1">
+              <li>Install from <a href="https://ollama.com" class="text-rm-accent hover:underline" target="_blank" rel="noopener">ollama.com</a>.</li>
+              <li>In a terminal, start the server: <code class="bg-rm-surface px-1 rounded text-xs">ollama serve</code> (often runs in the background after install). If you see <strong>address already in use</strong>, Ollama is already running—use Generate without starting it again.</li>
+              <li>Pull a model, e.g. <code class="bg-rm-surface px-1 rounded text-xs">ollama pull llama3.2</code>.</li>
+            </ul>
+            <p class="m-0 mb-2 text-rm-muted"><strong>2. Set base URL and model in Settings</strong></p>
+            <p class="m-0 mb-3 text-rm-muted">In <strong>Settings</strong>, set <strong>Ollama</strong> Base URL to <code class="bg-rm-surface px-1 rounded text-xs">http://localhost:11434</code> and Model to the name you pulled (e.g. <code class="bg-rm-surface px-1 rounded text-xs">llama3.2</code>).</p>
+            <p class="m-0 mb-2 text-rm-muted"><strong>3. Generate in the project view</strong></p>
+            <p class="m-0 text-rm-muted">With a project selected, use <strong>Generate</strong> next to the commit message (Git section) to get a suggested conventional commit line, or <strong>Generate with Ollama</strong> next to release notes to get suggested notes from recent commits. Edit the result if needed.</p>
+          </section>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Package managers</h3>
+            <ul class="m-0 mb-2 pl-5 text-rm-muted list-disc space-y-1">
+              <li><strong>npm</strong> — Version from <code class="bg-rm-surface px-1 rounded text-xs">package.json</code>. Release = bump (patch/minor/major) then commit, tag, push.</li>
+              <li><strong>Rust</strong> — Version and name from <code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code>. Release = tag and push current version (update version in Cargo.toml manually first if needed).</li>
+              <li><strong>Go</strong> — Name from <code class="bg-rm-surface px-1 rounded text-xs">go.mod</code> module path; no version in go.mod. Use <strong>Tag and push</strong> only if you’ve set a version elsewhere; otherwise create tags manually.</li>
+              <li><strong>Python</strong> — Version and name from <code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code> or <code class="bg-rm-surface px-1 rounded text-xs">setup.py</code>. Release = tag and push current version.</li>
+            </ul>
+          </section>
+
+          <section class="mb-8">
+            <h3 class="text-base font-semibold text-rm-text mb-2">Theme</h3>
+            <p class="m-0 text-rm-muted">Use the <strong>Dark</strong> / <strong>Light</strong> toggle in the nav bar. The choice is saved and applied on next launch.</p>
+          </section>
+        </div>
+      </div>
+
       <div id="project-detail" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
         <div class="detail-content max-w-2xl mx-auto w-full py-8 px-8">
         <header class="detail-header mb-8">
@@ -109,6 +232,12 @@
               <p id="detail-path" class="m-0 mt-1.5 text-sm text-rm-muted font-mono truncate"></p>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" id="btn-open-in-terminal" class="icon-btn" title="Open in Terminal" aria-label="Open in Terminal">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg>
+              </button>
+              <button type="button" id="btn-open-in-editor" class="icon-btn" title="Open in Cursor / VS Code" aria-label="Open in editor">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+              </button>
               <button type="button" id="btn-open-in-finder" class="icon-btn" title="Open in Finder" aria-label="Open in Finder">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
               </button>
@@ -128,18 +257,19 @@
           </button>
           <div id="detail-git-body" class="collapsible-card-body">
           <div class="card-section pt-0">
-            <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
               <span id="detail-branch" class="text-rm-muted">Branch: —</span>
               <span id="detail-ahead-behind" class="text-rm-muted"></span>
             </div>
           </div>
-          <div id="detail-uncommitted-wrap" class="card-section border-t border-rm-border pt-4 mt-0">
+          <div id="detail-uncommitted-wrap" class="card-section border-t border-rm-border pt-5 mt-0">
             <p id="detail-uncommitted-label" class="m-0 text-xs font-medium text-rm-muted">Working tree clean</p>
-            <ul id="detail-uncommitted-list" class="m-0 mt-2 pl-4 text-xs text-rm-muted max-h-28 overflow-y-auto list-disc space-y-0.5"></ul>
-            <div id="detail-commit-wrap" class="hidden mt-4 pt-4 border-t border-rm-border">
+            <ul id="detail-uncommitted-list" class="m-0 mt-2.5 pl-4 text-xs text-rm-muted max-h-28 overflow-y-auto list-disc space-y-1"></ul>
+            <div id="detail-commit-wrap" class="hidden mt-5 pt-5 border-t border-rm-border">
               <label class="block text-xs font-medium text-rm-text mb-2">Commit changes</label>
-              <div class="flex gap-3">
-                <input type="text" id="detail-commit-message" class="input-field flex-1 text-sm" placeholder="Commit message" />
+              <div class="flex gap-3 flex-wrap">
+                <textarea id="detail-commit-message" class="input-field flex-1 text-sm min-w-0 resize-y min-h-[2.5rem]" rows="2" placeholder="Commit message"></textarea>
+                <button type="button" id="btn-ollama-commit" class="btn-secondary btn-compact shrink-0" title="Generate with Ollama">Generate</button>
                 <button type="button" id="btn-commit" class="btn-primary btn-compact shrink-0">Commit</button>
               </div>
               <p id="detail-commit-status" class="m-0 mt-2 text-xs text-rm-muted hidden"></p>
@@ -154,16 +284,17 @@
             <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
           </button>
           <div id="detail-version-body" class="collapsible-card-body">
-          <div class="card-section flex flex-wrap items-center gap-x-4 gap-y-2 pt-0">
-            <div class="flex items-center gap-2">
-              <span class="card-label text-rm-muted">Version</span>
+          <div class="card-section flex flex-wrap items-center gap-x-5 gap-y-3 pt-0">
+            <div class="flex items-center gap-2.5">
+              <span class="card-label text-rm-muted mb-0">Version</span>
               <span id="detail-version" class="text-xl font-mono font-semibold text-rm-accent">—</span>
+              <span id="detail-project-type" class="text-xs font-medium text-rm-muted hidden"></span>
               <button type="button" id="btn-copy-version" class="icon-btn icon-btn-sm" title="Copy version" aria-label="Copy version">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               </button>
               <span id="copy-version-feedback" class="copy-feedback hidden">Copied!</span>
             </div>
-            <div class="flex items-center gap-2 text-sm">
+            <div class="flex items-center gap-2.5 text-sm">
               <span class="text-rm-muted">Latest tag</span>
               <span id="detail-tag" class="font-mono text-rm-text">—</span>
               <button type="button" id="btn-copy-tag" class="icon-btn icon-btn-sm" title="Copy tag" aria-label="Copy tag">
@@ -171,24 +302,34 @@
               </button>
               <span id="copy-tag-feedback" class="copy-feedback hidden">Copied!</span>
             </div>
+            <p id="detail-unreleased-commits" class="text-xs text-rm-muted hidden m-0"></p>
           </div>
 
           <div id="detail-all-versions-wrap" class="card-section border-t border-rm-border hidden">
             <span class="card-label">Released versions</span>
-            <ul id="detail-all-versions" class="m-0 pl-4 text-sm text-rm-muted max-h-40 overflow-y-auto list-disc space-y-0.5"></ul>
-            <p id="detail-all-versions-empty" class="m-0 mt-1 text-xs text-rm-muted hidden">No tags yet.</p>
+            <ul id="detail-all-versions" class="m-0 mt-2 pl-4 text-sm text-rm-muted max-h-40 overflow-y-auto list-disc space-y-1.5"></ul>
+            <p id="detail-all-versions-empty" class="m-0 mt-2 text-xs text-rm-muted hidden">No tags yet.</p>
           </div>
 
           <div class="card-section border-t border-rm-border">
             <span class="card-label">Release</span>
-            <p class="m-0 mb-5 text-sm text-rm-muted">
+            <p id="detail-release-hint" class="m-0 mb-5 text-sm text-rm-muted">
               Bump version, tag <code class="bg-rm-bg px-1.5 py-0.5 rounded text-xs font-mono">vX.Y.Z</code>, push. With a GitHub token you can add notes, draft, or pre-release.
             </p>
 
+            <div id="detail-recent-commits-wrap" class="mb-5 hidden">
+              <span class="card-label text-rm-muted text-xs">Recent commits</span>
+              <ul id="detail-recent-commits" class="m-0 mt-1 pl-4 text-sm text-rm-muted max-h-24 overflow-y-auto list-disc space-y-0.5"></ul>
+              <p id="detail-bump-suggestion" class="m-0 mt-2 text-xs text-rm-muted hidden"></p>
+            </div>
+
             <div class="release-notes-row mb-5">
-              <div class="flex items-center justify-between gap-2 mb-2">
+              <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
                 <label class="text-xs font-medium text-rm-text">Release notes</label>
-                <button type="button" id="btn-load-commits" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer">Load from commits</button>
+                <div class="flex items-center gap-3">
+                  <button type="button" id="btn-load-commits" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer">Load from commits</button>
+                  <button type="button" id="btn-ollama-release-notes" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer">Generate with Ollama</button>
+                </div>
               </div>
               <textarea id="release-notes" class="release-notes-input" rows="3" placeholder="Optional. Used as GitHub release body."></textarea>
             </div>
@@ -204,13 +345,17 @@
               </label>
             </div>
 
-            <div class="flex flex-wrap gap-3">
+            <div id="detail-release-bump-buttons" class="flex flex-wrap gap-3">
               <button type="button" id="btn-release-patch" class="btn-primary" data-bump="patch">Patch</button>
               <button type="button" id="btn-release-minor" class="btn-secondary" data-bump="minor">Minor</button>
               <button type="button" id="btn-release-major" class="btn-secondary" data-bump="major">Major</button>
               <button type="button" id="btn-release-prerelease" class="btn-secondary btn-prerelease" data-bump="prerelease">Pre-release</button>
             </div>
+            <div id="detail-release-tag-only-wrap" class="hidden">
+              <button type="button" id="btn-release-tag-only" class="btn-primary">Tag and push</button>
+            </div>
 
+            <p id="release-shortcuts-hint" class="mt-3 text-xs text-rm-muted">Shortcuts: <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘1</kbd> Patch, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘2</kbd> Minor, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘3</kbd> Major, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘S</kbd> Sync, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘D</kbd> Download</p>
             <p id="release-status" class="mt-4 text-sm text-rm-muted hidden"></p>
             <p id="release-actions-wrap" class="mt-2 hidden">
               <a id="release-actions-link" href="#" class="text-rm-accent hover:underline text-sm" target="_blank" rel="noopener">Check release status →</a>
@@ -218,8 +363,8 @@
           </div>
 
           <div class="card-section card-section-muted border-t border-rm-border">
-            <label class="card-label text-rm-muted mb-3">GitHub token</label>
-            <input type="password" id="github-token" class="input-field" placeholder="Optional. For release body, draft, pre-release." autocomplete="off" />
+            <label class="card-label text-rm-muted mb-3">GitHub token (optional override)</label>
+            <input type="password" id="github-token" class="input-field" placeholder="Leave empty to use token from Settings." autocomplete="off" />
           </div>
           </div>
         </section>
@@ -231,7 +376,7 @@
           </button>
           <div id="detail-sync-body" class="collapsible-card-body">
           <div class="card-section pt-0">
-            <p class="m-0 mb-5 text-sm text-rm-muted">
+            <p class="m-0 mb-6 text-sm text-rm-muted">
               <strong>Sync</strong> runs <code class="bg-rm-bg px-1 rounded text-xs font-mono">git fetch</code> so your local refs and tags match the remote. Download buttons fetch GitHub Release assets for your platform.
             </p>
             <div class="flex flex-wrap gap-3">

@@ -58,6 +58,21 @@ describe('runInDir', () => {
     expect(result.stdout).toBe('hi');
   });
 
+  it('passes options through to spawn', async () => {
+    let capturedOpts;
+    const mockSpawn = (cmd, args, opts) => {
+      capturedOpts = opts;
+      return {
+        stdout: { on: (ev, fn) => { if (ev === 'data') fn(Buffer.from('ok')); } },
+        stderr: { on: () => {} },
+        on: (ev, fn) => { if (ev === 'close') fn(0); },
+      };
+    };
+    await runInDir('/tmp', 'git', ['status'], { env: { FOO: 'bar' } }, mockSpawn);
+    expect(capturedOpts.cwd).toBe('/tmp');
+    expect(capturedOpts.env).toEqual({ FOO: 'bar' });
+  });
+
   it('uses cmd.exe and /c when platform is win32', async () => {
     const originalPlatform = process.platform;
     let capturedCmd;

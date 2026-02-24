@@ -7,6 +7,7 @@ describe('projects', () => {
       expect(filterValidProjects(undefined)).toEqual([]);
       expect(filterValidProjects({})).toEqual([]);
       expect(filterValidProjects('')).toEqual([]);
+      expect(filterValidProjects(123)).toEqual([]);
     });
 
     it('returns only entries with non-empty path string', () => {

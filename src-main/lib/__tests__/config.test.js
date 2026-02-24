@@ -100,6 +100,27 @@ describe('config', () => {
       fs.writeFileSync(configPath, JSON.stringify({ projects: {} }));
       expect(getProjects(getConfigPath, fs)).toEqual([]);
     });
+
+    it('returns empty when projects is undefined', () => {
+      fs.writeFileSync(configPath, JSON.stringify({ theme: 'dark' }));
+      expect(getProjects(getConfigPath, fs)).toEqual([]);
+    });
+
+    it('preserves optional githubToken per project', () => {
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify({
+          projects: [
+            { path: '/a', githubToken: 'ghp_abc' },
+            { path: '/b' },
+          ],
+        })
+      );
+      expect(getProjects(getConfigPath, fs)).toEqual([
+        { path: '/a', githubToken: 'ghp_abc' },
+        { path: '/b' },
+      ]);
+    });
   });
 
   describe('setProjects', () => {
@@ -116,6 +137,16 @@ describe('config', () => {
       const data = JSON.parse(fs.readFileSync(configPath, 'utf8'));
       expect(data.projects).toHaveLength(2);
       expect(data.theme).toBe('dark');
+    });
+
+    it('round-trips projects with optional githubToken', () => {
+      fs.writeFileSync(configPath, JSON.stringify({ projects: [] }));
+      setProjects(
+        getConfigPath,
+        [{ path: '/proj', githubToken: 'ghp_override' }],
+        fs
+      );
+      expect(getProjects(getConfigPath, fs)).toEqual([{ path: '/proj', githubToken: 'ghp_override' }]);
     });
   });
 });

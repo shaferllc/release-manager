@@ -6,6 +6,11 @@ const detailNameEl = document.getElementById('detail-name');
 const detailPathEl = document.getElementById('detail-path');
 const detailVersionEl = document.getElementById('detail-version');
 const detailTagEl = document.getElementById('detail-tag');
+const detailUnreleasedCommitsEl = document.getElementById('detail-unreleased-commits');
+const detailProjectTypeEl = document.getElementById('detail-project-type');
+const detailReleaseHintEl = document.getElementById('detail-release-hint');
+const detailReleaseBumpButtonsEl = document.getElementById('detail-release-bump-buttons');
+const detailReleaseTagOnlyWrapEl = document.getElementById('detail-release-tag-only-wrap');
 const detailAllVersionsWrapEl = document.getElementById('detail-all-versions-wrap');
 const detailAllVersionsEl = document.getElementById('detail-all-versions');
 const detailAllVersionsEmptyEl = document.getElementById('detail-all-versions-empty');
@@ -29,6 +34,9 @@ const releaseActionsWrapEl = document.getElementById('release-actions-wrap');
 const releaseActionsLinkEl = document.getElementById('release-actions-link');
 const githubTokenEl = document.getElementById('github-token');
 const dashboardViewEl = document.getElementById('dashboard-view');
+const settingsViewEl = document.getElementById('settings-view');
+const docsViewEl = document.getElementById('docs-view');
+const settingsGithubTokenEl = document.getElementById('settings-github-token');
 const dashboardFilterEl = document.getElementById('dashboard-filter');
 const dashboardSortEl = document.getElementById('dashboard-sort');
 const dashboardTbodyEl = document.getElementById('dashboard-tbody');
@@ -38,6 +46,9 @@ const modalPickReleaseListEl = document.getElementById('modal-pick-release-list'
 const modalPickReleaseStatusEl = document.getElementById('modal-pick-release-status');
 const modalPickAssetEl = document.getElementById('modal-pick-asset');
 const modalPickAssetListEl = document.getElementById('modal-pick-asset-list');
+const detailRecentCommitsWrapEl = document.getElementById('detail-recent-commits-wrap');
+const detailRecentCommitsEl = document.getElementById('detail-recent-commits');
+const detailBumpSuggestionEl = document.getElementById('detail-bump-suggestion');
 
 let projects = [];
 let selectedPath = null;
@@ -115,6 +126,8 @@ function renderProjectList() {
 function showNoSelection() {
   viewMode = 'detail';
   dashboardViewEl.classList.add('hidden');
+  settingsViewEl?.classList.add('hidden');
+  docsViewEl?.classList.add('hidden');
   noSelectionEl.classList.remove('hidden');
   projectDetailEl.classList.add('hidden');
 }
@@ -122,22 +135,52 @@ function showNoSelection() {
 function showDetail() {
   viewMode = 'detail';
   dashboardViewEl.classList.add('hidden');
+  settingsViewEl?.classList.add('hidden');
+  docsViewEl?.classList.add('hidden');
   noSelectionEl.classList.add('hidden');
   projectDetailEl.classList.remove('hidden');
 }
 
 function showDashboard() {
   viewMode = 'dashboard';
+  settingsViewEl?.classList.add('hidden');
+  docsViewEl?.classList.add('hidden');
   noSelectionEl.classList.add('hidden');
   projectDetailEl.classList.add('hidden');
   dashboardViewEl.classList.remove('hidden');
   loadDashboard();
 }
 
+async function showSettings() {
+  viewMode = 'settings';
+  dashboardViewEl.classList.add('hidden');
+  docsViewEl?.classList.add('hidden');
+  noSelectionEl.classList.add('hidden');
+  projectDetailEl.classList.add('hidden');
+  settingsViewEl?.classList.remove('hidden');
+  const token = await window.releaseManager.getGitHubToken();
+  if (settingsGithubTokenEl) settingsGithubTokenEl.value = token || '';
+  const ollama = await window.releaseManager.getOllamaSettings();
+  const ollamaBaseUrlEl = document.getElementById('settings-ollama-base-url');
+  const ollamaModelEl = document.getElementById('settings-ollama-model');
+  if (ollamaBaseUrlEl) ollamaBaseUrlEl.value = ollama?.baseUrl || '';
+  if (ollamaModelEl) ollamaModelEl.value = ollama?.model || '';
+}
+
+function showDocs() {
+  viewMode = 'docs';
+  dashboardViewEl.classList.add('hidden');
+  settingsViewEl?.classList.add('hidden');
+  noSelectionEl.classList.add('hidden');
+  projectDetailEl.classList.add('hidden');
+  docsViewEl?.classList.remove('hidden');
+}
+
 function needsRelease(row) {
   const a = row.ahead != null && row.ahead > 0;
   const u = row.uncommittedLines && row.uncommittedLines.length > 0;
-  return a || u;
+  const unreleased = row.commitsSinceLatestTag != null && row.commitsSinceLatestTag > 0;
+  return a || u || unreleased;
 }
 
 async function loadDashboard() {
@@ -160,10 +203,14 @@ async function loadDashboard() {
     tr.className = 'dashboard-row cursor-pointer';
     tr.dataset.path = row.path;
     const ab = formatAheadBehind(row.ahead, row.behind);
+    const unreleased = row.commitsSinceLatestTag != null && row.commitsSinceLatestTag > 0
+      ? `${row.commitsSinceLatestTag} commit${row.commitsSinceLatestTag === 1 ? '' : 's'}`
+      : '—';
     tr.innerHTML = `
       <td class="py-2 pr-3 font-medium text-rm-text">${escapeHtml(row.name || '—')}</td>
       <td class="py-2 pr-3 font-mono text-sm text-rm-muted">${escapeHtml(row.version || '—')}</td>
       <td class="py-2 pr-3 font-mono text-sm text-rm-muted">${escapeHtml(row.latestTag || '—')}</td>
+      <td class="py-2 pr-3 text-rm-muted">${escapeHtml(unreleased)}</td>
       <td class="py-2 pr-3 text-rm-muted">${escapeHtml(row.branch || '—')}</td>
       <td class="py-2 pr-3 text-rm-muted">${ab || '—'}</td>
     `;
@@ -195,16 +242,47 @@ function setDetailContent(info, releasesUrl = null) {
     detailTagEl.textContent = '—';
     detailGitStateEl.classList.add('hidden');
     detailAllVersionsWrapEl?.classList.add('hidden');
+    detailRecentCommitsWrapEl?.classList.add('hidden');
     detailErrorEl.classList.add('hidden');
     linkReleasesEl.classList.add('hidden');
     if (releaseNotesEl) releaseNotesEl.value = '';
     return;
   }
   if (releaseNotesEl) releaseNotesEl.value = '';
+  const project = projects.find((p) => p.path === selectedPath);
+  if (githubTokenEl) githubTokenEl.value = (project?.githubToken && typeof project.githubToken === 'string' ? project.githubToken : '') || '';
   detailNameEl.textContent = info.name || '—';
   detailPathEl.textContent = info.path || '';
-  detailVersionEl.textContent = info.version || '—';
+  detailVersionEl.textContent = info.version ?? '—';
   detailTagEl.textContent = info.latestTag || 'none';
+  if (detailUnreleasedCommitsEl) {
+    const n = info.commitsSinceLatestTag;
+    if (n != null && n > 0 && info.latestTag) {
+      detailUnreleasedCommitsEl.textContent = `${n} unreleased commit${n === 1 ? '' : 's'} since ${info.latestTag}`;
+      detailUnreleasedCommitsEl.classList.remove('hidden');
+      detailUnreleasedCommitsEl.classList.add('text-rm-warning');
+      detailUnreleasedCommitsEl.classList.remove('text-rm-muted');
+    } else {
+      detailUnreleasedCommitsEl.textContent = '';
+      detailUnreleasedCommitsEl.classList.add('hidden');
+      detailUnreleasedCommitsEl.classList.remove('text-rm-warning');
+      detailUnreleasedCommitsEl.classList.add('text-rm-muted');
+    }
+  }
+  const projectType = info.projectType || 'npm';
+  const projectTypeLabel = { npm: '', cargo: 'Rust', go: 'Go', python: 'Python' }[projectType] || '';
+  if (detailProjectTypeEl) {
+    detailProjectTypeEl.textContent = projectTypeLabel ? `(${projectTypeLabel})` : '';
+    detailProjectTypeEl.classList.toggle('hidden', !projectTypeLabel);
+  }
+  const isNonNpm = projectType !== 'npm';
+  if (detailReleaseHintEl) {
+    detailReleaseHintEl.textContent = isNonNpm
+      ? 'Tag and push current version from your manifest. With a GitHub token you can add notes, draft, or pre-release.'
+      : 'Bump version, tag vX.Y.Z, push. With a GitHub token you can add notes, draft, or pre-release.';
+  }
+  if (detailReleaseBumpButtonsEl) detailReleaseBumpButtonsEl.classList.toggle('hidden', isNonNpm);
+  if (detailReleaseTagOnlyWrapEl) detailReleaseTagOnlyWrapEl.classList.toggle('hidden', !isNonNpm);
   const allTags = info.allTags || [];
   if (detailAllVersionsWrapEl) {
     detailAllVersionsWrapEl.classList.toggle('hidden', !info.hasGit);
@@ -217,7 +295,7 @@ function setDetailContent(info, releasesUrl = null) {
         const tagUrlBase = releasesUrl ? releasesUrl.replace(/\/?$/, '') + '/tag/' : null;
         allTags.forEach((tag) => {
           const li = document.createElement('li');
-          li.className = 'flex items-center gap-2 flex-wrap font-mono text-sm';
+          li.className = 'flex items-center gap-3 flex-wrap font-mono text-sm py-0.5';
           if (tagUrlBase) {
             const a = document.createElement('a');
             a.href = tagUrlBase + encodeURIComponent(tag);
@@ -293,6 +371,53 @@ function setDetailContent(info, releasesUrl = null) {
     linkReleasesEl.classList.add('hidden');
   }
   detailErrorEl.classList.add('hidden');
+  if (info.ok && selectedPath && info.hasGit) {
+    loadRecentCommitsHint(selectedPath);
+  } else {
+    detailRecentCommitsWrapEl?.classList.add('hidden');
+    if (detailBumpSuggestionEl) {
+      detailBumpSuggestionEl.classList.add('hidden');
+      detailBumpSuggestionEl.textContent = '';
+    }
+  }
+}
+
+async function loadRecentCommitsHint(dirPath) {
+  try {
+    const result = await window.releaseManager.getRecentCommits(dirPath, 7);
+    if (selectedPath !== dirPath) return;
+    if (!detailRecentCommitsWrapEl || !detailRecentCommitsEl) return;
+    if (!result.ok || !result.commits?.length) {
+      detailRecentCommitsWrapEl.classList.add('hidden');
+      if (detailBumpSuggestionEl) {
+        detailBumpSuggestionEl.classList.add('hidden');
+        detailBumpSuggestionEl.textContent = '';
+      }
+      return;
+    }
+    detailRecentCommitsEl.innerHTML = '';
+    result.commits.slice(0, 7).forEach((subject) => {
+      const li = document.createElement('li');
+      li.className = 'truncate';
+      li.title = subject;
+      li.textContent = subject;
+      detailRecentCommitsEl.appendChild(li);
+    });
+    detailRecentCommitsWrapEl.classList.remove('hidden');
+    const suggested = await window.releaseManager.getSuggestedBump(result.commits);
+    if (selectedPath !== dirPath) return;
+    if (detailBumpSuggestionEl) {
+      if (suggested) {
+        detailBumpSuggestionEl.textContent = `Suggested bump: ${suggested} (from conventional commits)`;
+        detailBumpSuggestionEl.classList.remove('hidden');
+      } else {
+        detailBumpSuggestionEl.textContent = '';
+        detailBumpSuggestionEl.classList.add('hidden');
+      }
+    }
+  } catch (_) {
+    if (selectedPath === dirPath) detailRecentCommitsWrapEl?.classList.add('hidden');
+  }
 }
 
 async function loadProjectInfo(dirPath) {
@@ -364,15 +489,15 @@ async function release(bump, force = false) {
     draft,
     prerelease,
   };
-  if (githubTokenEl?.value?.trim()) {
-    await window.releaseManager.setGitHubToken(githubTokenEl.value.trim());
-  }
+  const optionsWithToken = { ...options };
+  const projectToken = githubTokenEl?.value?.trim();
+  if (projectToken) optionsWithToken.githubToken = projectToken;
   releaseStatusEl.textContent = 'Bumping version, then committing and pushing…';
   releaseStatusEl.classList.remove('hidden');
   releaseActionsWrapEl?.classList.add('hidden');
   detailErrorEl.classList.add('hidden');
   try {
-    const result = await window.releaseManager.release(selectedPath, bump, force, options);
+    const result = await window.releaseManager.release(selectedPath, bump, force, optionsWithToken);
     if (result.ok) {
       let msg = `Released ${result.tag}.`;
       if (result.releaseError) msg += ` (GitHub release: ${result.releaseError})`;
@@ -459,6 +584,16 @@ document.getElementById('btn-remove-project').addEventListener('click', () => {
   const projectName = p?.name || selectedPath.split(/[/\\]/).filter(Boolean).pop() || 'this project';
   if (!confirm(`Remove "${projectName}" from the list?`)) return;
   removeProject(selectedPath);
+});
+document.getElementById('btn-open-in-terminal').addEventListener('click', async () => {
+  if (!selectedPath) return;
+  const result = await window.releaseManager.openInTerminal(selectedPath);
+  if (result?.ok === false && result?.error) syncDownloadStatusEl.textContent = result.error;
+});
+document.getElementById('btn-open-in-editor').addEventListener('click', async () => {
+  if (!selectedPath) return;
+  const result = await window.releaseManager.openInEditor(selectedPath);
+  if (result?.ok === false && result?.error) syncDownloadStatusEl.textContent = result.error;
 });
 document.getElementById('btn-open-in-finder').addEventListener('click', () => {
   if (selectedPath) window.releaseManager.openPathInFinder(selectedPath);
@@ -550,9 +685,15 @@ document.getElementById('btn-release-patch').addEventListener('click', () => rel
 document.getElementById('btn-release-minor').addEventListener('click', () => release('minor'));
 document.getElementById('btn-release-major').addEventListener('click', () => release('major'));
 document.getElementById('btn-release-prerelease').addEventListener('click', () => release('prerelease'));
+document.getElementById('btn-release-tag-only')?.addEventListener('click', () => release('patch'));
 
-githubTokenEl.addEventListener('blur', () => {
-  window.releaseManager.setGitHubToken(githubTokenEl.value?.trim() ?? '');
+githubTokenEl.addEventListener('blur', async () => {
+  if (!selectedPath) return;
+  const token = githubTokenEl.value?.trim() || undefined;
+  const list = await window.releaseManager.getProjects();
+  const updated = list.map((p) => (p.path === selectedPath ? { ...p, githubToken: token } : p));
+  await window.releaseManager.setProjects(updated);
+  projects = updated;
 });
 
 document.getElementById('btn-sync').addEventListener('click', syncFromRemote);
@@ -561,6 +702,157 @@ document.getElementById('btn-download-latest').addEventListener('click', downloa
 document.getElementById('btn-view-dashboard').addEventListener('click', () => {
   if (viewMode === 'dashboard') return;
   showDashboard();
+});
+document.getElementById('btn-view-settings').addEventListener('click', () => {
+  if (viewMode === 'settings') return;
+  showSettings();
+});
+document.getElementById('btn-view-docs').addEventListener('click', () => {
+  if (viewMode === 'docs') return;
+  showDocs();
+});
+
+document.addEventListener('keydown', async (e) => {
+  const action = await window.releaseManager.getShortcutAction(
+    viewMode,
+    selectedPath,
+    e.key,
+    e.metaKey,
+    e.ctrlKey,
+    !!e.target.closest('input, textarea, [contenteditable="true"]')
+  );
+  if (!action) return;
+  e.preventDefault();
+  if (action === 'release-patch') release('patch');
+  else if (action === 'release-minor') release('minor');
+  else if (action === 'release-major') release('major');
+  else if (action === 'sync') syncFromRemote();
+  else if (action === 'download-latest') downloadLatestRelease();
+});
+
+if (settingsGithubTokenEl) {
+  settingsGithubTokenEl.addEventListener('blur', () => {
+    window.releaseManager.setGitHubToken(settingsGithubTokenEl.value?.trim() ?? '');
+  });
+}
+const settingsOllamaBaseUrlEl = document.getElementById('settings-ollama-base-url');
+const settingsOllamaModelEl = document.getElementById('settings-ollama-model');
+if (settingsOllamaBaseUrlEl) {
+  settingsOllamaBaseUrlEl.addEventListener('blur', () => {
+    window.releaseManager.setOllamaSettings(settingsOllamaBaseUrlEl.value?.trim() || 'http://localhost:11434', settingsOllamaModelEl?.value?.trim() || 'llama3.2');
+  });
+}
+if (settingsOllamaModelEl) {
+  settingsOllamaModelEl.addEventListener('blur', () => {
+    window.releaseManager.setOllamaSettings(settingsOllamaBaseUrlEl?.value?.trim() || 'http://localhost:11434', settingsOllamaModelEl.value?.trim() || 'llama3.2');
+  });
+}
+const settingsOllamaListModelsBtn = document.getElementById('settings-ollama-list-models');
+const settingsOllamaModelsStatusEl = document.getElementById('settings-ollama-models-status');
+const settingsOllamaModelsListEl = document.getElementById('settings-ollama-models-list');
+if (settingsOllamaListModelsBtn) {
+  settingsOllamaListModelsBtn.addEventListener('click', async () => {
+    const baseUrl = settingsOllamaBaseUrlEl?.value?.trim() || '';
+    if (!settingsOllamaModelsStatusEl || !settingsOllamaModelsListEl) return;
+    settingsOllamaModelsStatusEl.textContent = 'Loading…';
+    settingsOllamaModelsStatusEl.classList.remove('hidden');
+    settingsOllamaModelsListEl.classList.add('hidden');
+    settingsOllamaModelsListEl.innerHTML = '';
+    try {
+      const result = await window.releaseManager.ollamaListModels(baseUrl);
+      if (result?.ok && Array.isArray(result.models)) {
+        const n = result.models.length;
+        settingsOllamaModelsStatusEl.textContent = n === 0 ? 'No models that support generation. Pull one with ollama pull <model> (e.g. llama3.2).' : `${n} model${n === 1 ? '' : 's'} that support generation — click to select:`;
+        if (n > 0) {
+          const initialCount = 3;
+          const createModelBtn = (name) => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'text-xs px-2 py-1 rounded bg-rm-surface text-rm-text border border-rm-border hover:bg-rm-hover cursor-pointer';
+            btn.textContent = name;
+            btn.addEventListener('click', () => {
+              if (settingsOllamaModelEl) {
+                settingsOllamaModelEl.value = name;
+                window.releaseManager.setOllamaSettings(
+                  settingsOllamaBaseUrlEl?.value?.trim() || 'http://localhost:11434',
+                  name
+                );
+              }
+            });
+            return btn;
+          };
+          const toShow = result.models.slice(0, initialCount);
+          const rest = result.models.slice(initialCount);
+          toShow.forEach((name) => settingsOllamaModelsListEl.appendChild(createModelBtn(name)));
+          if (rest.length > 0) {
+            const loadMoreBtn = document.createElement('button');
+            loadMoreBtn.type = 'button';
+            loadMoreBtn.className = 'text-xs px-2 py-1 rounded bg-rm-surface text-rm-accent border border-rm-border hover:bg-rm-hover cursor-pointer';
+            loadMoreBtn.textContent = `Load more (${rest.length})`;
+            loadMoreBtn.addEventListener('click', () => {
+              rest.forEach((name) => settingsOllamaModelsListEl.appendChild(createModelBtn(name)));
+              loadMoreBtn.remove();
+            });
+            settingsOllamaModelsListEl.appendChild(loadMoreBtn);
+          }
+          settingsOllamaModelsListEl.classList.remove('hidden');
+        }
+      } else {
+        settingsOllamaModelsStatusEl.textContent = result?.error || 'Could not list models.';
+      }
+    } catch (e) {
+      settingsOllamaModelsStatusEl.textContent = e?.message || 'Could not list models.';
+    }
+  });
+}
+
+document.getElementById('btn-ollama-commit')?.addEventListener('click', async () => {
+  if (!selectedPath) return;
+  if (detailCommitStatusEl) {
+    detailCommitStatusEl.textContent = 'Generating…';
+    detailCommitStatusEl.classList.remove('hidden', 'text-rm-success');
+  }
+  try {
+    const result = await window.releaseManager.ollamaGenerateCommitMessage(selectedPath);
+    if (result?.ok && result.text) {
+      if (detailCommitMessageEl) detailCommitMessageEl.value = result.text;
+      if (detailCommitStatusEl) {
+        detailCommitStatusEl.textContent = 'Generated. Edit if needed.';
+        detailCommitStatusEl.classList.add('text-rm-success');
+      }
+    } else {
+      if (detailCommitStatusEl) {
+        detailCommitStatusEl.textContent = result?.error || 'Generate failed.';
+        detailCommitStatusEl.classList.remove('text-rm-success');
+      }
+    }
+  } catch (e) {
+    if (detailCommitStatusEl) {
+      detailCommitStatusEl.textContent = e.message || 'Generate failed';
+      detailCommitStatusEl.classList.remove('text-rm-success');
+    }
+  }
+});
+
+document.getElementById('btn-ollama-release-notes')?.addEventListener('click', async () => {
+  if (!selectedPath) return;
+  const sinceTag = currentInfo?.latestTag || null;
+  const prevNotes = releaseNotesEl?.value ?? '';
+  if (releaseNotesEl) releaseNotesEl.value = 'Generating…';
+  try {
+    const result = await window.releaseManager.ollamaGenerateReleaseNotes(selectedPath, sinceTag);
+    if (result?.ok && result.text) {
+      releaseNotesEl.value = result.text;
+    } else {
+      releaseNotesEl.value = prevNotes;
+      syncDownloadStatusEl.textContent = result?.error || 'Generate failed.';
+      syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
+    }
+  } catch (e) {
+    if (releaseNotesEl) releaseNotesEl.value = prevNotes;
+    syncDownloadStatusEl.textContent = e.message || 'Generate failed';
+    syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
+  }
 });
 dashboardFilterEl?.addEventListener('change', () => loadDashboard());
 dashboardSortEl?.addEventListener('change', () => loadDashboard());

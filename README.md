@@ -1,11 +1,11 @@
 # Release Manager
 
-Desktop app to manage releases for all your app projects. Add project folders (with `package.json`), bump versions (patch/minor/major), then commit, tag, and push to trigger your CI (e.g. GitHub Actions).
+Desktop app to manage releases for all your app projects. Add project folders (npm, Rust, Go, or Python), see version and git status, then bump and push or tag-and-push. Includes a **Documentation** tab in the app with all features and how to use them.
 
 ## Requirements
 
 - Node.js 18+
-- npm
+- npm (for npm projects)
 - Git (for tag & push)
 
 ## Quick start
@@ -16,81 +16,86 @@ npm install
 npm start
 ```
 
-1. Click **Add project** and choose a folder that contains a `package.json` and is a git repo with a remote.
-2. Select a project to see its current version and latest git tag.
-3. Click **Release (patch)**, **Release (minor)**, or **Release (major)**. The app will bump the version, commit, create tag `vX.Y.Z`, and push branch + tag. If the project has a GitHub Actions workflow that runs on `v*` tags, the release will build and publish automatically.
+1. Click **Add project** and choose a folder that contains a supported manifest: `package.json`, `Cargo.toml`, `go.mod`, or `pyproject.toml` / `setup.py`.
+2. Select a project to see its version, git state, and release options.
+3. For **npm**: use **Patch**, **Minor**, or **Major** to bump, then tag and push. For **Rust / Go / Python**: update the version in your manifest if needed, then use **Tag and push**.
+
+**In-app docs:** Open the **Documentation** tab in the sidebar for the full feature list and usage.
+
+## Features
+
+| Feature | Description |
+|--------|-------------|
+| **Multiple package managers** | npm (package.json), Rust (Cargo.toml), Go (go.mod), Python (pyproject.toml / setup.py). Version and name are read from the right manifest. |
+| **Project detail** | Version, latest tag, released versions list (with links and download per version for GitHub). Collapsible Git, Version & release, Sync & download sections. |
+| **Release (npm)** | Patch / Minor / Major / Pre-release bump, then commit, tag `vX.Y.Z`, and push. Optional release notes, draft, and pre-release (with GitHub token). |
+| **Tag and push (Rust/Go/Python)** | Tag current version from the manifest and push (no bump from the app). |
+| **Git** | Branch, ahead/behind, uncommitted files. Commit from the app with a message. |
+| **Sync & download** | `git fetch` (Sync). Download latest or choose a version to download GitHub Release assets. |
+| **Open in Terminal / Editor** | Open project folder in the system terminal or in Cursor / VS Code. |
+| **Open in Finder / Copy path** | Reveal in file manager or copy path to clipboard. |
+| **Dashboard** | Table of all projects (name, version, tag, branch, ahead/behind). Filter and sort. |
+| **Batch release** | Select multiple projects and run Patch / Minor / Major for all (npm only). |
+| **Settings** | Optional GitHub token for higher limits, private repos, and creating/updating releases. Optional **Ollama** base URL and model for generating commit messages and release notes. |
+| **Generate with Ollama** | Use a local [Ollama](https://ollama.com) model to generate commit messages and release notes. Start Ollama: `ollama serve`. Pull a model: `ollama pull llama3.2`. Set base URL and model in Settings, then use **Generate** (commit) or **Generate with Ollama** (release notes) in the project view. |
+| **Theme** | Dark / Light toggle; choice is saved. |
 
 ## Project structure
 
 ```
 release-manager/
-├── assets/icons/       # App icon (placeholder created by ensure-icon.js)
+├── assets/icons/         # App icon
 ├── scripts/
-│   └── ensure-icon.js
+│   ├── ensure-icon.js
+│   └── generate-icons.js
 ├── src-main/
-│   ├── lib/            # Testable helpers (all have __tests__)
-│   │   ├── github.js   # getReleasesUrl, getRepoSlug, pickAssetForPlatform
-│   │   ├── config.js   # getStoredConfig, getProjects, setProjects (legacy/backup)
-│   │   ├── projects.js # filterValidProjects
-│   │   ├── theme.js    # THEME_VALUES, isValidTheme, getEffectiveTheme
-│   │   ├── version.js  # isValidBump, formatTag
-│   │   ├── runInDir.js # runInDir (spawn wrapper)
-│   │   ├── migration.js# parseOldConfig (old JSON config migration)
-│   │   ├── packageJson.js # parsePackageInfo
-│   │   └── __tests__/  # Full unit tests for all lib modules
-│   ├── main.js         # Electron main (uses lib modules)
-│   └── preload.js      # IPC bridge
+│   ├── lib/              # Testable helpers (with __tests__)
+│   │   ├── github.js
+│   │   ├── config.js
+│   │   ├── projects.js
+│   │   ├── theme.js
+│   │   ├── version.js
+│   │   ├── runInDir.js
+│   │   ├── migration.js
+│   │   ├── packageJson.js
+│   │   ├── packageManagers.js   # Cargo, go, Python detection
+│   │   ├── projectDetection.js  # npm vs non-npm resolve
+│   │   ├── releaseStrategy.js  # bump_and_tag vs tag_only
+│   │   └── __tests__/
+│   ├── main.js
+│   └── preload.js
 ├── src-renderer/
 │   ├── index.html
-│   ├── renderer.js      # Project list, detail, bump & push UI
-│   ├── input.css        # Tailwind source
-│   └── styles.css       # Built CSS
+│   ├── renderer.js
+│   ├── input.css
+│   └── styles.css
 ├── package.json
 └── README.md
 ```
 
-## Theme
-
-Use the **Dark** / **Light** toggle in the nav bar. The choice is saved and applied on next launch.
-
 ## Scripts
 
-| Command        | Description                    |
-|----------------|--------------------------------|
-| `npm start`    | Run the app                    |
-| `npm run dev`  | Run with Electron logging      |
-| `npm run watch`| Restart on main/renderer changes (nodemon) |
-| `npm run build:css` | Build Tailwind CSS         |
-| `npm run build`| Package with electron-builder  |
-| `npm test`     | Run test suite (Jest)           |
-| `npm run test:watch` | Run tests in watch mode   |
-| `npm run test:coverage` | Run tests with coverage  |
+| Command | Description |
+|---------|-------------|
+| `npm start` | Run the app |
+| `npm run dev` | Run with Electron logging |
+| `npm run watch` | Restart on main/renderer changes (nodemon) |
+| `npm run build:css` | Build Tailwind CSS |
+| `npm run build` | Package with electron-builder |
+| `npm test` | Run test suite (Jest) |
+| `npm run test:watch` | Run tests in watch mode |
+| `npm run test:coverage` | Run tests with coverage |
 
-### Test suite (50 tests)
+**Development:** `npm start` runs the app without the file watcher. Use `npm run dev` to run with Electron logging and auto-reload on file changes. To disable reload in dev (e.g. if you see SIGABRT on restart), set `DISABLE_ELECTRON_RELOAD=1`.
 
-All logic is in `src-main/lib/` and fully unit-tested:
+## Troubleshooting
 
-| Module        | Tests |
-|---------------|-------|
-| **github**    | getReleasesUrl, getRepoSlug, pickAssetForPlatform (GitHub URLs, repo slug, asset pick by platform) |
-| **config**    | getStoredConfig, setStoredConfig, getProjects, setProjects (JSON file config) |
-| **projects**  | filterValidProjects (valid project list filtering) |
-| **theme**     | THEME_VALUES, isValidTheme, getEffectiveTheme (dark/light/system) |
-| **version**   | isValidBump, formatTag (patch/minor/major, v-prefix) |
-| **runInDir**  | runInDir with mock spawn (stdout/stderr, exit code, spawn error) |
-| **migration** | parseOldConfig (old JSON config parsing for one-time migration) |
-| **packageJson** | parsePackageInfo (package.json name/version, errors) |
+- **App exits with SIGABRT** – Reload is only enabled when you run `npm run dev`. If you use `npm start`, the watcher is off and the app should not crash from it. If you still see SIGABRT (e.g. when using `npm run dev`), run with reload disabled: `DISABLE_ELECTRON_RELOAD=1 npm run dev`, or use `npm start` and restart the app manually after code changes.
 
-Main process (`main.js`) uses these libs; coverage is high for all lib modules.
+## Tests
 
-## How it works
+Logic in `src-main/lib/` is unit-tested (projectDetection, releaseStrategy, packageManagers, packageJson, config, github, version, theme, runInDir, migration, projects). Run `npm run test:coverage` for coverage.
 
-- **Projects** are stored in app user data (`release-manager-config.json`). Each project is a folder path; the app reads `package.json` and git tags from that folder.
-- **Release (patch|minor|major)** does everything in one go: runs `npm version <bump> --no-git-tag-version`, then `git add package.json [package-lock.json]`, `git commit`, `git tag vX.Y.Z`, and `git push origin HEAD` + `git push origin vX.Y.Z`. Your repo must have a remote and you should be on the branch you want to release from (e.g. `main`).
+## Releasing this app
 
-For **GitHub Actions** to build and publish when you hit Release, the project repo needs a workflow that triggers on push tags `v*` (e.g. build Electron app and create a GitHub Release with artifacts). The CodeSeer desktop app uses this pattern (see `.github/workflows/release-desktop.yml`).
-
-## Releasing this app (Release Manager)
-
-This repo includes **`.github/workflows/release.yml`**: when you push a tag `v*` (e.g. `v0.1.1`), GitHub Actions builds the app for macOS, Windows, and Linux and creates a GitHub Release with the installers. Use the app itself (add this repo as a project and click Release) or run locally: `npm run version:patch && git push && git push --tags`.
-# release-manager
+Push a tag `v*` (e.g. `v0.2.0`); GitHub Actions builds and creates a Release. Or add this repo as a project in the app and use Release there.

@@ -7,8 +7,17 @@ module.exports = {
   collectCoverageFrom: [
     'src-main/lib/**/*.js',
     '!src-main/preload.js',
+    '!**/__tests__/**',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],
+  coverageThreshold: {
+    global: {
+      statements: 100,
+      branches: 98,
+      functions: 100,
+      lines: 100,
+    },
+  },
   verbose: true,
 };
