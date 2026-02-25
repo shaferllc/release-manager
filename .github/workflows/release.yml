@@ -1,11 +1,17 @@
 # Build Release Manager on version tags and attach installers to GitHub Releases.
-# Push a tag (e.g. v0.1.1) to trigger. Use the app's "Release" button or: npm run version:patch && git push && git push --tags
+# Push a tag (e.g. v0.1.1) to trigger, or run manually from the Actions tab.
 name: Release
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (e.g. 0.2.3). Used when run manually.'
+        required: true
+        type: string
 
 jobs:
   build:
@@ -20,16 +26,22 @@ jobs:
           - os: ubuntu-latest
             platform: linux
     runs-on: ${{ matrix.os }}
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set version from tag
+      - name: Set version from tag or input
         id: version
         run: |
-          VER=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VER="${{ github.event.inputs.version }}"
+          else
+            VER=$(echo "${{ github.ref_name }}" | sed 's/^v//')
+          fi
           npm pkg set version="$VER"
           echo "version=$VER" >> $GITHUB_OUTPUT
-          echo "Building version $VER from tag ${{ github.ref_name }}"
+          echo "Building version $VER"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4

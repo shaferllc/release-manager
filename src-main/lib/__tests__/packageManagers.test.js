@@ -123,6 +123,14 @@ describe('packageManagers', () => {
       expect(result.error).toBeDefined();
     });
 
+    it('returns basename and null version when detected type is not cargo go or python', () => {
+      const result = getNonNpmProjectInfo('/some-dir', { type: 'other', manifestPath: '/x' });
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('some-dir');
+      expect(result.version).toBe(null);
+      expect(result.projectType).toBe('other');
+    });
+
     it('returns cargo name and version', () => {
       const fsMock = {
         readFileSync: () =>
@@ -165,6 +173,15 @@ describe('packageManagers', () => {
       expect(result.name).toBe('single-quote-pkg');
       expect(result.version).toBe('1.0.0');
     });
+    it('returns python name from pyproject.toml with name needing trim', () => {
+      const fsMock = {
+        readFileSync: () => '[project]\nname = "  trimmed-pkg  "\nversion = "1.0.0"\n',
+      };
+      const result = getNonNpmProjectInfo('/proj', { type: 'python', manifestPath: '/proj/pyproject.toml' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('trimmed-pkg');
+      expect(result.version).toBe('1.0.0');
+    });
     it('returns python version from pyproject.toml with no name (uses basename)', () => {
       const fsMock = {
         readFileSync: () => '[project]\nversion = "1.0.0"\n',
@@ -183,6 +200,15 @@ describe('packageManagers', () => {
       const result = getNonNpmProjectInfo('/proj', { type: 'python', manifestPath: '/proj/setup.py' }, fsMock);
       expect(result.ok).toBe(true);
       expect(result.version).toBe('1.0.0');
+    });
+    it('returns python name from setup.py with name needing trim', () => {
+      const fsMock = {
+        readFileSync: () => 'setuptools.setup(name="  trimmed  ", version="2.0.0")',
+      };
+      const result = getNonNpmProjectInfo('/proj', { type: 'python', manifestPath: '/proj/setup.py' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('trimmed');
+      expect(result.version).toBe('2.0.0');
     });
     it('returns python setup.py with version but no name (uses basename)', () => {
       const fsMock = {
@@ -250,6 +276,13 @@ describe('packageManagers', () => {
       const result = getNonNpmProjectInfo('/x', { type: 'python', manifestPath: '/x/setup.py' }, fsMock);
       expect(result.ok).toBe(true);
       expect(result.name).toBe('x');
+    });
+    it('sets name from setup.py when name= is present with value', () => {
+      const fsMock = { readFileSync: () => 'setuptools.setup(name="explicit-name", version="0.1.0")' };
+      const result = getNonNpmProjectInfo('/proj', { type: 'python', manifestPath: '/proj/setup.py' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('explicit-name');
+      expect(result.version).toBe('0.1.0');
     });
 
     it('uses "project" when dirPath is falsy', () => {

@@ -54,14 +54,11 @@ html[data-theme="light"] {
 .nav-bar .no-drag {
   -webkit-app-region: no-drag;
 }
-.nav-tabs {
-  @apply flex items-center;
-}
-.nav-tab {
-  @apply text-xs font-medium text-rm-muted hover:text-rm-accent transition-colors border-none bg-transparent cursor-pointer py-2 px-2.5 rounded-rm;
-}
-.nav-tab.is-active {
-  @apply text-rm-accent bg-rm-accent/15;
+.view-dropdown {
+  font: inherit;
+  color: inherit;
+  min-width: 8rem;
+  cursor: pointer;
 }
 
 .prose-changelog {

@@ -46,6 +46,12 @@ describe('ollama', () => {
       expect(result.ok).toBe(false);
       expect(result.error).toContain('ollama serve');
     });
+    it('returns fallback error when catch has no message', async () => {
+      const fetchMock = async () => { throw {}; };
+      const result = await generate('http://localhost:11434', 'x', 'hi', fetchMock);
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain('Ollama request failed');
+    });
     it('returns error when response not ok', async () => {
       const fetchMock = async () => ({ ok: false, status: 404, text: async () => 'not found' });
       const result = await generate('http://localhost:11434', 'x', 'hi', fetchMock);
@@ -168,6 +174,19 @@ describe('ollama', () => {
     it('returns prefixed message for other errors', () => {
       expect(formatOllamaError('Something went wrong')).toBe('Ollama: Something went wrong');
     });
+    it('parses JSON error but keeps message when data.error is not a string', () => {
+      expect(formatOllamaError('{"error": 123}')).toContain('Ollama:');
+    });
+    it('truncates very long error message', () => {
+      const long = 'x'.repeat(150);
+      const out = formatOllamaError(long);
+      expect(out).toContain('Ollama error:');
+      expect(out).toContain('…');
+      expect(out.length).toBeLessThan(140);
+    });
+    it('returns re-pull hint without model when model not passed', () => {
+      expect(formatOllamaError('no such file or directory')).toContain('ollama pull <model>');
+    });
     it('returns not-running hint for null/empty', () => {
       expect(formatOllamaError('')).toContain('ollama serve');
       expect(formatOllamaError(null)).toContain('ollama serve');
@@ -190,6 +209,15 @@ describe('ollama', () => {
       };
       await generate('http://localhost:11434', 'x', 'hi', fetchMock);
       expect(capturedUrl).toBe('http://127.0.0.1:11434/api/generate');
+    });
+    it('uses default base URL when baseUrl is only slash', async () => {
+      let capturedUrl;
+      const fetchMock = (url) => {
+        capturedUrl = url;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ response: 'ok' }) });
+      };
+      await generate('/', 'x', 'hi', fetchMock);
+      expect(capturedUrl).toContain('127.0.0.1:11434');
     });
   });
 
@@ -231,6 +259,41 @@ describe('ollama', () => {
       const result = await listModels('http://127.0.0.1:11434', fetchMock);
       expect(result.ok).toBe(false);
       expect(result.error).toBeDefined();
+    });
+    it('returns HTTP status when /api/tags returns non-ok and text empty', async () => {
+      const fetchMock = () =>
+        Promise.resolve({
+          ok: false,
+          status: 503,
+          text: () => Promise.resolve(''),
+        });
+      const result = await listModels('http://127.0.0.1:11434', fetchMock);
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain('503');
+    });
+    it('filters out models with null or missing name', async () => {
+      const fetchMock = () =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              models: [
+                { name: 'valid' },
+                { name: null },
+                {},
+                { name: '' },
+              ],
+            }),
+        });
+      const result = await listModels('http://127.0.0.1:11434', fetchMock);
+      expect(result.ok).toBe(true);
+      expect(result.models).toEqual(['valid']);
+    });
+    it('returns error when listModels fetch throws with no message', async () => {
+      const fetchMock = () => Promise.reject(new Error());
+      const result = await listModels('http://127.0.0.1:11434', fetchMock);
+      expect(result.ok).toBe(false);
+      expect(result.error).toContain('Ollama request failed');
     });
     it('excludes model when /api/show fetch throws', async () => {
       const fetchMock = async (url) => {
@@ -397,6 +460,23 @@ describe('ollama', () => {
       const omitted = await listModels('http://127.0.0.1:11434', fetchMock);
       expect(withFalse.models).toEqual(['a', 'b']);
       expect(omitted.models).toEqual(['a', 'b']);
+    });
+    it('uses default fetch when fetchImpl not passed', async () => {
+      const origFetch = globalThis.fetch;
+      globalThis.fetch = (url) => {
+        expect(url).toContain('/api/tags');
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ models: [{ name: 'default' }] }),
+        });
+      };
+      try {
+        const result = await listModels('http://127.0.0.1:11434');
+        expect(result.ok).toBe(true);
+        expect(result.models).toEqual(['default']);
+      } finally {
+        globalThis.fetch = origFetch;
+      }
     });
   });
 });

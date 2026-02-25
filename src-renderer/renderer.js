@@ -39,6 +39,7 @@ const docsViewEl = document.getElementById('docs-view');
 const changelogViewEl = document.getElementById('changelog-view');
 const changelogContentEl = document.getElementById('changelog-content');
 const changelogErrorEl = document.getElementById('changelog-error');
+const viewDropdownEl = document.getElementById('view-dropdown');
 const settingsGithubTokenEl = document.getElementById('settings-github-token');
 const dashboardFilterEl = document.getElementById('dashboard-filter');
 const dashboardSortEl = document.getElementById('dashboard-sort');
@@ -126,15 +127,13 @@ function renderProjectList() {
   if (countEl) countEl.textContent = selectedPaths.size;
 }
 
-function setNavTabActive(mode) {
-  document.querySelectorAll('.nav-tab').forEach((el) => el.classList.remove('is-active'));
-  const id = mode === 'dashboard' ? 'btn-view-dashboard' : mode === 'settings' ? 'btn-view-settings' : mode === 'docs' ? 'btn-view-docs' : mode === 'changelog' ? 'btn-view-changelog' : null;
-  if (id) document.getElementById(id)?.classList.add('is-active');
+function setViewDropdown(mode) {
+  if (viewDropdownEl) viewDropdownEl.value = mode || 'detail';
 }
 
 function showNoSelection() {
   viewMode = 'detail';
-  setNavTabActive(null);
+  setViewDropdown(null);
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
@@ -145,7 +144,7 @@ function showNoSelection() {
 
 function showDetail() {
   viewMode = 'detail';
-  setNavTabActive(null);
+  setViewDropdown(null);
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
@@ -156,7 +155,7 @@ function showDetail() {
 
 function showDashboard() {
   viewMode = 'dashboard';
-  setNavTabActive('dashboard');
+  setViewDropdown('dashboard');
   settingsViewEl?.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
   changelogViewEl?.classList.add('hidden');
@@ -168,7 +167,7 @@ function showDashboard() {
 
 async function showSettings() {
   viewMode = 'settings';
-  setNavTabActive('settings');
+  setViewDropdown('settings');
   dashboardViewEl.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
   changelogViewEl?.classList.add('hidden');
@@ -186,7 +185,7 @@ async function showSettings() {
 
 function showDocs() {
   viewMode = 'docs';
-  setNavTabActive('docs');
+  setViewDropdown('docs');
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
   changelogViewEl?.classList.add('hidden');
@@ -197,7 +196,7 @@ function showDocs() {
 
 async function showChangelog() {
   viewMode = 'changelog';
-  setNavTabActive('changelog');
+  setViewDropdown('changelog');
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
@@ -548,13 +547,14 @@ async function release(bump, force = false) {
   try {
     const result = await window.releaseManager.release(selectedPath, bump, force, optionsWithToken);
     if (result.ok) {
-      let msg = `Released ${result.tag}.`;
-      if (result.releaseError) msg += ` (GitHub release: ${result.releaseError})`;
-      else msg += ' GitHub Actions will build and publish.';
+      let msg = `Tag ${result.tag} created and pushed.`;
+      if (result.releaseError) msg += ` GitHub release note: ${result.releaseError}`;
+      else msg += ' GitHub Actions will build and attach the DMG (and other installers) to the release.';
       releaseStatusEl.textContent = msg;
       releaseStatusEl.classList.add('text-rm-success');
       if (result.actionsUrl && releaseActionsLinkEl) {
         releaseActionsLinkEl.href = result.actionsUrl;
+        releaseActionsLinkEl.textContent = 'Open Actions (workflow builds DMG) →';
         releaseActionsLinkEl.onclick = (e) => {
           e.preventDefault();
           window.releaseManager.openUrl(result.actionsUrl);
@@ -748,21 +748,13 @@ githubTokenEl.addEventListener('blur', async () => {
 document.getElementById('btn-sync').addEventListener('click', syncFromRemote);
 document.getElementById('btn-download-latest').addEventListener('click', downloadLatestRelease);
 
-document.getElementById('btn-view-dashboard').addEventListener('click', () => {
-  if (viewMode === 'dashboard') return;
-  showDashboard();
-});
-document.getElementById('btn-view-settings').addEventListener('click', () => {
-  if (viewMode === 'settings') return;
-  showSettings();
-});
-document.getElementById('btn-view-docs').addEventListener('click', () => {
-  if (viewMode === 'docs') return;
-  showDocs();
-});
-document.getElementById('btn-view-changelog').addEventListener('click', () => {
-  if (viewMode === 'changelog') return;
-  showChangelog();
+viewDropdownEl?.addEventListener('change', () => {
+  const v = viewDropdownEl.value;
+  if (v === 'dashboard') showDashboard();
+  else if (v === 'settings') showSettings();
+  else if (v === 'docs') showDocs();
+  else if (v === 'changelog') showChangelog();
+  else if (v === 'detail') (selectedPath ? showDetail() : showNoSelection());
 });
 
 changelogContentEl?.addEventListener('click', (e) => {

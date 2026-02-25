@@ -33,10 +33,10 @@ async function main() {
       throw new Error('Expected main UI (Add project / Release Manager / Settings) not found');
     }
 
-    // Optional: open Documentation tab
-    const docsBtn = await window.locator('text=Documentation').first();
-    if ((await docsBtn.count()) > 0) {
-      await docsBtn.click();
+    // Optional: open Documentation via View dropdown
+    const viewDropdown = window.locator('#view-dropdown');
+    if ((await viewDropdown.count()) > 0) {
+      await viewDropdown.selectOption('docs');
       await new Promise((r) => setTimeout(r, 500));
       const afterDocs = await window.content();
       if (!afterDocs.includes('Overview') && !afterDocs.includes('docs-content')) {

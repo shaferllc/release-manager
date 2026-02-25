@@ -17,12 +17,16 @@
         <span class="inline-flex w-8 h-8 rounded-rm bg-rm-accent/20 text-rm-accent items-center justify-center text-sm font-bold">R</span>
         Release Manager
       </h1>
-      <div class="nav-tabs flex items-center gap-0.5 shrink-0">
-        <button type="button" id="btn-view-dashboard" class="nav-tab">Dashboard</button>
-        <button type="button" id="btn-view-settings" class="nav-tab">Settings</button>
-        <button type="button" id="btn-view-docs" class="nav-tab">Documentation</button>
-        <button type="button" id="btn-view-changelog" class="nav-tab">Changelog</button>
-      </div>
+      <label class="flex items-center gap-2 shrink-0">
+        <span class="text-xs font-medium text-rm-muted whitespace-nowrap">View</span>
+        <select id="view-dropdown" class="view-dropdown">
+          <option value="detail">Project</option>
+          <option value="dashboard">Dashboard</option>
+          <option value="settings">Settings</option>
+          <option value="docs">Documentation</option>
+          <option value="changelog">Changelog</option>
+        </select>
+      </label>
     </div>
     <div class="flex items-center gap-2 no-drag shrink-0">
       <div class="theme-toggle flex items-center rounded-rm border border-rm-border bg-rm-surface overflow-hidden">
@@ -175,7 +179,7 @@
             <p class="m-0 mb-3 text-rm-muted">Select a project to see its detail. Sections are collapsible (click the header to expand/collapse).</p>
             <ul class="m-0 mb-3 pl-5 text-rm-muted list-disc space-y-1">
               <li><strong>Git</strong> — Branch, ahead/behind, uncommitted files. If there are changes, you can enter a commit message and <strong>Commit</strong> from the app.</li>
-              <li><strong>Version &amp; release</strong> — Current version and latest tag; list of released versions (with links and <strong>Download</strong> per version for GitHub repos). For <strong>npm</strong>: Patch / Minor / Major / Pre-release bump then tag and push. For <strong>Rust, Go, Python</strong>: <strong>Tag and push</strong> uses the current version in the manifest (no bump; update the version in the file first if needed). Release notes, draft, and pre-release options use your GitHub token when set. The app shows <strong>recent commits</strong> and an optional <strong>suggested bump</strong> from conventional commits (<code class="bg-rm-surface px-1 rounded text-xs">feat:</code> → minor, <code class="bg-rm-surface px-1 rounded text-xs">fix:</code> → patch, breaking change → major); you choose the bump.</li>
+              <li><strong>Version &amp; release</strong> — Current version and latest tag; list of released versions (with links and <strong>Download</strong> per version for GitHub repos). Release creates a git tag and pushes it; pushing the tag triggers <strong>GitHub Actions</strong> to build and attach the DMG (and other installers) to the release. For <strong>npm</strong>: Patch / Minor / Major / Pre-release bump then tag and push. For <strong>Rust, Go, Python</strong>: <strong>Tag and push</strong> uses the current version in the manifest (no bump; update the version in the file first if needed). Release notes, draft, and pre-release options use your GitHub token when set. The app shows <strong>recent commits</strong> and an optional <strong>suggested bump</strong> from conventional commits (<code class="bg-rm-surface px-1 rounded text-xs">feat:</code> → minor, <code class="bg-rm-surface px-1 rounded text-xs">fix:</code> → patch, breaking change → major); you choose the bump.</li>
               <li><strong>Sync &amp; download</strong> — <strong>Sync</strong> runs <code class="bg-rm-surface px-1 rounded text-xs">git fetch</code>. <strong>Download latest</strong> / <strong>Choose version…</strong> fetch GitHub Release assets for your platform.</li>
             </ul>
             <p class="m-0 mb-2 text-rm-muted">Header actions:</p>
@@ -326,7 +330,7 @@
           <div class="card-section border-t border-rm-border">
             <span class="card-label">Release</span>
             <p id="detail-release-hint" class="m-0 mb-5 text-sm text-rm-muted">
-              Bump version, tag <code class="bg-rm-bg px-1.5 py-0.5 rounded text-xs font-mono">vX.Y.Z</code>, push. With a GitHub token you can add notes, draft, or pre-release.
+              Creates a git tag <code class="bg-rm-bg px-1.5 py-0.5 rounded text-xs font-mono">vX.Y.Z</code> and pushes it. Pushing the tag triggers GitHub Actions to build and attach the DMG (and other installers) to the release. With a GitHub token you can add release notes, draft, or pre-release.
             </p>
 
             <div id="detail-recent-commits-wrap" class="mb-5 hidden">
@@ -370,7 +374,7 @@
             <p id="release-shortcuts-hint" class="mt-3 text-xs text-rm-muted">Shortcuts: <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘1</kbd> Patch, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘2</kbd> Minor, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘3</kbd> Major, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘S</kbd> Sync, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘D</kbd> Download</p>
             <p id="release-status" class="mt-4 text-sm text-rm-muted hidden"></p>
             <p id="release-actions-wrap" class="mt-2 hidden">
-              <a id="release-actions-link" href="#" class="text-rm-accent hover:underline text-sm" target="_blank" rel="noopener">Check release status →</a>
+              <a id="release-actions-link" href="#" class="text-rm-accent hover:underline text-sm" target="_blank" rel="noopener">Open Actions (workflow builds DMG) →</a>
             </p>
           </div>
 
