@@ -1090,6 +1090,16 @@ function initCollapsibleSections() {
   });
 }
 
+async function refreshFromFilesystem() {
+  projects = await window.releaseManager.getProjects();
+  renderProjectList();
+  if (viewMode === 'dashboard') {
+    loadDashboard();
+  } else if (selectedPath) {
+    loadProjectInfo(selectedPath);
+  }
+}
+
 async function init() {
   await initTheme();
   initCollapsibleSections();
@@ -1103,5 +1113,7 @@ async function init() {
     showNoSelection();
   }
 }
+
+document.getElementById('btn-refresh').addEventListener('click', () => refreshFromFilesystem());
 
 init();

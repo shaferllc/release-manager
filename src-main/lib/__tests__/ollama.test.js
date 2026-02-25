@@ -366,6 +366,21 @@ describe('ollama', () => {
       const result = await modelSupportsGenerate('http://127.0.0.1:11434', 'm', fetchMock);
       expect(result).toBe(false);
     });
+    it('modelSupportsGenerate returns false when res.json() throws synchronously', async () => {
+      const fetchMock = () =>
+        Promise.resolve({ ok: true, json: () => { throw new Error('sync parse'); } });
+      const result = await modelSupportsGenerate('http://127.0.0.1:11434', 'm', fetchMock);
+      expect(result).toBe(false);
+    });
+    it('modelSupportsGenerate returns true when modalities is array without text and not only embedding', async () => {
+      const fetchMock = () =>
+        Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ modalities: ['embedding', 'other'] }),
+        });
+      const result = await modelSupportsGenerate('http://127.0.0.1:11434', 'm', fetchMock);
+      expect(result).toBe(true);
+    });
     it('returns all models when onlyGenerate is false or omitted', async () => {
       const fetchMock = () =>
         Promise.resolve({

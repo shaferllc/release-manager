@@ -156,6 +156,15 @@ describe('packageManagers', () => {
       expect(result.version).toBe('3.0.0');
       expect(result.projectType).toBe('python');
     });
+    it('returns python name from pyproject.toml with single-quoted name', () => {
+      const fsMock = {
+        readFileSync: () => "[project]\nname = 'single-quote-pkg'\nversion = \"1.0.0\"\n",
+      };
+      const result = getNonNpmProjectInfo('/proj', { type: 'python', manifestPath: '/proj/pyproject.toml' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('single-quote-pkg');
+      expect(result.version).toBe('1.0.0');
+    });
     it('returns python version from pyproject.toml with no name (uses basename)', () => {
       const fsMock = {
         readFileSync: () => '[project]\nversion = "1.0.0"\n',
