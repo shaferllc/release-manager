@@ -50,6 +50,10 @@ html[data-theme="light"] {
 .nav-bar {
   -webkit-app-region: drag;
 }
+.app-logo {
+  object-fit: contain;
+  display: block;
+}
 .nav-bar button,
 .nav-bar .no-drag {
   -webkit-app-region: no-drag;

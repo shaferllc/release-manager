@@ -57,7 +57,7 @@
         "dmg",
         "zip"
       ],
-      "icon": "assets/icons/icon.png",
+      "icon": "assets/icons/icon.icns",
       "hardenedRuntime": true,
       "gatekeeperAssess": false
     },

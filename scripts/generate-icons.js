@@ -75,6 +75,33 @@ async function main() {
   fs.renameSync(tmp1024, iconPath);
 
   console.log('Generated icon sizes in assets/icons/ (white background made transparent)');
+
+  // macOS: build icon.icns so Dock/desktop use full resolution (512/1024)
+  if (process.platform === 'darwin') {
+    const iconset = path.join(iconsDir, 'icon.iconset');
+    if (!fs.existsSync(iconset)) fs.mkdirSync(iconset, { recursive: true });
+    const copies = [
+      ['icon-16.png', 'icon_16x16.png'],
+      ['icon-32.png', 'icon_16x16@2x.png'],
+      ['icon-32.png', 'icon_32x32.png'],
+      ['icon-64.png', 'icon_32x32@2x.png'],
+      ['icon-128.png', 'icon_128x128.png'],
+      ['icon-256.png', 'icon_128x128@2x.png'],
+      ['icon-256.png', 'icon_256x256.png'],
+      ['icon-512.png', 'icon_256x256@2x.png'],
+      ['icon-512.png', 'icon_512x512.png'],
+      ['icon.png', 'icon_512x512@2x.png'],
+    ];
+    for (const [from, to] of copies) {
+      const src = path.join(iconsDir, from);
+      const dest = path.join(iconset, to);
+      if (fs.existsSync(src)) fs.copyFileSync(src, dest);
+    }
+    const { execSync } = require('child_process');
+    execSync(`iconutil -c icns "${iconset}" -o "${path.join(iconsDir, 'icon.icns')}"`, { stdio: 'inherit' });
+    fs.rmSync(iconset, { recursive: true });
+    console.log('  → icon.icns (macOS Dock/desktop)');
+  }
 }
 
 main().catch((err) => {

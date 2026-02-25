@@ -1349,8 +1349,8 @@ body {
   display: none;
 }
 
-.h-8 {
-  height: 2rem;
+.h-12 {
+  height: 3rem;
 }
 
 .max-h-24 {
@@ -1369,8 +1369,8 @@ body {
   min-height: 0px;
 }
 
-.w-8 {
-  width: 2rem;
+.w-12 {
+  width: 3rem;
 }
 
 .w-full {
@@ -1702,10 +1702,6 @@ body {
   line-height: 1rem;
 }
 
-.font-bold {
-  font-weight: 700;
-}
-
 .font-medium {
   font-weight: 500;
 }
@@ -1813,6 +1809,12 @@ html[data-theme="light"] {
 
 .nav-bar {
   -webkit-app-region: drag;
+}
+
+.app-logo {
+  -o-object-fit: contain;
+     object-fit: contain;
+  display: block;
 }
 
 .nav-bar button,

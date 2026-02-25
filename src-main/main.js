@@ -308,12 +308,11 @@ async function createGitHubRelease(owner, repo, tagName, body, draft, prerelease
   return res.json();
 }
 
-async function fetchGitHubReleases(owner, repo) {
+async function fetchGitHubReleases(owner, repo, token = null) {
   const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/releases`;
-  const res = await fetch(url, {
-    headers: { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT },
-    redirect: 'follow',
-  });
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, { headers, redirect: 'follow' });
   if (!res.ok) {
     const text = await res.text();
     throw new Error(res.status === 404 ? 'Repo or releases not found' : text || `HTTP ${res.status}`);
@@ -572,11 +571,12 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('rm-get-releases-url', (_e, gitRemote) => getReleasesUrl(gitRemote));
   ipcMain.handle('rm-sync-from-remote', (_e, dirPath) => gitFetch(dirPath));
-  ipcMain.handle('rm-get-github-releases', async (_e, gitRemote) => {
+  ipcMain.handle('rm-get-github-releases', async (_e, gitRemote, token = null) => {
     const slug = getRepoSlug(gitRemote);
     if (!slug) return { ok: false, error: 'Not a GitHub repo', releases: [] };
+    const authToken = token || getStore().get('githubToken') || null;
     try {
-      const releases = await fetchGitHubReleases(slug.owner, slug.repo);
+      const releases = await fetchGitHubReleases(slug.owner, slug.repo, authToken);
       return { ok: true, releases };
     } catch (e) {
       return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch releases'), releases: [] };

@@ -311,7 +311,7 @@ function formatAheadBehind(ahead, behind) {
   return parts.length ? parts.join(', ') : null;
 }
 
-function setDetailContent(info, releasesUrl = null) {
+function setDetailContent(info, releasesUrl = null, githubReleases = []) {
   currentInfo = info;
   if (!info || !info.ok) {
     detailNameEl.textContent = '—';
@@ -361,17 +361,18 @@ function setDetailContent(info, releasesUrl = null) {
   }
   if (detailReleaseBumpButtonsEl) detailReleaseBumpButtonsEl.classList.toggle('hidden', isNonNpm);
   if (detailReleaseTagOnlyWrapEl) detailReleaseTagOnlyWrapEl.classList.toggle('hidden', !isNonNpm);
-  const allTags = info.allTags || [];
+  const tagsFromReleases = githubReleases.length > 0 ? githubReleases.map((r) => r.tag_name) : (info.allTags || []);
   if (detailAllVersionsWrapEl) {
     detailAllVersionsWrapEl.classList.toggle('hidden', !info.hasGit);
     if (info.hasGit) {
       if (detailAllVersionsEmptyEl) {
-        detailAllVersionsEmptyEl.classList.toggle('hidden', allTags.length > 0);
+        detailAllVersionsEmptyEl.classList.toggle('hidden', tagsFromReleases.length > 0);
+        detailAllVersionsEmptyEl.textContent = 'No releases yet. Sync to fetch tags, or create a release.';
       }
       if (detailAllVersionsEl) {
         detailAllVersionsEl.innerHTML = '';
         const tagUrlBase = releasesUrl ? releasesUrl.replace(/\/?$/, '') + '/tag/' : null;
-        allTags.forEach((tag) => {
+        tagsFromReleases.forEach((tag) => {
           const li = document.createElement('li');
           li.className = 'flex items-center gap-3 flex-wrap font-mono text-sm py-0.5';
           if (tagUrlBase) {
@@ -502,10 +503,17 @@ async function loadProjectInfo(dirPath) {
   try {
     const info = await window.releaseManager.getProjectInfo(dirPath);
     let releasesUrl = null;
+    let githubReleases = [];
     if (info.ok && info.gitRemote) {
       releasesUrl = await window.releaseManager.getReleasesUrl(info.gitRemote);
+      if (releasesUrl) {
+        const project = projects.find((p) => p.path === dirPath);
+        const token = project?.githubToken || null;
+        const res = await window.releaseManager.getGitHubReleases(info.gitRemote, token);
+        if (res.ok && res.releases?.length) githubReleases = res.releases;
+      }
     }
-    setDetailContent(info, releasesUrl);
+    setDetailContent(info, releasesUrl, githubReleases);
   } catch (e) {
     setDetailContent({ ok: false, error: e.message });
     detailErrorEl.textContent = e.message || 'Failed to load project';

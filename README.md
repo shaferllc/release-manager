@@ -22,6 +22,10 @@ npm start
 
 **In-app docs:** Open the **Documentation** tab in the sidebar for the full feature list and usage.
 
+## Downloads
+
+**Latest:** v0.4.2 — [Release & downloads](https://github.com/shaferllc/release-manager/releases/latest)
+
 ## Features
 
 | Feature | Description |

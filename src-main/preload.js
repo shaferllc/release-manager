@@ -30,7 +30,7 @@ contextBridge.exposeInMainWorld('releaseManager', {
   openInEditor: (dirPath) => ipcRenderer.invoke('rm-open-in-editor', dirPath),
   getReleasesUrl: (gitRemote) => ipcRenderer.invoke('rm-get-releases-url', gitRemote),
   syncFromRemote: (dirPath) => ipcRenderer.invoke('rm-sync-from-remote', dirPath),
-  getGitHubReleases: (gitRemote) => ipcRenderer.invoke('rm-get-github-releases', gitRemote),
+  getGitHubReleases: (gitRemote, token) => ipcRenderer.invoke('rm-get-github-releases', gitRemote, token),
   downloadLatestRelease: (gitRemote) => ipcRenderer.invoke('rm-download-latest', gitRemote),
   downloadAsset: (url, suggestedFileName) => ipcRenderer.invoke('rm-download-asset', url, suggestedFileName),
   openUrl: (url) => ipcRenderer.invoke('rm-open-url', url),
