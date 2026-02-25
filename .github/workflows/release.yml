@@ -33,6 +33,7 @@ jobs:
 
       - name: Set version from tag or input
         id: version
+        shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             VER="${{ github.event.inputs.version }}"
@@ -51,12 +52,14 @@ jobs:
           cache-dependency-path: package-lock.json
 
       - name: Install dependencies
+        shell: bash
         run: npm ci || npm install
 
       - name: Build app
         run: npm run build
 
       - name: List build output
+        shell: bash
         run: ls -la dist/ || true
 
       - name: Upload artifacts
@@ -95,4 +98,5 @@ jobs:
             artifacts/**/*.exe
             artifacts/**/*.AppImage
         env:
+          # Token: use built-in (no setup) or add secret "GH_TOKEN" in repo Settings → Secrets → Actions and use secrets.GH_TOKEN
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
