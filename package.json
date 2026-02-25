@@ -1,6 +1,6 @@
 {
   "name": "release-manager",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "productName": "Release Manager",
   "description": "Desktop app to manage releases for all your app projects",
   "main": "src-main/main.js",
@@ -37,6 +37,7 @@
     "appId": "com.releasemanager.app",
     "productName": "Release Manager",
     "copyright": "Copyright © Release Manager",
+    "publish": null,
     "directories": {
       "output": "dist",
       "buildResources": "assets/icons"
