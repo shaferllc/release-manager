@@ -23,7 +23,7 @@ function getComposerManifestInfo(dirPath, fsImpl) {
     let data;
     try {
       data = JSON.parse(content);
-    } catch (_) {
+    } catch {
       return { ok: false, error: 'Invalid composer.json' };
     }
     const requireCount = typeof data.require === 'object' && data.require !== null
@@ -99,14 +99,21 @@ function parseComposerAuditJson(stdout) {
     const advisories = [];
     if (data.advisories && typeof data.advisories === 'object') {
       for (const [name, list] of Object.entries(data.advisories)) {
-        const items = Array.isArray(list) ? list : (list ? [list] : []);
+        let items;
+        if (Array.isArray(list)) items = list;
+        else if (list) items = [list];
+        else items = [];
         for (const a of items) {
+          const version = a.packageVersion != null ? String(a.packageVersion) : undefined;
+          const advisory = typeof a.advisory === 'string' ? a.advisory : (a.title || 'Security advisory');
+          const severity = typeof a.severity === 'string' ? a.severity : undefined;
+          const link = typeof a.url === 'string' ? a.url : undefined;
           advisories.push({
-            name: typeof name === 'string' ? name : String(name),
-            version: a.packageVersion != null ? String(a.packageVersion) : undefined,
-            advisory: typeof a.advisory === 'string' ? a.advisory : (a.title || 'Security advisory'),
-            severity: typeof a.severity === 'string' ? a.severity : undefined,
-            link: typeof a.url === 'string' ? a.url : undefined,
+            name: String(name),
+            version,
+            advisory,
+            severity,
+            link,
           });
         }
       }

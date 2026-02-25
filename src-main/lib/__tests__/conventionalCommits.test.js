@@ -47,5 +47,9 @@ describe('conventionalCommits', () => {
     it('handles non-string commit entries', () => {
       expect(suggestBumpFromCommits([123, 'feat: add'])).toBe('minor');
     });
+
+    it('ignores empty string entries', () => {
+      expect(suggestBumpFromCommits(['', '  ', 'fix: bug'])).toBe('patch');
+    });
   });
 });

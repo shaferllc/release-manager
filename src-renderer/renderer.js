@@ -18,6 +18,7 @@ const detailErrorEl = document.getElementById('detail-error');
 const linkReleasesEl = document.getElementById('link-releases');
 const releaseStatusEl = document.getElementById('release-status');
 const syncDownloadStatusEl = document.getElementById('sync-download-status');
+const syncDownloadStatusWrapEl = document.getElementById('sync-download-status-wrap');
 const detailGitStateEl = document.getElementById('detail-git-state');
 const detailBranchEl = document.getElementById('detail-branch');
 const detailAheadBehindEl = document.getElementById('detail-ahead-behind');
@@ -62,6 +63,8 @@ const filterTypeEl = document.getElementById('filter-type');
 const filterTagEl = document.getElementById('filter-tag');
 const detailTagsWrapEl = document.getElementById('detail-tags-wrap');
 const detailTagsInputEl = document.getElementById('detail-tags-input');
+const detailPhpPathEl = document.getElementById('detail-php-path');
+const detailPhpWrapEl = document.getElementById('detail-php-wrap');
 const detailComposerCardEl = document.getElementById('detail-composer-card');
 const detailTestsCardEl = document.getElementById('detail-tests-card');
 const detailCoverageCardEl = document.getElementById('detail-coverage-card');
@@ -82,32 +85,6 @@ let selectedPaths = new Set();
 
 const PREF_DETAIL_USE_TABS = 'detailUseTabs';
 const PREF_COLLAPSED_SECTIONS = 'collapsedSections';
-
-/** Parse coverage report text for a short summary (Jest, Vitest, PHPUnit, Istanbul/c8). */
-function parseCoverageSummary(text) {
-  if (!text || typeof text !== 'string') return null;
-  const lines = text.split('\n');
-  // Jest / Vitest: "All files | 85.71 | ..." or "Statements : 85.71%"
-  for (const line of lines) {
-    const allFiles = line.match(/All files\s*\|\s*([\d.]+)/);
-    if (allFiles) return `${allFiles[1]}%`;
-    const stmt = line.match(/Statements\s*:\s*([\d.]+)%?/);
-    if (stmt) return `Stmts ${stmt[1]}%`;
-    const linesPct = line.match(/Lines\s*:\s*([\d.]+)%?/);
-    if (linesPct) return `Lines ${linesPct[1]}%`;
-  }
-  // PHPUnit text: "Code Coverage: 87.50%" or "Lines: 85.71%"
-  for (const line of lines) {
-    const phpUnit = line.match(/Code Coverage:\s*([\d.]+)%/);
-    if (phpUnit) return `${phpUnit[1]}%`;
-    const linesPct = line.match(/^\s*Lines:\s*([\d.]+)%/);
-    if (linesPct) return `Lines ${linesPct[1]}%`;
-  }
-  // Generic: "X% coverage" or "Coverage: X%"
-  const generic = text.match(/(?:Coverage|coverage)[:\s]+([\d.]+)%/i) || text.match(/([\d.]+)%\s*coverage/i);
-  if (generic) return `${generic[1]}%`;
-  return null;
-}
 
 function updateDetailTabPanelVisibility() {
   const useTabsEl = document.getElementById('detail-use-tabs');
@@ -147,11 +124,19 @@ async function initTheme() {
 }
 
 function getFilteredProjects() {
+  const typeFilter = (filterTypeEl?.value ?? '').trim();
+  const tagFilter = (filterTagEl?.value ?? '').trim();
   const filtered = projects.filter((p) => {
-    if (filterByType && (p.projectType || '') !== filterByType) return false;
-    if (filterByTag) {
+    if (typeFilter) {
+      if (typeFilter === 'php') {
+        if ((p.projectType || '') !== 'php' && !p.hasComposer) return false;
+      } else if ((p.projectType || '') !== typeFilter) {
+        return false;
+      }
+    }
+    if (tagFilter) {
       const tags = Array.isArray(p.tags) ? p.tags : [];
-      if (!tags.includes(filterByTag)) return false;
+      if (!tags.includes(tagFilter)) return false;
     }
     return true;
   });
@@ -311,6 +296,7 @@ function saveSettingsToStore() {
   const tokenEl = document.getElementById('settings-github-token');
   const baseUrlEl = document.getElementById('settings-ollama-base-url');
   const modelEl = document.getElementById('settings-ollama-model');
+  const phpPathEl = document.getElementById('settings-php-path');
   if (tokenEl) window.releaseManager.setGitHubToken(tokenEl.value?.trim() ?? '');
   if (baseUrlEl && modelEl) {
     window.releaseManager.setOllamaSettings(
@@ -318,6 +304,7 @@ function saveSettingsToStore() {
       modelEl.value?.trim() || 'llama3.2'
     );
   }
+  if (phpPathEl) window.releaseManager.setPreference('phpPath', phpPathEl.value?.trim() ?? '');
 }
 
 function showDashboard() {
@@ -351,6 +338,9 @@ async function showSettings() {
   const ollamaModelEl = document.getElementById('settings-ollama-model');
   if (ollamaBaseUrlEl) ollamaBaseUrlEl.value = ollama?.baseUrl || '';
   if (ollamaModelEl) ollamaModelEl.value = ollama?.model || '';
+  const phpPath = await window.releaseManager.getPreference('phpPath');
+  const settingsPhpPathEl = document.getElementById('settings-php-path');
+  if (settingsPhpPathEl) settingsPhpPathEl.value = phpPath || '';
 }
 
 function showDocs() {
@@ -446,6 +436,66 @@ function escapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s;
   return div.innerHTML;
+}
+
+let fileViewerModalProjectPath = null;
+let fileViewerModalFilePath = null;
+
+async function openFileViewerModal(dirPath, filePath, isUntracked) {
+  const modalEl = document.getElementById('modal-file-view');
+  const titleEl = document.getElementById('modal-file-view-title');
+  const contentEl = document.getElementById('modal-file-view-content');
+  if (!modalEl || !titleEl || !contentEl) return;
+  fileViewerModalProjectPath = dirPath;
+  fileViewerModalFilePath = filePath;
+  titleEl.textContent = filePath;
+  contentEl.textContent = 'Loading…';
+  contentEl.innerHTML = '';
+  modalEl.classList.remove('hidden');
+  contentEl.classList.remove('diff-view');
+  try {
+    const result = await window.releaseManager.getFileDiff(dirPath, filePath, isUntracked);
+    if (!result.ok) {
+      contentEl.textContent = result.error || 'Failed to load';
+      return;
+    }
+    if (result.type === 'diff' && result.content) {
+      contentEl.classList.add('diff-view');
+      const lines = result.content.split('\n');
+      contentEl.innerHTML = lines
+        .map((line) => {
+          let cls = 'modal-file-line';
+          if (line.startsWith('diff --git ')) cls += ' diff-header';
+          else if (line.startsWith('index ')) cls += ' diff-meta';
+          else if (line.startsWith('--- ')) cls += ' diff-file-old';
+          else if (line.startsWith('+++ ')) cls += ' diff-file-new';
+          else if (line.startsWith('@@') && line.includes('@@')) cls += ' diff-hunk';
+          else if (line.startsWith('+')) cls += ' diff-add';
+          else if (line.startsWith('-')) cls += ' diff-remove';
+          else cls += ' diff-context';
+          return `<div class="${cls}">${escapeHtml(line)}</div>`;
+        })
+        .join('');
+    } else if (result.type === 'new' && result.content != null) {
+      const lines = String(result.content).split('\n');
+      contentEl.innerHTML = lines
+        .map((line) => `<div class="modal-file-line">${escapeHtml(line)}</div>`)
+        .join('');
+    } else {
+      contentEl.textContent = result.content || '(empty)';
+    }
+  } catch (e) {
+    contentEl.textContent = e?.message || 'Failed to load file';
+  }
+}
+
+/** Remove ANSI escape codes (colors, OSC 8 links, etc.) for plain-text display. */
+function stripAnsi(text) {
+  if (text == null || typeof text !== 'string') return '';
+  return text
+    .replace(/\x1b\[[\d;]*[a-zA-Z]/g, '')
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[?[\d;]*[a-zA-Z]/g, '');
 }
 
 function formatAheadBehind(ahead, behind) {
@@ -681,6 +731,7 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
   if (!info || !info.ok) {
     detailNameEl.textContent = '—';
     detailPathEl.textContent = selectedPath || '';
+    detailPathEl.title = selectedPath || '';
     detailVersionEl.textContent = '—';
     detailTagEl.textContent = '—';
     detailGitStateEl.classList.add('hidden');
@@ -689,6 +740,8 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     detailErrorEl.classList.add('hidden');
     linkReleasesEl.classList.add('hidden');
     detailTagsWrapEl?.classList.add('hidden');
+    if (detailPhpPathEl) detailPhpPathEl.innerHTML = '<option value="">Use default</option>';
+    detailPhpWrapEl?.classList.add('hidden');
     detailComposerCardEl?.classList.add('hidden');
     detailTestsCardEl?.classList.add('hidden');
     detailCoverageCardEl?.classList.add('hidden');
@@ -705,8 +758,11 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
   if (releaseNotesEl) releaseNotesEl.value = '';
   const project = projects.find((p) => p.path === selectedPath);
   if (githubTokenEl) githubTokenEl.value = (project?.githubToken && typeof project.githubToken === 'string' ? project.githubToken : '') || '';
+  const projectType = info.projectType || 'npm';
+  if (detailPhpWrapEl) detailPhpWrapEl.classList.add('hidden');
   detailNameEl.textContent = info.name || '—';
   detailPathEl.textContent = info.path || '';
+    detailPathEl.title = info.path || '';
   detailVersionEl.textContent = info.version ?? '—';
   detailTagEl.textContent = info.latestTag || 'none';
   if (detailUnreleasedCommitsEl) {
@@ -723,7 +779,6 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
       detailUnreleasedCommitsEl.classList.add('text-rm-muted');
     }
   }
-  const projectType = info.projectType || 'npm';
   const projectTypeLabel = { npm: '', cargo: 'Rust', go: 'Go', python: 'Python', php: 'PHP' }[projectType] || '';
   if (detailProjectTypeEl) {
     detailProjectTypeEl.textContent = projectTypeLabel ? `(${projectTypeLabel})` : '';
@@ -732,9 +787,17 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
   const isNonNpm = projectType !== 'npm';
   if (detailReleaseHintEl) {
     detailReleaseHintEl.textContent = isNonNpm
-      ? 'Tag and push current version from your manifest. With a GitHub token you can add notes, draft, or pre-release.'
-      : 'Bump version, tag vX.Y.Z, push. With a GitHub token you can add notes, draft, or pre-release.';
+      ? 'Tag and push current version from your manifest.'
+      : 'Bump version, tag vX.Y.Z, push. With a GitHub token you can add release notes, draft, or pre-release.';
   }
+  const detailReleaseNotesWrapEl = document.getElementById('detail-release-notes-wrap');
+  const detailReleaseDraftPrereleaseWrapEl = document.getElementById('detail-release-draft-prerelease-wrap');
+  const releaseActionsWrapEl = document.getElementById('release-actions-wrap');
+  if (detailReleaseNotesWrapEl) detailReleaseNotesWrapEl.classList.toggle('hidden', isNonNpm);
+  if (detailReleaseDraftPrereleaseWrapEl) detailReleaseDraftPrereleaseWrapEl.classList.toggle('hidden', isNonNpm);
+  if (releaseActionsWrapEl && isNonNpm) releaseActionsWrapEl.classList.add('hidden');
+  const releaseShortcutsHintEl = document.getElementById('release-shortcuts-hint');
+  if (releaseShortcutsHintEl) releaseShortcutsHintEl.classList.toggle('hidden', isNonNpm);
   if (detailReleaseBumpButtonsEl) detailReleaseBumpButtonsEl.classList.toggle('hidden', isNonNpm);
   if (detailReleaseTagOnlyWrapEl) detailReleaseTagOnlyWrapEl.classList.toggle('hidden', !isNonNpm);
   if (detailComposerCardEl) {
@@ -748,6 +811,11 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
           detailComposerCardEl.classList.remove('hidden');
           if (composerTabBtn) composerTabBtn.classList.remove('hidden');
           loadComposerSection(selectedPath);
+          if (detailPhpWrapEl) detailPhpWrapEl.classList.remove('hidden');
+          if (detailPhpPathEl) {
+            detailPhpPathEl.innerHTML = '<option value="">Use default</option>';
+            loadPhpVersionSelect(selectedPath, project);
+          }
         }
         updateDetailTabPanelVisibility();
       }).catch(() => {
@@ -828,18 +896,31 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     const lines = info.uncommittedLines || [];
     if (detailUncommittedLabelEl) {
       detailUncommittedLabelEl.textContent =
-        lines.length > 0 ? `Uncommitted changes (${lines.length})` : 'Working tree clean';
+        lines.length > 0 ? `Uncommitted changes (${lines.length}) — click a file to view changes` : 'Working tree clean';
       detailUncommittedLabelEl.classList.toggle('text-rm-warning', lines.length > 0);
       detailUncommittedLabelEl.classList.toggle('text-rm-muted', lines.length === 0);
     }
+    const detailGitNextStepEl = document.getElementById('detail-git-next-step');
+    if (detailGitNextStepEl) detailGitNextStepEl.classList.toggle('hidden', lines.length > 0);
     if (detailUncommittedListEl) {
       detailUncommittedListEl.innerHTML = '';
       lines.forEach((line) => {
-        const path = line.length > 3 ? line.slice(3).trim() : line;
+        const status = line.length >= 2 ? line.slice(0, 2) : '';
+        const filePath = line.length > 3 ? line.slice(3).trim() : line;
+        const isUntracked = status === '??' || (status.length > 0 && status[0] === '?');
         const li = document.createElement('li');
         li.className = 'truncate';
-        li.title = path;
-        li.textContent = path;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-left w-full truncate text-rm-muted hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer text-xs';
+        btn.title = `View changes: ${filePath}`;
+        btn.textContent = filePath;
+        btn.dataset.filePath = filePath;
+        btn.dataset.untracked = isUntracked ? '1' : '0';
+        btn.addEventListener('click', () => {
+          if (selectedPath) openFileViewerModal(selectedPath, filePath, isUntracked);
+        });
+        li.appendChild(btn);
         detailUncommittedListEl.appendChild(li);
       });
     }
@@ -851,6 +932,10 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
         detailCommitStatusEl.classList.add('hidden');
       }
     }
+    const btnStash = document.getElementById('btn-git-stash');
+    const btnDiscard = document.getElementById('btn-git-discard');
+    if (btnStash) btnStash.disabled = lines.length === 0;
+    if (btnDiscard) btnDiscard.disabled = lines.length === 0;
   } else {
     detailGitStateEl.classList.add('hidden');
   }
@@ -930,8 +1015,9 @@ async function loadProjectInfo(dirPath) {
     }
     setDetailContent(info, releasesUrl, githubReleases);
     const proj = projects.find((p) => p.path === dirPath);
-    if (proj && info.projectType) {
-      proj.projectType = info.projectType;
+    if (proj) {
+      if (info.projectType != null) proj.projectType = info.projectType;
+      if (info.hasComposer != null) proj.hasComposer = info.hasComposer;
       await window.releaseManager.setProjects(projects);
     }
   } catch (e) {
@@ -960,7 +1046,7 @@ async function addProject() {
   }
   const name = info.name || dirPath.split(/[/\\]/).filter(Boolean).pop();
   if (projects.some((p) => p.path === dirPath)) return;
-  projects.push({ path: dirPath, name, projectType: info.projectType || null, tags: [], starred: false });
+  projects.push({ path: dirPath, name, projectType: info.projectType || null, hasComposer: info.hasComposer || false, tags: [], starred: false });
   await window.releaseManager.setProjects(projects);
   renderProjectList();
   selectProject(dirPath);
@@ -987,10 +1073,11 @@ async function release(bump, force = false) {
       force = true;
     }
   }
-  const releaseNotes = releaseNotesEl?.value?.trim() || null;
-  const draft = releaseDraftEl?.checked === true;
-  const prereleaseChecked = releasePrereleaseEl?.checked === true;
-  const prerelease = prereleaseChecked || bump === 'prerelease';
+  const isNpmRelease = currentInfo?.projectType === 'npm';
+  const releaseNotes = isNpmRelease ? (releaseNotesEl?.value?.trim() || null) : null;
+  const draft = isNpmRelease && releaseDraftEl?.checked === true;
+  const prereleaseChecked = isNpmRelease && releasePrereleaseEl?.checked === true;
+  const prerelease = prereleaseChecked || (isNpmRelease && bump === 'prerelease');
   const options = {
     releaseNotes: releaseNotes || undefined,
     draft,
@@ -999,7 +1086,7 @@ async function release(bump, force = false) {
   const optionsWithToken = { ...options };
   const projectToken = githubTokenEl?.value?.trim();
   if (projectToken) optionsWithToken.githubToken = projectToken;
-  releaseStatusEl.textContent = 'Bumping version, then committing and pushing…';
+  releaseStatusEl.textContent = isNpmRelease ? 'Bumping version, then committing and pushing…' : 'Tagging and pushing…';
   releaseStatusEl.classList.remove('hidden');
   releaseActionsWrapEl?.classList.add('hidden');
   detailErrorEl.classList.add('hidden');
@@ -1008,12 +1095,12 @@ async function release(bump, force = false) {
     if (result.ok) {
       let msg = `Tag ${result.tag} created and pushed.`;
       if (result.releaseError) msg += ` GitHub release note: ${result.releaseError}`;
-      else msg += ' GitHub Actions will build and attach the DMG (and other installers) to the release.';
+      else if (result.actionsUrl) msg += ' Open the Actions tab to see workflow runs.';
       releaseStatusEl.textContent = msg;
       releaseStatusEl.classList.add('text-rm-success');
       if (result.actionsUrl && releaseActionsLinkEl) {
         releaseActionsLinkEl.href = result.actionsUrl;
-        releaseActionsLinkEl.textContent = 'Open Actions (workflow builds DMG) →';
+        releaseActionsLinkEl.textContent = 'Open Actions →';
         releaseActionsLinkEl.onclick = (e) => {
           e.preventDefault();
           window.releaseManager.openUrl(result.actionsUrl);
@@ -1039,7 +1126,8 @@ async function release(bump, force = false) {
 async function syncFromRemote() {
   if (!selectedPath) return;
   syncDownloadStatusEl.textContent = 'Fetching…';
-  syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
+  if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
   detailErrorEl.classList.add('hidden');
   try {
     const result = await window.releaseManager.syncFromRemote(selectedPath);
@@ -1060,11 +1148,13 @@ async function syncFromRemote() {
 async function downloadLatestRelease() {
   if (!selectedPath || !currentInfo?.ok || !currentInfo.gitRemote) {
     syncDownloadStatusEl.textContent = 'Select a project with a GitHub remote.';
+    if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
     syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
     return;
   }
   syncDownloadStatusEl.textContent = 'Fetching release list…';
-  syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
+  if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
   detailErrorEl.classList.add('hidden');
   try {
     const result = await window.releaseManager.downloadLatestRelease(currentInfo.gitRemote);
@@ -1139,6 +1229,29 @@ document.getElementById('btn-copy-tag').addEventListener('click', () => {
     showCopyFeedback('copy-tag-feedback', 'btn-copy-tag', 'Copy tag');
   }
 });
+
+document.getElementById('btn-copy-commit-message')?.addEventListener('click', () => {
+  const text = detailCommitMessageEl?.value ?? '';
+  window.releaseManager.copyToClipboard(text);
+  document.getElementById('btn-copy-commit-message')?.setAttribute('title', 'Copied!');
+  showCopyFeedback('copy-commit-message-feedback', 'btn-copy-commit-message', 'Copy to clipboard');
+});
+
+document.getElementById('btn-copy-release-notes')?.addEventListener('click', () => {
+  const text = releaseNotesEl?.value ?? '';
+  window.releaseManager.copyToClipboard(text);
+  document.getElementById('btn-copy-release-notes')?.setAttribute('title', 'Copied!');
+  showCopyFeedback('copy-release-notes-feedback', 'btn-copy-release-notes', 'Copy to clipboard');
+});
+
+document.getElementById('btn-copy-sync-status')?.addEventListener('click', () => {
+  const text = syncDownloadStatusEl?.textContent?.trim() ?? '';
+  if (!text) return;
+  window.releaseManager.copyToClipboard(text);
+  document.getElementById('btn-copy-sync-status')?.setAttribute('title', 'Copied!');
+  showCopyFeedback('copy-sync-status-feedback', 'btn-copy-sync-status', 'Copy to clipboard');
+});
+
 document.getElementById('btn-commit').addEventListener('click', async () => {
   if (!selectedPath) return;
   const message = detailCommitMessageEl?.value?.trim();
@@ -1158,7 +1271,7 @@ document.getElementById('btn-commit').addEventListener('click', async () => {
   try {
     const result = await window.releaseManager.commitChanges(selectedPath, message);
     if (result?.ok) {
-      detailCommitStatusEl.textContent = 'Committed.';
+      detailCommitStatusEl.textContent = 'Committed. All changes have been recorded to the current branch.';
       detailCommitStatusEl.classList.add('text-rm-success');
       if (detailCommitMessageEl) detailCommitMessageEl.value = '';
       loadProjectInfo(selectedPath);
@@ -1170,6 +1283,64 @@ document.getElementById('btn-commit').addEventListener('click', async () => {
     detailCommitStatusEl.textContent = e.message || 'Commit failed';
     detailCommitStatusEl.classList.remove('text-rm-success');
   }
+});
+
+const GIT_ACTION_CONFIRMS = {
+  pull: 'Pull fetches from the remote and merges into your current branch. Your local commits and any uncommitted changes may be updated or merged with remote changes.\n\nContinue?',
+  stash: 'Stash temporarily saves your uncommitted changes (modified and untracked files) so you can switch branches or pull. You can restore them later with Pop stash.\n\nContinue?',
+  pop: 'Pop stash reapplies the most recent stashed changes to your working tree. If you already have uncommitted changes, they may conflict and you may need to resolve them.\n\nContinue?',
+  discard: 'Discard all will permanently remove every uncommitted change: modified and staged files will be reverted to the last commit, and untracked files and directories will be deleted. This cannot be undone.\n\nAre you sure?',
+};
+
+const GIT_ACTION_SUCCESS = {
+  pull: 'Pulled from remote. Your branch is up to date.',
+  stash: 'Changes stashed. Use Pop stash to restore them.',
+  pop: 'Stash applied. Your stashed changes are back in the working tree.',
+  discard: 'Uncommitted changes discarded.',
+};
+
+async function runGitAction(label, fn, options = {}) {
+  const { confirmKey, successKey } = options;
+  const statusEl = document.getElementById('detail-git-action-status');
+  if (!selectedPath) return;
+  if (confirmKey && GIT_ACTION_CONFIRMS[confirmKey] && !confirm(GIT_ACTION_CONFIRMS[confirmKey])) return;
+  if (statusEl) {
+    statusEl.textContent = `${label}…`;
+    statusEl.classList.remove('hidden', 'text-rm-warning');
+  }
+  try {
+    const result = await fn();
+    if (statusEl) {
+      const successMsg = (successKey && GIT_ACTION_SUCCESS[successKey]) ? GIT_ACTION_SUCCESS[successKey] : (result?.ok ? 'Done.' : null);
+      statusEl.textContent = result?.ok ? successMsg : (result?.error || 'Failed');
+      statusEl.classList.toggle('text-rm-warning', !result?.ok);
+    }
+    if (result?.ok) loadProjectInfo(selectedPath);
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = e?.message || 'Failed';
+      statusEl.classList.add('text-rm-warning');
+    }
+  }
+}
+
+document.getElementById('btn-git-pull')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Pull', () => window.releaseManager.gitPull(selectedPath), { confirmKey: 'pull', successKey: 'pull' });
+});
+document.getElementById('btn-git-stash')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  if (!confirm(GIT_ACTION_CONFIRMS.stash)) return;
+  const msg = window.prompt('Stash message (optional):') ?? '';
+  runGitAction('Stash', () => window.releaseManager.gitStashPush(selectedPath, msg || undefined), { successKey: 'stash' });
+});
+document.getElementById('btn-git-stash-pop')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Pop stash', () => window.releaseManager.gitStashPop(selectedPath), { confirmKey: 'pop', successKey: 'pop' });
+});
+document.getElementById('btn-git-discard')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Discard', () => window.releaseManager.gitDiscardChanges(selectedPath), { confirmKey: 'discard', successKey: 'discard' });
 });
 
 document.getElementById('btn-load-commits').addEventListener('click', async () => {
@@ -1204,6 +1375,64 @@ githubTokenEl.addEventListener('blur', async () => {
   projects = updated;
 });
 
+/** Populate PHP version select and auto-select from composer.json require or saved project.phpPath. */
+async function loadPhpVersionSelect(dirPath, project) {
+  const selectEl = document.getElementById('detail-php-path');
+  if (!selectEl || !dirPath) return;
+  try {
+    const [available, composerInfo] = await Promise.all([
+      window.releaseManager.getAvailablePhpVersions(),
+      window.releaseManager.getComposerInfo(dirPath),
+    ]);
+    const savedPath = (project?.phpPath && typeof project.phpPath === 'string' ? project.phpPath : '').trim() || null;
+    selectEl.innerHTML = '<option value="">Use default</option>';
+    available.forEach(({ version, path: phpPath }) => {
+      const opt = document.createElement('option');
+      opt.value = phpPath;
+      opt.textContent = `PHP ${version}`;
+      selectEl.appendChild(opt);
+    });
+    if (savedPath) {
+      const found = available.some((a) => a.path === savedPath);
+      if (!found) {
+        const customOpt = document.createElement('option');
+        customOpt.value = savedPath;
+        customOpt.textContent = 'Custom (saved)';
+        selectEl.appendChild(customOpt);
+      }
+      selectEl.value = savedPath;
+    }
+    if (!savedPath && composerInfo?.ok && composerInfo.phpRequire) {
+      const preferred = await window.releaseManager.getPhpVersionFromRequire(composerInfo.phpRequire);
+      if (preferred && available.length > 0) {
+        const match = available.find((a) => {
+          const [am, an] = a.version.split('.').map(Number);
+          const [pm, pn] = preferred.split('.').map(Number);
+          return am > pm || (am === pm && (an || 0) >= (pn || 0));
+        }) || available.find((a) => a.version === preferred);
+        if (match) {
+          selectEl.value = match.path;
+          const list = await window.releaseManager.getProjects();
+          const updated = list.map((p) => (p.path === dirPath ? { ...p, phpPath: match.path } : p));
+          await window.releaseManager.setProjects(updated);
+          projects = updated;
+        }
+      }
+    }
+  } catch (_) {
+    selectEl.innerHTML = '<option value="">Use default</option>';
+  }
+}
+
+detailPhpPathEl?.addEventListener('change', async () => {
+  if (!selectedPath) return;
+  const phpPath = detailPhpPathEl.value?.trim() || undefined;
+  const list = await window.releaseManager.getProjects();
+  const updated = list.map((p) => (p.path === selectedPath ? { ...p, phpPath } : p));
+  await window.releaseManager.setProjects(updated);
+  projects = updated;
+});
+
 async function runProjectTestAndShowOutput(scriptName) {
   if (!selectedPath || !currentInfo?.ok) return;
   const projectType = currentInfo.projectType || 'npm';
@@ -1220,7 +1449,8 @@ async function runProjectTestAndShowOutput(scriptName) {
   }
   try {
     const result = await window.releaseManager.runProjectTests(selectedPath, projectType, scriptName);
-    const out = [result.stdout, result.stderr].filter(Boolean).join(result.stdout && result.stderr ? '\n' : '') || '(no output)';
+    const raw = [result.stdout, result.stderr].filter(Boolean).join(result.stdout && result.stderr ? '\n' : '') || '(no output)';
+    const out = stripAnsi(raw);
     if (outputEl) {
       outputEl.textContent = out;
       outputEl.classList.remove('hidden');
@@ -1265,7 +1495,8 @@ async function runCoverageAndShowOutput() {
   if (detailCoverageSummaryEl) detailCoverageSummaryEl.textContent = '…';
   try {
     const result = await window.releaseManager.runProjectCoverage(selectedPath, projectType);
-    const out = [result.stdout, result.stderr].filter(Boolean).join(result.stdout && result.stderr ? '\n' : '') || '(no output)';
+    const raw = [result.stdout, result.stderr].filter(Boolean).join(result.stdout && result.stderr ? '\n' : '') || '(no output)';
+    const out = stripAnsi(raw);
     if (outputEl) {
       outputEl.textContent = out;
       outputEl.classList.remove('hidden');
@@ -1274,7 +1505,7 @@ async function runCoverageAndShowOutput() {
       statusEl.textContent = result.ok ? 'Done.' : `Done (exit code ${result.exitCode}).`;
       statusEl.classList.toggle('text-rm-warning', !result.ok);
     }
-    const summary = parseCoverageSummary(result.stdout || result.stderr || out);
+    const summary = result.summary || null;
     if (summary) {
       lastCoverageByPath[selectedPath] = summary;
       if (detailCoverageSummaryEl) detailCoverageSummaryEl.textContent = summary;
@@ -1351,6 +1582,12 @@ document.addEventListener('keydown', async (e) => {
 if (settingsGithubTokenEl) {
   settingsGithubTokenEl.addEventListener('blur', () => {
     window.releaseManager.setGitHubToken(settingsGithubTokenEl.value?.trim() ?? '');
+  });
+}
+const settingsPhpPathInputEl = document.getElementById('settings-php-path');
+if (settingsPhpPathInputEl) {
+  settingsPhpPathInputEl.addEventListener('blur', () => {
+    window.releaseManager.setPreference('phpPath', settingsPhpPathInputEl.value?.trim() ?? '');
   });
 }
 const settingsOllamaBaseUrlEl = document.getElementById('settings-ollama-base-url');
@@ -1464,11 +1701,13 @@ document.getElementById('btn-ollama-release-notes')?.addEventListener('click', a
     } else {
       releaseNotesEl.value = prevNotes;
       syncDownloadStatusEl.textContent = result?.error || 'Generate failed.';
-      syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
+      if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
     }
   } catch (e) {
     if (releaseNotesEl) releaseNotesEl.value = prevNotes;
     syncDownloadStatusEl.textContent = e.message || 'Generate failed';
+    if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
     syncDownloadStatusEl.classList.remove('hidden', 'text-rm-success');
   }
 });
@@ -1505,6 +1744,7 @@ document.getElementById('btn-batch-major').addEventListener('click', () => runBa
 async function openDownloadForTag(tagName) {
   if (!currentInfo?.ok || !currentInfo.gitRemote) {
     syncDownloadStatusEl.textContent = 'Select a project with a GitHub remote.';
+    if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
     syncDownloadStatusEl.classList.remove('hidden');
     return;
   }
@@ -1512,19 +1752,22 @@ async function openDownloadForTag(tagName) {
     const result = await window.releaseManager.getGitHubReleases(currentInfo.gitRemote);
     if (!result.ok || !result.releases?.length) {
       syncDownloadStatusEl.textContent = result.error || 'No releases found.';
-      syncDownloadStatusEl.classList.remove('hidden');
+      if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden');
       return;
     }
     const release = result.releases.find((r) => r.tag_name === tagName);
     if (!release) {
       syncDownloadStatusEl.textContent = `Release ${tagName} not found on GitHub.`;
-      syncDownloadStatusEl.classList.remove('hidden');
+      if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden');
       return;
     }
     const assets = release.assets || [];
     if (assets.length === 0) {
       syncDownloadStatusEl.textContent = 'No assets for this release.';
-      syncDownloadStatusEl.classList.remove('hidden');
+      if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden');
       return;
     }
     modalPickAssetListEl.innerHTML = '';
@@ -1539,13 +1782,15 @@ async function openDownloadForTag(tagName) {
         const r = await window.releaseManager.downloadAsset(aLi.dataset.url, aLi.dataset.name);
         if (r?.ok) syncDownloadStatusEl.textContent = `Saved to ${r.filePath}`;
         else if (!r?.canceled) syncDownloadStatusEl.textContent = r?.error || 'Download failed';
-        syncDownloadStatusEl.classList.remove('hidden');
+        if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden');
       });
       modalPickAssetListEl.appendChild(aLi);
     });
     modalPickAssetEl.classList.remove('hidden');
   } catch (e) {
     syncDownloadStatusEl.textContent = e.message || 'Failed to load release.';
+    if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
     syncDownloadStatusEl.classList.remove('hidden');
   }
 }
@@ -1553,6 +1798,7 @@ async function openDownloadForTag(tagName) {
 async function openChooseVersionModal() {
   if (!currentInfo?.ok || !currentInfo.gitRemote) {
     syncDownloadStatusEl.textContent = 'Select a project with a GitHub remote.';
+    if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
     syncDownloadStatusEl.classList.remove('hidden');
     return;
   }
@@ -1577,7 +1823,8 @@ async function openChooseVersionModal() {
         modalPickReleaseEl.classList.add('hidden');
         if (assets.length === 0) {
           syncDownloadStatusEl.textContent = 'No assets for this release.';
-          syncDownloadStatusEl.classList.remove('hidden');
+          if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden');
           return;
         }
         modalPickAssetListEl.innerHTML = '';
@@ -1592,7 +1839,8 @@ async function openChooseVersionModal() {
             const r = await window.releaseManager.downloadAsset(aLi.dataset.url, aLi.dataset.name);
             if (r?.ok) syncDownloadStatusEl.textContent = `Saved to ${r.filePath}`;
             else if (!r?.canceled) syncDownloadStatusEl.textContent = r?.error || 'Download failed';
-            syncDownloadStatusEl.classList.remove('hidden');
+            if (syncDownloadStatusWrapEl) syncDownloadStatusWrapEl.classList.remove('hidden');
+    syncDownloadStatusEl.classList.remove('hidden');
           });
           modalPickAssetListEl.appendChild(aLi);
         });
@@ -1610,6 +1858,19 @@ document.getElementById('modal-pick-release-close').addEventListener('click', ()
 });
 document.getElementById('modal-pick-asset-close').addEventListener('click', () => {
   if (confirm('Close without downloading?')) modalPickAssetEl.classList.add('hidden');
+});
+const modalFileViewEl = document.getElementById('modal-file-view');
+document.getElementById('modal-file-view-close')?.addEventListener('click', () => {
+  modalFileViewEl?.classList.add('hidden');
+});
+document.getElementById('modal-file-view-close-btn')?.addEventListener('click', () => {
+  modalFileViewEl?.classList.add('hidden');
+});
+document.getElementById('modal-file-view-open-editor')?.addEventListener('click', () => {
+  if (fileViewerModalProjectPath && fileViewerModalFilePath) {
+    window.releaseManager.openFileInEditor(fileViewerModalProjectPath, fileViewerModalFilePath);
+  }
+  modalFileViewEl?.classList.add('hidden');
 });
 
 async function initCollapsibleSections() {
@@ -1645,8 +1906,31 @@ async function initCollapsibleSections() {
   });
 }
 
+/** Refresh projectType and hasComposer for all projects so type filter (e.g. PHP) works. */
+async function refreshProjectsMetadata() {
+  if (!projects.length) return;
+  let updated = false;
+  await Promise.all(projects.map(async (p) => {
+    try {
+      const info = await window.releaseManager.getProjectInfo(p.path);
+      if (info && info.ok) {
+        if (info.hasComposer != null) {
+          p.hasComposer = info.hasComposer;
+          updated = true;
+        }
+        if (info.projectType != null) {
+          p.projectType = info.projectType;
+          updated = true;
+        }
+      }
+    } catch (_) {}
+  }));
+  if (updated) await window.releaseManager.setProjects(projects);
+}
+
 async function refreshFromFilesystem() {
   projects = await window.releaseManager.getProjects();
+  await refreshProjectsMetadata();
   renderProjectList();
   if (viewMode === 'dashboard') {
     loadDashboard();
@@ -1676,7 +1960,12 @@ async function init() {
       updateDetailTabPanelVisibility();
     });
   });
+  document.getElementById('btn-git-go-version')?.addEventListener('click', () => {
+    const versionTab = document.querySelector('.detail-tab-btn[data-tab="version"]');
+    if (versionTab) versionTab.click();
+  });
   projects = await window.releaseManager.getProjects();
+  await refreshProjectsMetadata();
   const savedPath = await window.releaseManager.getPreference('selectedProjectPath');
   const savedView = await window.releaseManager.getPreference('viewMode');
   const pathStillInList = typeof savedPath === 'string' && savedPath && projects.some((p) => p.path === savedPath);

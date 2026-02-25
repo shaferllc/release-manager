@@ -168,6 +168,15 @@
           </section>
           <section class="card mb-6">
             <div class="card-section">
+              <span class="card-label">PHP executable (default)</span>
+              <p class="m-0 mb-4 text-sm text-rm-muted">
+                Default PHP binary for Composer and Pest when a project doesn’t set its own. E.g. <code class="bg-rm-surface px-1 rounded text-xs">/opt/homebrew/opt/php/bin/php</code>. You can override per project in the project header (“PHP (this project)”).
+              </p>
+              <input type="text" id="settings-php-path" class="input-field" placeholder="/opt/homebrew/opt/php/bin/php" autocomplete="off" />
+            </div>
+          </section>
+          <section class="card mb-6">
+            <div class="card-section">
               <span class="card-label">Project view</span>
               <p class="m-0 mb-4 text-sm text-rm-muted">
                 When viewing a project, use tabs to switch between Git, Version &amp; release, Composer (if present), and Sync instead of scrolling through all sections.
@@ -282,10 +291,16 @@
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 flex-1">
               <h2 id="detail-name" class="m-0 text-xl font-semibold text-rm-text truncate tracking-tight"></h2>
-              <p id="detail-path" class="m-0 mt-1.5 text-sm text-rm-muted font-mono truncate"></p>
+              <p id="detail-path" class="m-0 mt-1.5 text-sm text-rm-muted font-mono truncate" title=""></p>
               <div id="detail-tags-wrap" class="mt-3 flex items-center gap-2 flex-wrap">
                 <label class="text-xs font-medium text-rm-muted shrink-0">Tags</label>
                 <input type="text" id="detail-tags-input" class="detail-tags-input flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1" placeholder="e.g. frontend, production" />
+              </div>
+              <div id="detail-php-wrap" class="mt-3 flex items-center gap-2 flex-wrap">
+                <label class="text-xs font-medium text-rm-muted shrink-0">PHP (this project)</label>
+                <select id="detail-php-path" class="detail-php-select text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[8rem]" title="PHP version for Composer and Pest in this project. Set from composer.json require or choose manually.">
+                  <option value="">Use default</option>
+                </select>
               </div>
               <div id="detail-coverage-wrap" class="mt-3 flex items-center gap-2 flex-wrap hidden">
                 <span class="text-xs font-medium text-rm-muted shrink-0">Coverage</span>
@@ -333,13 +348,30 @@
               <span id="detail-branch" class="text-rm-muted">Branch: —</span>
               <span id="detail-ahead-behind" class="text-rm-muted"></span>
             </div>
+            <div class="flex flex-wrap items-center gap-2 mt-3">
+              <button type="button" id="btn-git-pull" class="btn-secondary btn-compact text-xs" title="Fetch from remote and merge into current branch">Pull</button>
+              <button type="button" id="btn-git-stash" class="btn-secondary btn-compact text-xs" title="Temporarily save uncommitted changes; restore later with Pop stash">Stash</button>
+              <button type="button" id="btn-git-stash-pop" class="btn-secondary btn-compact text-xs" title="Reapply the most recent stashed changes to the working tree">Pop stash</button>
+              <button type="button" id="btn-git-discard" class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10" title="Permanently revert and remove all uncommitted changes (cannot be undone)">Discard all</button>
+              <span id="detail-git-action-status" class="text-xs text-rm-muted hidden"></span>
+            </div>
           </div>
           <div id="detail-uncommitted-wrap" class="card-section border-t border-rm-border pt-5 mt-0">
             <p id="detail-uncommitted-label" class="m-0 text-xs font-medium text-rm-muted">Working tree clean</p>
-            <ul id="detail-uncommitted-list" class="m-0 mt-2.5 pl-4 text-xs text-rm-muted max-h-28 overflow-y-auto list-disc space-y-1"></ul>
+            <p id="detail-git-next-step" class="m-0 mt-1.5 text-xs text-rm-muted hidden">Next step: <button type="button" id="btn-git-go-version" class="text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer font-medium">Version &amp; release</button></p>
+            <ul id="detail-uncommitted-list" class="m-0 mt-2.5 pl-4 text-xs text-rm-muted max-h-64 overflow-y-auto list-disc space-y-1"></ul>
             <div id="detail-commit-wrap" class="hidden mt-5 pt-5 border-t border-rm-border rounded-rm-lg bg-rm-bg/30 p-4 -mx-1">
               <label class="block text-xs font-semibold text-rm-text uppercase tracking-wider mb-2">Commit changes</label>
-              <textarea id="detail-commit-message" class="commit-message-input mb-3" rows="3" placeholder="Commit message (subject and optional body)"></textarea>
+              <p class="text-xs text-rm-muted mb-2">Commit adds all modified and untracked files, then creates a new commit on the current branch with your message.</p>
+              <div class="flex flex-wrap items-center gap-2 mb-2">
+                <textarea id="detail-commit-message" class="commit-message-input flex-1 min-w-0" rows="3" placeholder="Commit message (subject and optional body)"></textarea>
+                <button type="button" id="btn-copy-commit-message" class="icon-btn icon-btn-sm shrink-0 self-start" title="Copy to clipboard" aria-label="Copy commit message">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                </button>
+              </div>
+              <div class="flex flex-wrap items-center gap-3 mb-3">
+                <span id="copy-commit-message-feedback" class="copy-feedback hidden">Copied!</span>
+              </div>
               <div class="flex flex-wrap items-center gap-3">
                 <button type="button" id="btn-ollama-commit" class="btn-secondary btn-compact shrink-0" title="Generate with Ollama">Generate</button>
                 <button type="button" id="btn-commit" class="btn-primary btn-compact shrink-0">Commit</button>
@@ -395,18 +427,22 @@
               <p id="detail-bump-suggestion" class="m-0 mt-2 text-xs text-rm-muted hidden"></p>
             </div>
 
-            <div class="release-notes-row mb-5">
+            <div id="detail-release-notes-wrap" class="release-notes-row mb-5">
               <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
                 <label class="text-xs font-medium text-rm-text">Release notes</label>
-                <div class="flex items-center gap-3">
+                <div class="flex items-center gap-3 flex-wrap">
                   <button type="button" id="btn-load-commits" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer">Load from commits</button>
                   <button type="button" id="btn-ollama-release-notes" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer">Generate with Ollama</button>
+                  <button type="button" id="btn-copy-release-notes" class="icon-btn icon-btn-sm" title="Copy to clipboard" aria-label="Copy release notes">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  </button>
+                  <span id="copy-release-notes-feedback" class="copy-feedback hidden">Copied!</span>
                 </div>
               </div>
               <textarea id="release-notes" class="release-notes-input" rows="3" placeholder="Optional. Used as GitHub release body."></textarea>
             </div>
 
-            <div class="flex flex-wrap gap-6 mb-5 text-sm">
+            <div id="detail-release-draft-prerelease-wrap" class="flex flex-wrap gap-6 mb-5 text-sm">
               <label class="checkbox-label">
                 <input type="checkbox" id="release-draft" class="checkbox-input" />
                 <span>Draft release</span>
@@ -430,7 +466,7 @@
             <p id="release-shortcuts-hint" class="mt-3 text-xs text-rm-muted">Shortcuts: <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘1</kbd> Patch, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘2</kbd> Minor, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘3</kbd> Major, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘S</kbd> Sync, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘D</kbd> Download</p>
             <p id="release-status" class="mt-4 text-sm text-rm-muted hidden"></p>
             <p id="release-actions-wrap" class="mt-2 hidden">
-              <a id="release-actions-link" href="#" class="text-rm-accent hover:underline text-sm" target="_blank" rel="noopener">Open Actions (workflow builds DMG) →</a>
+              <a id="release-actions-link" href="#" class="text-rm-accent hover:underline text-sm" target="_blank" rel="noopener">Open Actions →</a>
             </p>
           </div>
 
@@ -525,7 +561,13 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
               </a>
             </div>
-            <p id="sync-download-status" class="mt-4 text-sm text-rm-muted hidden"></p>
+            <div id="sync-download-status-wrap" class="mt-4 hidden flex flex-wrap items-center gap-2">
+              <p id="sync-download-status" class="m-0 text-sm text-rm-muted flex-1 min-w-0 truncate"></p>
+              <button type="button" id="btn-copy-sync-status" class="icon-btn icon-btn-sm shrink-0" title="Copy to clipboard" aria-label="Copy status">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              </button>
+              <span id="copy-sync-status-feedback" class="copy-feedback hidden">Copied!</span>
+            </div>
           </div>
           </div>
         </section>
@@ -563,6 +605,9 @@
               <p class="m-0 mb-3 text-sm text-rm-muted">
                 Run the test suite with coverage and see the report below. Uses <code class="bg-rm-surface px-1 rounded text-xs font-mono">npm run coverage</code> or <code class="bg-rm-surface px-1 rounded text-xs font-mono">npm test -- --coverage</code> for npm; <code class="bg-rm-surface px-1 rounded text-xs font-mono">composer run coverage</code> or <code class="bg-rm-surface px-1 rounded text-xs font-mono">composer run test -- --coverage-text</code> for PHP.
               </p>
+              <p class="m-0 mb-3 text-xs text-rm-muted">
+                <strong>PHP (Pest/PHPUnit):</strong> Coverage needs Xdebug's coverage mode or PCOV. In <code class="bg-rm-surface px-1 rounded font-mono">php.ini</code> set <code class="bg-rm-surface px-1 rounded font-mono">xdebug.mode=coverage</code>, or install the <code class="bg-rm-surface px-1 rounded font-mono">pcov</code> extension (e.g. <code class="bg-rm-surface px-1 rounded font-mono">brew install php-pcov</code> on macOS).
+              </p>
               <div class="flex flex-wrap items-center gap-3 mb-3">
                 <button type="button" id="btn-run-coverage" class="btn-secondary btn-compact">Run coverage</button>
                 <span id="detail-coverage-status" class="text-xs text-rm-muted hidden"></span>
@@ -597,6 +642,19 @@
           <button type="button" id="modal-pick-asset-close" class="modal-close" aria-label="Close">×</button>
         </div>
         <ul id="modal-pick-asset-list" class="modal-list modal-body list-none m-0 flex-1 overflow-auto"></ul>
+      </div>
+    </div>
+    <div id="modal-file-view" class="modal-backdrop hidden">
+      <div class="modal-card modal-card-wide flex flex-col max-h-[85vh]">
+        <div class="modal-header flex-shrink-0">
+          <h3 id="modal-file-view-title" class="modal-title truncate flex-1 min-w-0">File</h3>
+          <button type="button" id="modal-file-view-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+        <div id="modal-file-view-content" class="modal-file-content m-0 p-4 flex-1 overflow-auto text-xs font-mono border-t border-rm-border"></div>
+        <div class="modal-footer flex-shrink-0 flex flex-wrap items-center gap-2 p-3 border-t border-rm-border">
+          <button type="button" id="modal-file-view-open-editor" class="btn-secondary btn-compact text-xs">Open in editor</button>
+          <button type="button" id="modal-file-view-close-btn" class="btn-secondary btn-compact text-xs">Close</button>
+        </div>
       </div>
     </div>
   </main>

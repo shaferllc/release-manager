@@ -391,6 +391,43 @@ html[data-theme="light"] {
     @apply bg-rm-surface-hover;
   }
 
+  .modal-card-wide {
+    @apply max-w-[42rem];
+  }
+  .modal-file-content {
+    @apply leading-normal whitespace-pre break-all;
+  }
+  .modal-file-content.diff-view {
+    @apply px-0;
+  }
+  .modal-file-content .modal-file-line {
+    @apply py-0.5 px-4 min-h-[1.5em] text-[0.8125rem] leading-normal whitespace-pre border-l-[3px] border-transparent font-mono;
+  }
+  .modal-file-content.diff-view .modal-file-line.diff-header {
+    @apply text-violet-500 font-semibold pt-1 border-l-violet-500/60;
+  }
+  .modal-file-content.diff-view .modal-file-line.diff-meta {
+    @apply text-zinc-500 text-xs;
+  }
+  .modal-file-content.diff-view .modal-file-line.diff-file-old {
+    @apply text-amber-600 bg-amber-500/10 border-l-amber-500/80;
+  }
+  .modal-file-content.diff-view .modal-file-line.diff-file-new {
+    @apply text-emerald-600 bg-emerald-500/10 border-l-emerald-500/80;
+  }
+  .modal-file-content.diff-view .modal-file-line.diff-hunk {
+    @apply text-blue-500 bg-blue-500/10 border-l-blue-500/70 font-medium;
+  }
+  .modal-file-content.diff-view .modal-file-line.diff-add {
+    @apply bg-emerald-500/20 border-l-emerald-500 text-rm-text;
+  }
+  .modal-file-content.diff-view .modal-file-line.diff-remove {
+    @apply bg-red-500/20 border-l-red-500 text-rm-text;
+  }
+  .modal-file-content.diff-view .modal-file-line.diff-context {
+    @apply text-rm-muted;
+  }
+
   .detail-tabs-bar .detail-tab-btn.is-active {
     @apply text-rm-accent border-rm-accent/50 bg-rm-accent/10;
   }

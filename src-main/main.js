@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -35,6 +35,13 @@ const {
   parseComposerValidateOutput,
   parseComposerAuditJson,
 } = require('./lib/composer');
+const { parseCoverageSummary } = require('./lib/coverageParse');
+const {
+  getNpmScriptNames,
+  getComposerScriptNames,
+  getCoverageScriptNameNpm,
+  getCoverageScriptNameComposer,
+} = require('./lib/projectTestScripts');
 
 // Use same app name in dev and prod so userData is shared (dev no longer uses "Electron")
 const pkg = require(path.join(__dirname, '..', 'package.json'));
@@ -91,6 +98,102 @@ function runInDir(dirPath, command, args, options = {}) {
   return runInDirLib(dirPath, command, args, options, spawn);
 }
 
+/** Remove ANSI escape codes for parsing/display. */
+function stripAnsi(text) {
+  if (text == null || typeof text !== 'string') return '';
+  return text
+    .replace(/\x1b\[[\d;]*[a-zA-Z]/g, '')
+    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+    .replace(/\x1b\[?[\d;]*[a-zA-Z]/g, '');
+}
+
+/** Get PHP version string (e.g. "8.2") from a binary path. Returns null if not runnable. */
+function getPhpVersionFromPath(phpPath) {
+  if (!phpPath || typeof phpPath !== 'string') return null;
+  const trimmed = phpPath.trim();
+  if (!trimmed) return null;
+  return new Promise((resolve) => {
+    const proc = spawn(trimmed, ['-r', "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;"], { stdio: ['ignore', 'pipe', 'pipe'] });
+    let out = '';
+    proc.stdout?.on('data', (d) => { out += d.toString(); });
+    proc.on('close', (code) => {
+      if (code === 0) {
+        const v = out.trim().match(/^(\d+\.\d+)/);
+        resolve(v ? v[1] : null);
+      } else resolve(null);
+    });
+    proc.on('error', () => resolve(null));
+  });
+}
+
+/** Common PHP binary paths to probe (Homebrew macOS, Linux, plus global preference). */
+function getCandidatePhpPaths() {
+  const candidates = [];
+  const global = getPreference('phpPath');
+  if (global && typeof global === 'string' && global.trim()) candidates.push(global.trim());
+  if (process.platform !== 'win32') {
+    candidates.push('/opt/homebrew/opt/php/bin/php', '/usr/local/bin/php', '/usr/bin/php');
+    for (const v of ['8.1', '8.2', '8.3', '8.4', '9.0']) {
+      candidates.push(`/opt/homebrew/opt/php@${v}/bin/php`);
+      candidates.push(path.join('/usr/local', `opt/php@${v}/bin/php`));
+    }
+  }
+  return [...new Set(candidates)];
+}
+
+/** Discover available PHP versions (path + version string). Sorted by version desc. */
+async function getAvailablePhpVersions() {
+  const candidates = getCandidatePhpPaths();
+  const results = [];
+  for (const phpPath of candidates) {
+    try {
+      if (!fs.existsSync(phpPath)) continue;
+    } catch {
+      continue;
+    }
+    const version = await getPhpVersionFromPath(phpPath);
+    if (version) results.push({ version, path: phpPath });
+  }
+  results.sort((a, b) => {
+    const [aM, aN] = a.version.split('.').map(Number);
+    const [bM, bN] = b.version.split('.').map(Number);
+    return bM !== aM ? bM - aM : (bN || 0) - (aN || 0);
+  });
+  const seen = new Set();
+  return results.filter((r) => {
+    if (seen.has(r.path)) return false;
+    seen.add(r.path);
+    return true;
+  });
+}
+
+/** Parse composer "require"."php" constraint to a preferred version string (e.g. "^8.2" -> "8.2"). */
+function parsePhpRequireToVersion(phpRequire) {
+  if (!phpRequire || typeof phpRequire !== 'string') return null;
+  const m = phpRequire.trim().match(/(\d+)\.(\d+)/);
+  return m ? `${m[1]}.${m[2]}` : null;
+}
+
+/** Environment for Composer/Pest: per-project phpPath or global preference; prepend that PHP's directory to PATH. */
+function getComposerEnv(dirPath) {
+  let phpPath = null;
+  if (dirPath && typeof dirPath === 'string') {
+    const list = getStore().get('projects') || [];
+    const project = list.find((p) => p && p.path === dirPath);
+    if (project && typeof project.phpPath === 'string' && project.phpPath.trim()) {
+      phpPath = project.phpPath.trim();
+    }
+  }
+  if (!phpPath) phpPath = getPreference('phpPath');
+  if (!phpPath || typeof phpPath !== 'string') return process.env;
+  const trimmed = String(phpPath).trim();
+  if (!trimmed) return process.env;
+  const phpDir = path.dirname(trimmed);
+  const pathSep = process.platform === 'win32' ? ';' : ':';
+  const pathEnv = process.env.PATH || '';
+  return { ...process.env, PATH: phpDir + pathSep + pathEnv };
+}
+
 /** Run a command and return { ok, exitCode, stdout, stderr } without rejecting on non-zero exit. */
 function runInDirCapture(dirPath, command, args, options = {}) {
   return new Promise((resolve) => {
@@ -124,6 +227,7 @@ async function getProjectInfoAsync(dirPath) {
   const resolved = getProjectNameVersionAndType(dirPath, path, fs);
   if (!resolved.ok) return { ok: false, error: resolved.error, path: resolved.path };
   const { name, version, projectType } = resolved;
+  const hasComposer = fs.existsSync(path.join(dirPath, 'composer.json'));
   let latestTag = null;
   let gitRemote = null;
   const gitDir = path.join(dirPath, '.git');
@@ -142,7 +246,7 @@ async function getProjectInfoAsync(dirPath) {
         runInDir(dirPath, 'git', ['tag', '-l', '--sort=-version:refname']).catch(() => ({ stdout: '' })),
         getPushRemote(dirPath),
         runInDir(dirPath, 'git', ['status', '-sb']).catch(() => ({ stdout: '' })),
-        runInDir(dirPath, 'git', ['status', '--porcelain']).catch(() => ({ stdout: '' })),
+        runInDir(dirPath, 'git', ['status', '--porcelain', '-uall']).catch(() => ({ stdout: '' })),
       ]);
       const tags = (tagOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
       latestTag = tags[0] || null;
@@ -177,6 +281,7 @@ async function getProjectInfoAsync(dirPath) {
     name,
     version,
     projectType,
+    hasComposer,
     latestTag,
     commitsSinceLatestTag,
     allTags,
@@ -273,7 +378,7 @@ async function showDirectoryDialog() {
 
 async function getGitStatus(dirPath) {
   try {
-    const out = await runInDir(dirPath, 'git', ['status', '--porcelain']);
+    const out = await runInDir(dirPath, 'git', ['status', '--porcelain', '-uall']);
     const trimmed = (out.stdout || '').trim();
     return { clean: trimmed.length === 0, output: trimmed || null };
   } catch (e) {
@@ -301,6 +406,44 @@ async function gitFetch(dirPath) {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'git fetch failed' };
+  }
+}
+
+async function gitPull(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['pull']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'git pull failed' };
+  }
+}
+
+async function gitStashPush(dirPath, message) {
+  try {
+    const args = message && message.trim() ? ['stash', 'push', '-m', message.trim()] : ['stash', 'push'];
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'git stash failed' };
+  }
+}
+
+async function gitStashPop(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['stash', 'pop']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'git stash pop failed' };
+  }
+}
+
+async function gitDiscardChanges(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['reset', '--hard', 'HEAD']);
+    await runInDir(dirPath, 'git', ['clean', '-fd']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Discard failed' };
   }
 }
 
@@ -395,15 +538,54 @@ async function showSaveDialogAndDownload(win, defaultPath, url) {
 
 const iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon.png');
 
-const DEFAULT_WINDOW_WIDTH = 800;
-const DEFAULT_WINDOW_HEIGHT = 640;
+const DEFAULT_WINDOW_WIDTH = 1200;
+const DEFAULT_WINDOW_HEIGHT = 800;
+
+/** Ensure saved bounds are on a visible display (handles disconnected monitors). */
+function clampBoundsToDisplay(saved) {
+  if (!saved || typeof saved.width !== 'number' || typeof saved.height !== 'number') return null;
+  const width = Math.max(400, Math.min(saved.width, 4096));
+  const height = Math.max(300, Math.min(saved.height, 4096));
+  let display;
+  try {
+    display = screen.getDisplayMatching({ x: saved.x ?? 0, y: saved.y ?? 0, width: 1, height: 1 });
+  } catch (_) {
+    display = screen.getPrimaryDisplay();
+  }
+  const area = display?.workArea ?? display?.bounds;
+  if (!area) return { width, height, x: undefined, y: undefined };
+  const x = typeof saved.x === 'number' ? saved.x : area.x;
+  const y = typeof saved.y === 'number' ? saved.y : area.y;
+  const inBounds =
+    x >= area.x &&
+    y >= area.y &&
+    x + width <= area.x + area.width &&
+    y + height <= area.y + area.height;
+  if (inBounds) return { width, height, x, y };
+  return { width, height, x: area.x, y: area.y };
+}
+
+function saveWindowBounds(win) {
+  try {
+    const isMaximized = win.isMaximized();
+    const bounds = isMaximized ? win.getNormalBounds() : win.getBounds();
+    getStore().set('windowBounds', {
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+      isMaximized,
+    });
+  } catch (_) {}
+}
 
 function createWindow() {
   const saved = getStore().get('windowBounds');
-  const width = typeof saved?.width === 'number' && saved.width >= 400 ? saved.width : DEFAULT_WINDOW_WIDTH;
-  const height = typeof saved?.height === 'number' && saved.height >= 300 ? saved.height : DEFAULT_WINDOW_HEIGHT;
-  const x = typeof saved?.x === 'number' ? saved.x : undefined;
-  const y = typeof saved?.y === 'number' ? saved.y : undefined;
+  const clamped = clampBoundsToDisplay(saved);
+  const width = clamped?.width ?? DEFAULT_WINDOW_WIDTH;
+  const height = clamped?.height ?? DEFAULT_WINDOW_HEIGHT;
+  const x = clamped?.x;
+  const y = clamped?.y;
 
   const win = new BrowserWindow({
     width,
@@ -427,17 +609,19 @@ function createWindow() {
   win.loadFile(path.join(__dirname, '..', 'src-renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
 
+  let saveBoundsTimeout;
+  function scheduleSaveBounds() {
+    if (saveBoundsTimeout) clearTimeout(saveBoundsTimeout);
+    saveBoundsTimeout = setTimeout(() => {
+      saveBoundsTimeout = undefined;
+      saveWindowBounds(win);
+    }, 500);
+  }
+  win.on('move', scheduleSaveBounds);
+  win.on('resize', scheduleSaveBounds);
   win.on('close', () => {
-    try {
-      const bounds = win.getBounds();
-      getStore().set('windowBounds', {
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height,
-        isMaximized: win.isMaximized(),
-      });
-    } catch (_) {}
+    if (saveBoundsTimeout) clearTimeout(saveBoundsTimeout);
+    saveWindowBounds(win);
   });
 
   win.webContents.on('did-finish-load', () => {
@@ -513,7 +697,7 @@ app.whenReady().then(() => {
     try {
       const args = ['outdated', '--format=json', '--no-ansi'];
       if (direct) args.push('--direct');
-      const out = await runInDir(dirPath, 'composer', args);
+      const out = await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
       const parsed = parseComposerOutdatedJson(out.stdout);
       if (!parsed.ok) return { ok: false, error: parsed.error, packages: [] };
       return { ok: true, packages: parsed.packages || [] };
@@ -527,7 +711,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('rm-get-composer-validate', async (_e, dirPath) => {
     try {
-      await runInDir(dirPath, 'composer', ['validate', '--no-ansi']);
+      await runInDir(dirPath, 'composer', ['validate', '--no-ansi'], { env: getComposerEnv(dirPath) });
       return { valid: true };
     } catch (e) {
       return parseComposerValidateOutput('', e.message || '', 1);
@@ -535,7 +719,7 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('rm-get-composer-audit', async (_e, dirPath) => {
     try {
-      const out = await runInDir(dirPath, 'composer', ['audit', '--format=json', '--no-ansi']);
+      const out = await runInDir(dirPath, 'composer', ['audit', '--format=json', '--no-ansi'], { env: getComposerEnv(dirPath) });
       const parsed = parseComposerAuditJson(out.stdout);
       if (!parsed.ok) return { ok: false, error: parsed.error, advisories: [] };
       return { ok: true, advisories: parsed.advisories || [] };
@@ -555,7 +739,7 @@ app.whenReady().then(() => {
           if (typeof name === 'string' && name.trim()) args.push(name.trim());
         });
       }
-      await runInDir(dirPath, 'composer', args);
+      await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
       return { ok: true };
     } catch (e) {
       const msg = e.message || '';
@@ -570,14 +754,14 @@ app.whenReady().then(() => {
       if (projectType === 'npm') {
         const pkgPath = path.join(dirPath, 'package.json');
         if (!fs.existsSync(pkgPath)) return { ok: true, scripts: [] };
-        const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-        const scripts = typeof data.scripts === 'object' && data.scripts !== null ? Object.keys(data.scripts) : [];
-        return { ok: true, scripts };
+        const content = fs.readFileSync(pkgPath, 'utf8');
+        const { ok, scripts, error } = getNpmScriptNames(content);
+        return ok ? { ok: true, scripts: scripts || [] } : { ok: false, scripts: [], error: error || 'Failed' };
       }
       if (projectType === 'php') {
         const manifest = getComposerManifestInfo(dirPath);
-        if (!manifest.ok || !manifest.scripts || manifest.scripts.length === 0) return { ok: true, scripts: [] };
-        return { ok: true, scripts: manifest.scripts };
+        const { scripts } = getComposerScriptNames(manifest);
+        return { ok: true, scripts };
       }
       return { ok: true, scripts: [] };
     } catch (e) {
@@ -588,7 +772,7 @@ app.whenReady().then(() => {
   ipcMain.handle('rm-run-project-tests', async (_e, dirPath, projectType, scriptName) => {
     try {
       const runNpm = (script) => runInDirCapture(dirPath, 'npm', ['run', script, '--no-color']);
-      const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi']);
+      const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi'], { env: getComposerEnv(dirPath) });
       if (projectType === 'npm') {
         const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
         const result = await runNpm(script);
@@ -606,34 +790,59 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('rm-run-project-coverage', async (_e, dirPath, projectType) => {
     try {
-      if (projectType === 'npm') {
+      let result;
+      const runNpmCoverage = async () => {
         const pkgPath = path.join(dirPath, 'package.json');
         let scriptName = null;
+        let hasTestScript = false;
         if (fs.existsSync(pkgPath)) {
           const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
           const scripts = typeof data.scripts === 'object' && data.scripts !== null ? data.scripts : {};
-          if (typeof scripts.coverage === 'string') scriptName = 'coverage';
-          else if (typeof scripts['test:coverage'] === 'string') scriptName = 'test:coverage';
+          scriptName = getCoverageScriptNameNpm(scripts);
+          hasTestScript = typeof scripts.test === 'string';
         }
-        const result = scriptName
-          ? await runInDirCapture(dirPath, 'npm', ['run', scriptName, '--no-color'])
-          : await runInDirCapture(dirPath, 'npm', ['test', '--', '--coverage', '--no-color']);
-        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
-      }
-      if (projectType === 'php') {
+        if (scriptName) {
+          return await runInDirCapture(dirPath, 'npm', ['run', scriptName, '--no-color']);
+        }
+        if (hasTestScript) {
+          return await runInDirCapture(dirPath, 'npm', ['test', '--', '--coverage', '--no-color']);
+        }
+        return null;
+      };
+      const composerEnv = getComposerEnv(dirPath);
+      const runPhpCoverage = async () => {
         const manifest = getComposerManifestInfo(dirPath);
-        const scripts = manifest.ok && manifest.scripts ? manifest.scripts : [];
-        const coverageScript = Array.isArray(scripts)
-          ? (scripts.includes('coverage') ? 'coverage' : scripts.find((s) => String(s).toLowerCase().includes('coverage')))
-          : null;
-        const result = coverageScript
-          ? await runInDirCapture(dirPath, 'composer', ['run', coverageScript, '--no-ansi'])
-          : await runInDirCapture(dirPath, 'composer', ['run', 'test', '--', '--coverage-text', '--no-ansi']);
-        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        const { scripts } = getComposerScriptNames(manifest);
+        const coverageScript = getCoverageScriptNameComposer(scripts);
+        if (coverageScript) {
+          return await runInDirCapture(dirPath, 'composer', ['run', coverageScript, '--no-ansi'], { env: composerEnv });
+        }
+        if (scripts && scripts.length > 0 && scripts.includes('test')) {
+          return await runInDirCapture(dirPath, 'composer', ['run', 'test', '--', '--coverage-text', '--no-ansi'], { env: composerEnv });
+        }
+        return null;
+      };
+      if (projectType === 'npm') {
+        result = await runNpmCoverage();
+        if (result === null) {
+          result = await runPhpCoverage();
+        }
+        if (result === null) {
+          return { ok: false, error: 'No coverage or test script found in package.json or composer.json.', stdout: '', stderr: '', summary: null };
+        }
+      } else if (projectType === 'php') {
+        result = await runPhpCoverage();
+        if (result === null) {
+          return { ok: false, error: 'No coverage or test script found in composer.json.', stdout: '', stderr: '', summary: null };
+        }
+      } else {
+        return { ok: false, error: 'Coverage is supported for npm and PHP projects only.', stdout: '', stderr: '', summary: null };
       }
-      return { ok: false, error: 'Coverage is supported for npm and PHP projects only.', stdout: '', stderr: '' };
+      const out = [result.stdout, result.stderr].filter(Boolean).join('\n');
+      const summary = parseCoverageSummary(stripAnsi(out)) || null;
+      return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr, summary };
     } catch (e) {
-      return { ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Failed to run coverage' };
+      return { ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Failed to run coverage', summary: null };
     }
   });
   ipcMain.handle('rm-version-bump', (_e, dirPath, bump) => runVersionBump(dirPath, bump));
@@ -732,6 +941,10 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('rm-get-git-status', (_e, dirPath) => getGitStatus(dirPath));
   ipcMain.handle('rm-commit-changes', (_e, dirPath, message) => gitCommit(dirPath, message));
+  ipcMain.handle('rm-git-pull', (_e, dirPath) => gitPull(dirPath));
+  ipcMain.handle('rm-git-stash-push', (_e, dirPath, message) => gitStashPush(dirPath, message));
+  ipcMain.handle('rm-git-stash-pop', (_e, dirPath) => gitStashPop(dirPath));
+  ipcMain.handle('rm-git-discard-changes', (_e, dirPath) => gitDiscardChanges(dirPath));
   ipcMain.handle('rm-copy-to-clipboard', (_e, text) => {
     if (text != null && typeof text === 'string') clipboard.writeText(text);
     return null;
@@ -761,21 +974,49 @@ app.whenReady().then(() => {
       return Promise.resolve({ ok: false, error: e.message });
     }
   });
-  ipcMain.handle('rm-open-in-editor', (_e, dirPath) => {
-    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
+  function openInEditorImpl(targetPath) {
     const { spawn: spawnProc } = require('child_process');
     const tryEditor = (cmd, args) =>
       new Promise((resolve) => {
-        const child = spawnProc(cmd, args || [dirPath], { detached: true, stdio: 'ignore', shell: true });
+        const child = spawnProc(cmd, args || [targetPath], { detached: true, stdio: 'ignore', shell: true });
         child.on('error', () => resolve(false));
         child.unref();
         setTimeout(() => resolve(true), 500);
       });
     return (async () => {
-      if (await tryEditor('cursor', [dirPath])) return { ok: true, editor: 'cursor' };
-      if (await tryEditor('code', [dirPath])) return { ok: true, editor: 'code' };
+      if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
+      if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
       return { ok: false, error: 'Cursor or VS Code not found in PATH. Install one and ensure the shell command is available.' };
     })();
+  }
+  ipcMain.handle('rm-open-in-editor', (_e, dirPath) => {
+    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
+    return openInEditorImpl(dirPath);
+  });
+  ipcMain.handle('rm-open-file-in-editor', (_e, dirPath, relativePath) => {
+    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
+    const fullPath = path.join(dirPath, (relativePath || '').replace(/^[/\\]+/, ''));
+    return openInEditorImpl(fullPath);
+  });
+
+  const MAX_FILE_VIEW_SIZE = 512 * 1024;
+  ipcMain.handle('rm-get-file-diff', async (_e, dirPath, filePath, isUntracked) => {
+    if (!dirPath || typeof filePath !== 'string') return { ok: false, error: 'Invalid path' };
+    const fullPath = path.join(dirPath, (filePath || '').replace(/^[/\\]+/, ''));
+    try {
+      if (isUntracked) {
+        const stat = fs.statSync(fullPath);
+        if (stat.isDirectory()) return { ok: false, error: 'Cannot view directory' };
+        if (stat.size > MAX_FILE_VIEW_SIZE) return { ok: false, error: `File too large to view (${Math.round(stat.size / 1024)} KB). Open in editor instead.` };
+        const content = fs.readFileSync(fullPath, 'utf8');
+        return { ok: true, type: 'new', content };
+      }
+      const result = await runInDirCapture(dirPath, 'git', ['diff', 'HEAD', '--', filePath]);
+      const content = [result.stdout, result.stderr].filter(Boolean).join('\n').trim() || '(no diff)';
+      return { ok: true, type: 'diff', content };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Failed to load file' };
+    }
   });
   ipcMain.handle('rm-get-releases-url', (_e, gitRemote) => getReleasesUrl(gitRemote));
   ipcMain.handle('rm-sync-from-remote', (_e, dirPath) => gitFetch(dirPath));
@@ -843,6 +1084,8 @@ app.whenReady().then(() => {
     }
   });
   ipcMain.handle('rm-get-preference', (_e, key) => getPreference(key));
+  ipcMain.handle('rm-get-available-php-versions', () => getAvailablePhpVersions());
+  ipcMain.handle('rm-parse-php-require', (_e, phpRequire) => parsePhpRequireToVersion(phpRequire));
   ipcMain.handle('rm-set-preference', (_e, key, value) => {
     setPreference(key, value);
     return null;
@@ -865,16 +1108,7 @@ nativeTheme.on('updated', () => {
 app.on('before-quit', () => {
   try {
     const w = BrowserWindow.getAllWindows()[0];
-    if (w && !w.isDestroyed()) {
-      const bounds = w.getBounds();
-      getStore().set('windowBounds', {
-        x: bounds.x,
-        y: bounds.y,
-        width: bounds.width,
-        height: bounds.height,
-        isMaximized: w.isMaximized(),
-      });
-    }
+    if (w && !w.isDestroyed()) saveWindowBounds(w);
   } catch (_) {}
 });
 app.on('window-all-closed', () => app.quit());

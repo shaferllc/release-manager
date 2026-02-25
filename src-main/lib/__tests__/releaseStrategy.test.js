@@ -60,5 +60,16 @@ describe('releaseStrategy', () => {
       expect(plan.action).toBe('tag_only');
       expect(plan.versionForTag).toBe('2.0.1');
     });
+
+    it('returns error for php when version is null', () => {
+      const plan = getReleasePlan('php', null);
+      expect(plan.action).toBe('error');
+      expect(plan.error).toBe(NO_VERSION_ERROR);
+    });
+
+    it('exports NO_VERSION_ERROR with expected message', () => {
+      expect(NO_VERSION_ERROR).toContain('No version');
+      expect(NO_VERSION_ERROR).toContain('manifest');
+    });
   });
 });

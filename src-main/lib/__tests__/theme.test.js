@@ -23,6 +23,11 @@ describe('theme', () => {
       expect(isValidTheme(null)).toBe(false);
       expect(isValidTheme(undefined)).toBe(false);
     });
+
+    it('returns false for non-string types', () => {
+      expect(isValidTheme(123)).toBe(false);
+      expect(isValidTheme(true)).toBe(false);
+    });
   });
 
   describe('getEffectiveTheme', () => {
