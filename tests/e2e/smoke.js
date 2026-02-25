@@ -34,9 +34,10 @@ async function main() {
     }
 
     // Optional: open Documentation via View dropdown
-    const viewDropdown = window.locator('#view-dropdown');
-    if ((await viewDropdown.count()) > 0) {
-      await viewDropdown.selectOption('docs');
+    const viewDropdownBtn = window.locator('#view-dropdown-btn');
+    if ((await viewDropdownBtn.count()) > 0) {
+      await viewDropdownBtn.click();
+      await window.locator('.view-dropdown-option[data-value="docs"]').click();
       await new Promise((r) => setTimeout(r, 500));
       const afterDocs = await window.content();
       if (!afterDocs.includes('Overview') && !afterDocs.includes('docs-content')) {

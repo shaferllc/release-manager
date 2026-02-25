@@ -39,7 +39,12 @@ const docsViewEl = document.getElementById('docs-view');
 const changelogViewEl = document.getElementById('changelog-view');
 const changelogContentEl = document.getElementById('changelog-content');
 const changelogErrorEl = document.getElementById('changelog-error');
-const viewDropdownEl = document.getElementById('view-dropdown');
+const viewDropdownWrapEl = document.getElementById('view-dropdown-wrap');
+const viewDropdownBtnEl = document.getElementById('view-dropdown-btn');
+const viewDropdownLabelEl = document.getElementById('view-dropdown-label');
+const viewDropdownMenuEl = document.getElementById('view-dropdown-menu');
+
+const VIEW_LABELS = { detail: 'Project', dashboard: 'Dashboard', settings: 'Settings', docs: 'Documentation', changelog: 'Changelog' };
 const settingsGithubTokenEl = document.getElementById('settings-github-token');
 const dashboardFilterEl = document.getElementById('dashboard-filter');
 const dashboardSortEl = document.getElementById('dashboard-sort');
@@ -128,7 +133,32 @@ function renderProjectList() {
 }
 
 function setViewDropdown(mode) {
-  if (viewDropdownEl) viewDropdownEl.value = mode || 'detail';
+  const value = mode || 'detail';
+  if (viewDropdownLabelEl) viewDropdownLabelEl.textContent = VIEW_LABELS[value] || VIEW_LABELS.detail;
+  if (viewDropdownMenuEl) {
+    viewDropdownMenuEl.querySelectorAll('.view-dropdown-option').forEach((el) => {
+      el.setAttribute('aria-selected', el.dataset.value === value);
+    });
+  }
+}
+
+function closeViewDropdown() {
+  if (viewDropdownMenuEl) viewDropdownMenuEl.classList.add('hidden');
+  if (viewDropdownBtnEl) viewDropdownBtnEl.setAttribute('aria-expanded', 'false');
+}
+
+function openViewDropdown() {
+  if (viewDropdownMenuEl) viewDropdownMenuEl.classList.remove('hidden');
+  if (viewDropdownBtnEl) viewDropdownBtnEl.setAttribute('aria-expanded', 'true');
+}
+
+function applyViewChoice(value) {
+  closeViewDropdown();
+  if (value === 'dashboard') showDashboard();
+  else if (value === 'settings') showSettings();
+  else if (value === 'docs') showDocs();
+  else if (value === 'changelog') showChangelog();
+  else if (value === 'detail') (selectedPath ? showDetail() : showNoSelection());
 }
 
 function showNoSelection() {
@@ -748,14 +778,18 @@ githubTokenEl.addEventListener('blur', async () => {
 document.getElementById('btn-sync').addEventListener('click', syncFromRemote);
 document.getElementById('btn-download-latest').addEventListener('click', downloadLatestRelease);
 
-viewDropdownEl?.addEventListener('change', () => {
-  const v = viewDropdownEl.value;
-  if (v === 'dashboard') showDashboard();
-  else if (v === 'settings') showSettings();
-  else if (v === 'docs') showDocs();
-  else if (v === 'changelog') showChangelog();
-  else if (v === 'detail') (selectedPath ? showDetail() : showNoSelection());
+viewDropdownWrapEl?.addEventListener('click', (e) => {
+  e.stopPropagation();
+  if (e.target.closest('#view-dropdown-btn')) {
+    const isOpen = viewDropdownMenuEl && !viewDropdownMenuEl.classList.contains('hidden');
+    if (isOpen) closeViewDropdown();
+    else openViewDropdown();
+  }
 });
+viewDropdownMenuEl?.querySelectorAll('.view-dropdown-option').forEach((el) => {
+  el.addEventListener('click', () => applyViewChoice(el.dataset.value));
+});
+document.addEventListener('click', () => closeViewDropdown());
 
 changelogContentEl?.addEventListener('click', (e) => {
   const a = e.target.closest('a[href^="http"]');
@@ -1106,6 +1140,18 @@ async function init() {
   }
 }
 
-document.getElementById('btn-refresh').addEventListener('click', () => refreshFromFilesystem());
+document.getElementById('btn-refresh').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-refresh');
+  if (btn?.classList.contains('refreshing')) return;
+  btn?.classList.add('refreshing');
+  try {
+    await Promise.all([
+      refreshFromFilesystem(),
+      new Promise((r) => setTimeout(r, 1000)),
+    ]);
+  } finally {
+    btn?.classList.remove('refreshing');
+  }
+});
 
 init();

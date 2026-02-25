@@ -1,0 +1,10 @@
+# Minimal workflow so the Actions tab shows at least one workflow.
+# Safe to delete after "Release" appears.
+name: Test
+on:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "OK"

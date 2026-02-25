@@ -100,3 +100,5 @@ Logic in `src-main/lib/` is unit-tested (Jest). Run `npm run test:coverage` for 
 ## Releasing this app
 
 Push a tag `v*` (e.g. `v0.2.0`); GitHub Actions builds and creates a Release. Or add this repo as a project in the app and use Release there.
+
+Workflows live in `.github/workflows/` and must be on the **default branch** (e.g. `main`) to appear. Open **Actions** at: `https://github.com/<owner>/<repo>/actions`. If no workflows show, check **Settings → Actions → General** and ensure "Allow all actions" (or the desired level) is enabled.

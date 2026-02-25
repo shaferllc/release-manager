@@ -204,7 +204,11 @@ async function gitTagAndPush(dirPath, tagMessage, options = {}) {
       await runInDir(dirPath, 'git', ['commit', '-m', tagMessage || `chore: release ${tag}`]);
     }
     await runInDir(dirPath, 'git', ['tag', tag]);
-    await runInDir(dirPath, 'git', ['push', '--follow-tags']);
+    const remote = await getPushRemote(dirPath);
+    const target = remote || 'origin';
+    // Push branch then tag explicitly so the tag always appears on the remote
+    await runInDir(dirPath, 'git', ['push', target, 'HEAD']);
+    await runInDir(dirPath, 'git', ['push', target, tag]);
     return { ok: true, tag };
   } catch (e) {
     return { ok: false, error: e.message || 'git tag/push failed' };
