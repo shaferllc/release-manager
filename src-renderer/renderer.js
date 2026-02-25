@@ -894,27 +894,39 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     detailAheadBehindEl.textContent = ab || 'Up to date';
     detailAheadBehindEl.classList.toggle('text-rm-muted', !ab);
     const lines = info.uncommittedLines || [];
+    const conflictCount = lines.filter((line) => /^[UAD][UAD]$/.test(line.length >= 2 ? line.slice(0, 2) : '')).length;
+    const hasMergeConflicts = conflictCount > 0;
     if (detailUncommittedLabelEl) {
-      detailUncommittedLabelEl.textContent =
-        lines.length > 0 ? `Uncommitted changes (${lines.length}) — click a file to view changes` : 'Working tree clean';
+      if (hasMergeConflicts) {
+        detailUncommittedLabelEl.textContent = `Merge conflicts (${conflictCount}) — resolve in editor or abort merge`;
+      } else {
+        detailUncommittedLabelEl.textContent =
+          lines.length > 0 ? `Uncommitted changes (${lines.length}) — click a file to view changes` : 'Working tree clean';
+      }
       detailUncommittedLabelEl.classList.toggle('text-rm-warning', lines.length > 0);
       detailUncommittedLabelEl.classList.toggle('text-rm-muted', lines.length === 0);
     }
     const detailGitNextStepEl = document.getElementById('detail-git-next-step');
     if (detailGitNextStepEl) detailGitNextStepEl.classList.toggle('hidden', lines.length > 0);
+    const btnMergeAbort = document.getElementById('btn-git-merge-abort');
+    if (btnMergeAbort) btnMergeAbort.classList.toggle('hidden', !hasMergeConflicts);
+    const mergeConflictHintEl = document.getElementById('detail-git-merge-conflict-hint');
+    if (mergeConflictHintEl) mergeConflictHintEl.classList.toggle('hidden', !hasMergeConflicts);
     if (detailUncommittedListEl) {
       detailUncommittedListEl.innerHTML = '';
       lines.forEach((line) => {
         const status = line.length >= 2 ? line.slice(0, 2) : '';
-        const filePath = line.length > 3 ? line.slice(3).trim() : line;
+        const filePath = line.includes(' -> ') ? line.split(' -> ')[1].trim() : (line.length > 3 ? line.slice(3).trim() : line);
         const isUntracked = status === '??' || (status.length > 0 && status[0] === '?');
+        const isUnmerged = /^[UAD][UAD]$/.test(status);
         const li = document.createElement('li');
-        li.className = 'truncate';
+        li.className = 'truncate' + (isUnmerged ? ' font-medium text-rm-warning' : '');
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'text-left w-full truncate text-rm-muted hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer text-xs';
-        btn.title = `View changes: ${filePath}`;
-        btn.textContent = filePath;
+        if (isUnmerged) btn.classList.add('text-rm-warning', 'hover:text-rm-warning');
+        btn.title = isUnmerged ? `Conflict: ${filePath} — click to view, then open in editor to resolve` : `View changes: ${filePath}`;
+        btn.textContent = isUnmerged ? `${filePath} (conflict)` : filePath;
         btn.dataset.filePath = filePath;
         btn.dataset.untracked = isUntracked ? '1' : '0';
         btn.addEventListener('click', () => {
@@ -1290,6 +1302,7 @@ const GIT_ACTION_CONFIRMS = {
   stash: 'Stash temporarily saves your uncommitted changes (modified and untracked files) so you can switch branches or pull. You can restore them later with Pop stash.\n\nContinue?',
   pop: 'Pop stash reapplies the most recent stashed changes to your working tree. If you already have uncommitted changes, they may conflict and you may need to resolve them.\n\nContinue?',
   discard: 'Discard all will permanently remove every uncommitted change: modified and staged files will be reverted to the last commit, and untracked files and directories will be deleted. This cannot be undone.\n\nAre you sure?',
+  mergeAbort: 'Abort the current merge? Your branch will be restored to its state before the merge. Uncommitted changes from the merge (including conflict resolutions) will be lost.\n\nContinue?',
 };
 
 const GIT_ACTION_SUCCESS = {
@@ -1297,16 +1310,18 @@ const GIT_ACTION_SUCCESS = {
   stash: 'Changes stashed. Use Pop stash to restore them.',
   pop: 'Stash applied. Your stashed changes are back in the working tree.',
   discard: 'Uncommitted changes discarded.',
+  mergeAbort: 'Merge aborted. Branch restored to pre-merge state.',
 };
 
 async function runGitAction(label, fn, options = {}) {
-  const { confirmKey, successKey } = options;
+  const { confirmKey, successKey, refreshAlways } = options;
   const statusEl = document.getElementById('detail-git-action-status');
   if (!selectedPath) return;
   if (confirmKey && GIT_ACTION_CONFIRMS[confirmKey] && !confirm(GIT_ACTION_CONFIRMS[confirmKey])) return;
   if (statusEl) {
     statusEl.textContent = `${label}…`;
-    statusEl.classList.remove('hidden', 'text-rm-warning');
+    statusEl.classList.remove('hidden');
+    statusEl.classList.remove('text-rm-warning');
   }
   try {
     const result = await fn();
@@ -1315,18 +1330,23 @@ async function runGitAction(label, fn, options = {}) {
       statusEl.textContent = result?.ok ? successMsg : (result?.error || 'Failed');
       statusEl.classList.toggle('text-rm-warning', !result?.ok);
     }
-    if (result?.ok) loadProjectInfo(selectedPath);
+    if (result?.ok || refreshAlways) loadProjectInfo(selectedPath);
   } catch (e) {
     if (statusEl) {
       statusEl.textContent = e?.message || 'Failed';
       statusEl.classList.add('text-rm-warning');
     }
+    if (refreshAlways) loadProjectInfo(selectedPath);
   }
 }
 
 document.getElementById('btn-git-pull')?.addEventListener('click', () => {
   if (!selectedPath) return;
-  runGitAction('Pull', () => window.releaseManager.gitPull(selectedPath), { confirmKey: 'pull', successKey: 'pull' });
+  runGitAction('Pull', () => window.releaseManager.gitPull(selectedPath), { confirmKey: 'pull', successKey: 'pull', refreshAlways: true });
+});
+document.getElementById('btn-git-merge-abort')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Abort merge', () => window.releaseManager.gitMergeAbort(selectedPath), { confirmKey: 'mergeAbort', successKey: 'mergeAbort' });
 });
 document.getElementById('btn-git-stash')?.addEventListener('click', () => {
   if (!selectedPath) return;

@@ -2261,6 +2261,11 @@ html[data-theme="light"] {
   color: rgb(var(--rm-text) / var(--tw-text-opacity, 1));
 }
 
+.hover\:text-rm-warning:hover {
+  --tw-text-opacity: 1;
+  color: rgb(var(--rm-warning) / var(--tw-text-opacity, 1));
+}
+
 .hover\:underline:hover {
   text-decoration-line: underline;
 }

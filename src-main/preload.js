@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('releaseManager', {
   gitStashPush: (dirPath, message) => ipcRenderer.invoke('rm-git-stash-push', dirPath, message),
   gitStashPop: (dirPath) => ipcRenderer.invoke('rm-git-stash-pop', dirPath),
   gitDiscardChanges: (dirPath) => ipcRenderer.invoke('rm-git-discard-changes', dirPath),
+  gitMergeAbort: (dirPath) => ipcRenderer.invoke('rm-git-merge-abort', dirPath),
   copyToClipboard: (text) => ipcRenderer.invoke('rm-copy-to-clipboard', text),
   openPathInFinder: (dirPath) => ipcRenderer.invoke('rm-open-path-in-finder', dirPath),
   openInTerminal: (dirPath) => ipcRenderer.invoke('rm-open-in-terminal', dirPath),

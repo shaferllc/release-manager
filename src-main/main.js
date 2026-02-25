@@ -411,10 +411,19 @@ async function gitFetch(dirPath) {
 
 async function gitPull(dirPath) {
   try {
-    await runInDir(dirPath, 'git', ['pull']);
+    await runInDir(dirPath, 'git', ['pull', '--no-rebase']);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'git pull failed' };
+  }
+}
+
+async function gitMergeAbort(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['merge', '--abort']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Merge abort failed' };
   }
 }
 
@@ -945,6 +954,7 @@ app.whenReady().then(() => {
   ipcMain.handle('rm-git-stash-push', (_e, dirPath, message) => gitStashPush(dirPath, message));
   ipcMain.handle('rm-git-stash-pop', (_e, dirPath) => gitStashPop(dirPath));
   ipcMain.handle('rm-git-discard-changes', (_e, dirPath) => gitDiscardChanges(dirPath));
+  ipcMain.handle('rm-git-merge-abort', (_e, dirPath) => gitMergeAbort(dirPath));
   ipcMain.handle('rm-copy-to-clipboard', (_e, text) => {
     if (text != null && typeof text === 'string') clipboard.writeText(text);
     return null;

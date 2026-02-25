@@ -352,12 +352,14 @@
               <button type="button" id="btn-git-pull" class="btn-secondary btn-compact text-xs" title="Fetch from remote and merge into current branch">Pull</button>
               <button type="button" id="btn-git-stash" class="btn-secondary btn-compact text-xs" title="Temporarily save uncommitted changes; restore later with Pop stash">Stash</button>
               <button type="button" id="btn-git-stash-pop" class="btn-secondary btn-compact text-xs" title="Reapply the most recent stashed changes to the working tree">Pop stash</button>
+              <button type="button" id="btn-git-merge-abort" class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10 hidden" title="Cancel the current merge and restore the branch to before the merge">Abort merge</button>
               <button type="button" id="btn-git-discard" class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10" title="Permanently revert and remove all uncommitted changes (cannot be undone)">Discard all</button>
               <span id="detail-git-action-status" class="text-xs text-rm-muted hidden"></span>
             </div>
           </div>
           <div id="detail-uncommitted-wrap" class="card-section border-t border-rm-border pt-5 mt-0">
             <p id="detail-uncommitted-label" class="m-0 text-xs font-medium text-rm-muted">Working tree clean</p>
+            <p id="detail-git-merge-conflict-hint" class="m-0 mt-1 text-xs text-rm-muted hidden">Click a file to view it, then use <strong>Open in editor</strong> to resolve conflict markers (<code class="bg-rm-surface px-1 rounded">&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code class="bg-rm-surface px-1 rounded">=======</code>, <code class="bg-rm-surface px-1 rounded">&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). When done, commit.</p>
             <p id="detail-git-next-step" class="m-0 mt-1.5 text-xs text-rm-muted hidden">Next step: <button type="button" id="btn-git-go-version" class="text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer font-medium">Version &amp; release</button></p>
             <ul id="detail-uncommitted-list" class="m-0 mt-2.5 pl-4 text-xs text-rm-muted max-h-64 overflow-y-auto list-disc space-y-1"></ul>
             <div id="detail-commit-wrap" class="hidden mt-5 pt-5 border-t border-rm-border rounded-rm-lg bg-rm-bg/30 p-4 -mx-1">
