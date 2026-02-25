@@ -11,12 +11,20 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <nav class="nav-bar flex items-center justify-between px-4 py-3 bg-rm-surface border-b border-rm-border select-none">
-    <h1 class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 no-drag">
-      <span class="inline-flex w-8 h-8 rounded-rm bg-rm-accent/20 text-rm-accent items-center justify-center text-sm font-bold">R</span>
-      Release Manager
-    </h1>
-    <div class="flex items-center gap-2 no-drag">
+  <nav class="nav-bar flex items-center justify-between gap-4 px-4 py-3 bg-rm-surface border-b border-rm-border select-none">
+    <div class="flex items-center gap-4 no-drag min-w-0">
+      <h1 class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 shrink-0">
+        <span class="inline-flex w-8 h-8 rounded-rm bg-rm-accent/20 text-rm-accent items-center justify-center text-sm font-bold">R</span>
+        Release Manager
+      </h1>
+      <div class="nav-tabs flex items-center gap-0.5 shrink-0">
+        <button type="button" id="btn-view-dashboard" class="nav-tab">Dashboard</button>
+        <button type="button" id="btn-view-settings" class="nav-tab">Settings</button>
+        <button type="button" id="btn-view-docs" class="nav-tab">Documentation</button>
+        <button type="button" id="btn-view-changelog" class="nav-tab">Changelog</button>
+      </div>
+    </div>
+    <div class="flex items-center gap-2 no-drag shrink-0">
       <div class="theme-toggle flex items-center rounded-rm border border-rm-border bg-rm-surface overflow-hidden">
         <button type="button" class="theme-btn p-2 transition-colors" id="theme-dark" title="Dark" aria-label="Dark theme">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
@@ -35,12 +43,6 @@
   <main class="flex-1 flex min-h-0 overflow-hidden">
     <aside class="aside-panel">
       <div class="aside-header">
-        <button type="button" id="btn-view-dashboard" class="aside-tab">Dashboard</button>
-        <span class="aside-tab-sep">·</span>
-        <button type="button" id="btn-view-settings" class="aside-tab">Settings</button>
-        <span class="aside-tab-sep">·</span>
-        <button type="button" id="btn-view-docs" class="aside-tab">Documentation</button>
-        <span class="aside-tab-sep">·</span>
         <span class="aside-title">Projects</span>
       </div>
       <div id="batch-release-bar" class="batch-bar hidden">
@@ -137,6 +139,13 @@
         </div>
       </div>
 
+      <div id="changelog-view" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
+        <div class="max-w-2xl mx-auto w-full py-8 px-8 text-sm text-rm-text">
+          <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Changelog</h2>
+          <div id="changelog-content" class="changelog-body prose-changelog"></div>
+          <p id="changelog-error" class="text-rm-warning hidden"></p>
+        </div>
+      </div>
       <div id="docs-view" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
         <div class="docs-content max-w-2xl mx-auto w-full py-8 px-8 text-sm text-rm-text">
           <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Documentation</h2>
@@ -265,14 +274,14 @@
           <div id="detail-uncommitted-wrap" class="card-section border-t border-rm-border pt-5 mt-0">
             <p id="detail-uncommitted-label" class="m-0 text-xs font-medium text-rm-muted">Working tree clean</p>
             <ul id="detail-uncommitted-list" class="m-0 mt-2.5 pl-4 text-xs text-rm-muted max-h-28 overflow-y-auto list-disc space-y-1"></ul>
-            <div id="detail-commit-wrap" class="hidden mt-5 pt-5 border-t border-rm-border">
-              <label class="block text-xs font-medium text-rm-text mb-2">Commit changes</label>
-              <div class="flex gap-3 flex-wrap">
-                <textarea id="detail-commit-message" class="input-field flex-1 text-sm min-w-0 resize-y min-h-[2.5rem]" rows="2" placeholder="Commit message"></textarea>
+            <div id="detail-commit-wrap" class="hidden mt-5 pt-5 border-t border-rm-border rounded-rm-lg bg-rm-bg/30 p-4 -mx-1">
+              <label class="block text-xs font-semibold text-rm-text uppercase tracking-wider mb-2">Commit changes</label>
+              <textarea id="detail-commit-message" class="commit-message-input mb-3" rows="3" placeholder="Commit message (subject and optional body)"></textarea>
+              <div class="flex flex-wrap items-center gap-3">
                 <button type="button" id="btn-ollama-commit" class="btn-secondary btn-compact shrink-0" title="Generate with Ollama">Generate</button>
                 <button type="button" id="btn-commit" class="btn-primary btn-compact shrink-0">Commit</button>
+                <p id="detail-commit-status" class="m-0 text-xs text-rm-muted hidden"></p>
               </div>
-              <p id="detail-commit-status" class="m-0 mt-2 text-xs text-rm-muted hidden"></p>
             </div>
           </div>
           </div>

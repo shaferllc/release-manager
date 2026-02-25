@@ -36,6 +36,9 @@ const githubTokenEl = document.getElementById('github-token');
 const dashboardViewEl = document.getElementById('dashboard-view');
 const settingsViewEl = document.getElementById('settings-view');
 const docsViewEl = document.getElementById('docs-view');
+const changelogViewEl = document.getElementById('changelog-view');
+const changelogContentEl = document.getElementById('changelog-content');
+const changelogErrorEl = document.getElementById('changelog-error');
 const settingsGithubTokenEl = document.getElementById('settings-github-token');
 const dashboardFilterEl = document.getElementById('dashboard-filter');
 const dashboardSortEl = document.getElementById('dashboard-sort');
@@ -123,28 +126,40 @@ function renderProjectList() {
   if (countEl) countEl.textContent = selectedPaths.size;
 }
 
+function setNavTabActive(mode) {
+  document.querySelectorAll('.nav-tab').forEach((el) => el.classList.remove('is-active'));
+  const id = mode === 'dashboard' ? 'btn-view-dashboard' : mode === 'settings' ? 'btn-view-settings' : mode === 'docs' ? 'btn-view-docs' : mode === 'changelog' ? 'btn-view-changelog' : null;
+  if (id) document.getElementById(id)?.classList.add('is-active');
+}
+
 function showNoSelection() {
   viewMode = 'detail';
+  setNavTabActive(null);
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
+  changelogViewEl?.classList.add('hidden');
   noSelectionEl.classList.remove('hidden');
   projectDetailEl.classList.add('hidden');
 }
 
 function showDetail() {
   viewMode = 'detail';
+  setNavTabActive(null);
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
+  changelogViewEl?.classList.add('hidden');
   noSelectionEl.classList.add('hidden');
   projectDetailEl.classList.remove('hidden');
 }
 
 function showDashboard() {
   viewMode = 'dashboard';
+  setNavTabActive('dashboard');
   settingsViewEl?.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
+  changelogViewEl?.classList.add('hidden');
   noSelectionEl.classList.add('hidden');
   projectDetailEl.classList.add('hidden');
   dashboardViewEl.classList.remove('hidden');
@@ -153,8 +168,10 @@ function showDashboard() {
 
 async function showSettings() {
   viewMode = 'settings';
+  setNavTabActive('settings');
   dashboardViewEl.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
+  changelogViewEl?.classList.add('hidden');
   noSelectionEl.classList.add('hidden');
   projectDetailEl.classList.add('hidden');
   settingsViewEl?.classList.remove('hidden');
@@ -169,11 +186,43 @@ async function showSettings() {
 
 function showDocs() {
   viewMode = 'docs';
+  setNavTabActive('docs');
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
+  changelogViewEl?.classList.add('hidden');
   noSelectionEl.classList.add('hidden');
   projectDetailEl.classList.add('hidden');
   docsViewEl?.classList.remove('hidden');
+}
+
+async function showChangelog() {
+  viewMode = 'changelog';
+  setNavTabActive('changelog');
+  dashboardViewEl.classList.add('hidden');
+  settingsViewEl?.classList.add('hidden');
+  docsViewEl?.classList.add('hidden');
+  noSelectionEl.classList.add('hidden');
+  projectDetailEl.classList.add('hidden');
+  changelogViewEl?.classList.remove('hidden');
+  if (changelogErrorEl) changelogErrorEl.classList.add('hidden');
+  if (changelogContentEl) changelogContentEl.innerHTML = '<span class="text-rm-muted">Loading…</span>';
+  try {
+    const result = await window.releaseManager.getChangelog();
+    if (result?.ok && changelogContentEl) {
+      changelogContentEl.innerHTML = result.content;
+      changelogContentEl.classList.remove('hidden');
+    } else if (changelogErrorEl) {
+      changelogErrorEl.textContent = result?.error || 'Could not load changelog.';
+      changelogErrorEl.classList.remove('hidden');
+      if (changelogContentEl) changelogContentEl.innerHTML = '';
+    }
+  } catch (e) {
+    if (changelogErrorEl) {
+      changelogErrorEl.textContent = e.message || 'Could not load changelog.';
+      changelogErrorEl.classList.remove('hidden');
+    }
+    if (changelogContentEl) changelogContentEl.innerHTML = '';
+  }
 }
 
 function needsRelease(row) {
@@ -710,6 +759,18 @@ document.getElementById('btn-view-settings').addEventListener('click', () => {
 document.getElementById('btn-view-docs').addEventListener('click', () => {
   if (viewMode === 'docs') return;
   showDocs();
+});
+document.getElementById('btn-view-changelog').addEventListener('click', () => {
+  if (viewMode === 'changelog') return;
+  showChangelog();
+});
+
+changelogContentEl?.addEventListener('click', (e) => {
+  const a = e.target.closest('a[href^="http"]');
+  if (a && a.href) {
+    e.preventDefault();
+    window.releaseManager.openUrl(a.href);
+  }
 });
 
 document.addEventListener('keydown', async (e) => {

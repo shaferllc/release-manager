@@ -35,6 +35,7 @@ contextBridge.exposeInMainWorld('releaseManager', {
   downloadAsset: (url, suggestedFileName) => ipcRenderer.invoke('rm-download-asset', url, suggestedFileName),
   openUrl: (url) => ipcRenderer.invoke('rm-open-url', url),
   getAppInfo: () => ipcRenderer.invoke('rm-get-app-info'),
+  getChangelog: () => ipcRenderer.invoke('rm-get-changelog'),
   getTheme: () => ipcRenderer.invoke('rm-get-theme'),
   setTheme: (theme) => ipcRenderer.invoke('rm-set-theme', theme),
   onTheme: (callback) => {

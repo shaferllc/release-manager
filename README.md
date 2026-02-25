@@ -85,6 +85,7 @@ release-manager/
 | `npm test` | Run test suite (Jest) |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run test:coverage` | Run tests with coverage |
+| `npm run test:e2e` | E2E smoke test (launches app, checks UI) |
 
 **Development:** `npm start` runs the app without the file watcher. Use `npm run dev` to run with Electron logging and auto-reload on file changes. To disable reload in dev (e.g. if you see SIGABRT on restart), set `DISABLE_ELECTRON_RELOAD=1`.
 
@@ -94,7 +95,7 @@ release-manager/
 
 ## Tests
 
-Logic in `src-main/lib/` is unit-tested (projectDetection, releaseStrategy, packageManagers, packageJson, config, github, version, theme, runInDir, migration, projects). Run `npm run test:coverage` for coverage.
+Logic in `src-main/lib/` is unit-tested (Jest). Run `npm run test:coverage` for coverage. `npm run test:e2e` runs a Playwright smoke test that launches the app and checks the main UI (requires `npm run build:css` first).
 
 ## Releasing this app
 

@@ -156,6 +156,16 @@ describe('packageManagers', () => {
       expect(result.version).toBe('3.0.0');
       expect(result.projectType).toBe('python');
     });
+    it('returns python version from pyproject.toml with no name (uses basename)', () => {
+      const fsMock = {
+        readFileSync: () => '[project]\nversion = "1.0.0"\n',
+      };
+      const result = getNonNpmProjectInfo('/proj/my-python', { type: 'python', manifestPath: '/proj/my-python/pyproject.toml' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('my-python');
+      expect(result.version).toBe('1.0.0');
+      expect(result.projectType).toBe('python');
+    });
 
     it('returns python version from setup.py', () => {
       const fsMock = {
@@ -164,6 +174,15 @@ describe('packageManagers', () => {
       const result = getNonNpmProjectInfo('/proj', { type: 'python', manifestPath: '/proj/setup.py' }, fsMock);
       expect(result.ok).toBe(true);
       expect(result.version).toBe('1.0.0');
+    });
+    it('returns python setup.py with version but no name (uses basename)', () => {
+      const fsMock = {
+        readFileSync: () => 'setuptools.setup(version="0.5.0")',
+      };
+      const result = getNonNpmProjectInfo('/proj/my-setup', { type: 'python', manifestPath: '/proj/my-setup/setup.py' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('my-setup');
+      expect(result.version).toBe('0.5.0');
     });
 
     it('returns error when readFileSync throws', () => {

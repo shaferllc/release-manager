@@ -185,6 +185,7 @@ ${list}`;
 module.exports = {
   generate,
   listModels,
+  modelSupportsGenerate,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
   formatOllamaError,

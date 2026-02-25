@@ -1,6 +1,7 @@
 const {
   generate,
   listModels,
+  modelSupportsGenerate,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
   formatOllamaError,
@@ -221,6 +222,63 @@ describe('ollama', () => {
       expect(result.ok).toBe(false);
       expect(result.error).toContain('ollama serve');
     });
+    it('returns error when /api/tags returns non-ok', async () => {
+      const fetchMock = () =>
+        Promise.resolve({
+          ok: false,
+          text: () => Promise.resolve('Internal Server Error'),
+        });
+      const result = await listModels('http://127.0.0.1:11434', fetchMock);
+      expect(result.ok).toBe(false);
+      expect(result.error).toBeDefined();
+    });
+    it('excludes model when /api/show fetch throws', async () => {
+      const fetchMock = async (url) => {
+        if (url.includes('/api/tags')) {
+          return {
+            ok: true,
+            json: () => Promise.resolve({ models: [{ name: 'throws' }] }),
+          };
+        }
+        if (url.includes('/api/show')) return Promise.reject(new Error('network'));
+        return { ok: false };
+      };
+      const result = await listModels('http://127.0.0.1:11434', fetchMock, { onlyGenerate: true });
+      expect(result.ok).toBe(true);
+      expect(result.models).toEqual([]);
+    });
+    it('excludes model when /api/show throws synchronously', async () => {
+      const fetchMock = (url) => {
+        if (url.includes('/api/tags')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ models: [{ name: 'sync-throw' }] }),
+          });
+        }
+        if (url.includes('/api/show')) throw new Error('sync error');
+        return Promise.resolve({ ok: false });
+      };
+      const result = await listModels('http://127.0.0.1:11434', fetchMock, { onlyGenerate: true });
+      expect(result.ok).toBe(true);
+      expect(result.models).toEqual([]);
+    });
+    it('excludes model when /api/show res.json() throws', async () => {
+      const fetchMock = (url) => {
+        if (url.includes('/api/tags')) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ models: [{ name: 'bad-json' }] }),
+          });
+        }
+        if (url.includes('/api/show')) {
+          return Promise.resolve({ ok: true, json: () => Promise.reject(new Error('invalid json')) });
+        }
+        return Promise.resolve({ ok: false });
+      };
+      const result = await listModels('http://127.0.0.1:11434', fetchMock, { onlyGenerate: true });
+      expect(result.ok).toBe(true);
+      expect(result.models).toEqual([]);
+    });
     it('filters to models that support generate when onlyGenerate: true', async () => {
       const fetchMock = async (url, opts) => {
         if (url.includes('/api/tags')) {
@@ -296,6 +354,17 @@ describe('ollama', () => {
       const result = await listModels('http://127.0.0.1:11434', fetchMock, { onlyGenerate: true });
       expect(result.ok).toBe(true);
       expect(result.models).toEqual(['multi']);
+    });
+    it('modelSupportsGenerate returns false when fetch throws', async () => {
+      const fetchMock = () => Promise.reject(new Error('network'));
+      const result = await modelSupportsGenerate('http://127.0.0.1:11434', 'm', fetchMock);
+      expect(result).toBe(false);
+    });
+    it('modelSupportsGenerate returns false when res.json() rejects', async () => {
+      const fetchMock = () =>
+        Promise.resolve({ ok: true, json: () => Promise.reject(new Error('parse')) });
+      const result = await modelSupportsGenerate('http://127.0.0.1:11434', 'm', fetchMock);
+      expect(result).toBe(false);
     });
     it('returns all models when onlyGenerate is false or omitted', async () => {
       const fetchMock = () =>

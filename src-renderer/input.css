@@ -54,6 +54,28 @@ html[data-theme="light"] {
 .nav-bar .no-drag {
   -webkit-app-region: no-drag;
 }
+.nav-tabs {
+  @apply flex items-center;
+}
+.nav-tab {
+  @apply text-xs font-medium text-rm-muted hover:text-rm-accent transition-colors border-none bg-transparent cursor-pointer py-2 px-2.5 rounded-rm;
+}
+.nav-tab.is-active {
+  @apply text-rm-accent bg-rm-accent/15;
+}
+
+.prose-changelog {
+  @apply text-rm-muted font-sans;
+}
+.prose-changelog h1 { @apply text-lg font-semibold text-rm-text mt-6 mb-2 first:mt-0; }
+.prose-changelog h2 { @apply text-base font-semibold text-rm-text mt-6 mb-2; }
+.prose-changelog h3 { @apply text-sm font-semibold text-rm-text mt-4 mb-1.5; }
+.prose-changelog p { @apply my-2 leading-relaxed; }
+.prose-changelog ul { @apply my-2 pl-5 list-disc space-y-1; }
+.prose-changelog li { @apply leading-relaxed; }
+.prose-changelog a { @apply text-rm-accent hover:underline cursor-pointer; }
+.prose-changelog code { @apply bg-rm-surface px-1 rounded text-xs font-mono; }
+.prose-changelog strong { @apply font-semibold text-rm-text; }
 
 @layer components {
   .btn-primary {
@@ -130,6 +152,9 @@ html[data-theme="light"] {
   }
   .release-notes-input {
     @apply w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[5rem] focus:outline-none focus:border-rm-border-focus;
+  }
+  .commit-message-input {
+    @apply w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[4.5rem] focus:outline-none focus:border-rm-border-focus;
   }
   .input-field {
     @apply w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-2.5 focus:outline-none focus:border-rm-border-focus;

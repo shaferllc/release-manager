@@ -5,7 +5,11 @@ const { spawn } = require('child_process');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const Store = require('electron-store');
+const appRoot = path.join(__dirname, '..');
+const { marked } = require(path.join(appRoot, 'node_modules', 'marked'));
+const sanitizeHtml = require(path.join(appRoot, 'node_modules', 'sanitize-html'));
 const { getReleasesUrl, getActionsUrl, getRepoSlug, pickAssetForPlatform } = require('./lib/github');
+const { formatGitHubError } = require('./lib/githubErrors');
 const { filterValidProjects } = require('./lib/projects');
 const { THEME_VALUES, getEffectiveTheme: getEffectiveThemeFromSetting } = require('./lib/theme');
 const { isValidBump, isPrereleaseBump, formatTag, PRERELEASE_PREID } = require('./lib/version');
@@ -466,7 +470,7 @@ app.whenReady().then(() => {
           token
         );
       } catch (e) {
-        return { ok: true, tag, version, actionsUrl, releaseError: e.message };
+        return { ok: true, tag, version, actionsUrl, releaseError: formatGitHubError(e.message || '') };
       }
     }
     return { ok: true, tag, version, actionsUrl };
@@ -571,7 +575,7 @@ app.whenReady().then(() => {
       const releases = await fetchGitHubReleases(slug.owner, slug.repo);
       return { ok: true, releases };
     } catch (e) {
-      return { ok: false, error: e.message || 'Failed to fetch releases', releases: [] };
+      return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch releases'), releases: [] };
     }
   });
   ipcMain.handle('rm-download-latest', async (e, gitRemote) => {
@@ -588,7 +592,7 @@ app.whenReady().then(() => {
       const defaultPath = path.join(app.getPath('downloads'), asset.name);
       return showSaveDialogAndDownload(win, defaultPath, asset.browser_download_url);
     } catch (err) {
-      return { ok: false, error: err.message || 'Failed to fetch or download' };
+      return { ok: false, error: formatGitHubError(err.message || 'Failed to fetch or download') };
     }
   });
   ipcMain.handle('rm-download-asset', async (e, url, suggestedFileName) => {
@@ -609,6 +613,21 @@ app.whenReady().then(() => {
       return { name: pkg.productName || pkg.name, version: pkg.version };
     } catch {
       return { name: 'Release Manager', version: '0.1.0' };
+    }
+  });
+  ipcMain.handle('rm-get-changelog', async () => {
+    try {
+      const changelogPath = path.join(app.getAppPath(), 'CHANGELOG.md');
+      const raw = fs.readFileSync(changelogPath, 'utf8');
+      const html = marked.parse(raw, { gfm: true });
+      const content = sanitizeHtml(html, {
+        allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'code', 'pre', 'br', 'blockquote'],
+        allowedAttributes: { a: ['href'] },
+        allowedSchemes: ['http', 'https'],
+      });
+      return { ok: true, content };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Could not load changelog.' };
     }
   });
   ipcMain.handle('rm-get-theme', () => ({ theme: getThemeSetting(), effective: getEffectiveTheme() }));

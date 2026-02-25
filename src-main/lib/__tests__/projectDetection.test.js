@@ -143,5 +143,22 @@ describe('projectDetection', () => {
       expect(result.error).toBe(DEFAULT_ERROR);
       expect(result.path).toBe('/proj');
     });
+
+    it('uses npm as projectType when non-npm returns ok but projectType falsy', () => {
+      const getNonNpmStub = () => ({
+        ok: true,
+        name: 'fallback',
+        version: '1.0.0',
+        projectType: undefined,
+      });
+      const fsMock = {
+        readFileSync: () => { throw new Error('ENOENT'); },
+        existsSync: () => true,
+      };
+      const result = getProjectNameVersionAndType('/proj', path, fsMock, getNonNpmStub);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('fallback');
+      expect(result.projectType).toBe('npm');
+    });
   });
 });
