@@ -1,6 +1,6 @@
 {
   "name": "release-manager",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "productName": "Release Manager",
   "description": "Desktop app to manage releases for all your app projects",
   "main": "src-main/main.js",
