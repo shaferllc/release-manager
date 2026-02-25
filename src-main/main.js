@@ -29,6 +29,12 @@ const {
   DEFAULT_MODEL,
 } = require('./lib/ollama');
 const { getGitDiffForCommit: getGitDiffForCommitLib } = require('./lib/gitDiff');
+const {
+  getComposerManifestInfo,
+  parseComposerOutdatedJson,
+  parseComposerValidateOutput,
+  parseComposerAuditJson,
+} = require('./lib/composer');
 
 // Use same app name in dev and prod so userData is shared (dev no longer uses "Electron")
 const pkg = require(path.join(__dirname, '..', 'package.json'));
@@ -66,12 +72,52 @@ function setThemeSetting(theme) {
   }
 }
 
+function getPreference(key) {
+  const prefs = getStore().get('preferences');
+  return typeof prefs === 'object' && prefs !== null && key in prefs ? prefs[key] : undefined;
+}
+
+function setPreference(key, value) {
+  const prefs = getStore().get('preferences') || {};
+  prefs[key] = value;
+  getStore().set('preferences', prefs);
+}
+
 function getEffectiveTheme() {
   return getEffectiveThemeFromSetting(getThemeSetting(), nativeTheme.shouldUseDarkColors);
 }
 
 function runInDir(dirPath, command, args, options = {}) {
   return runInDirLib(dirPath, command, args, options, spawn);
+}
+
+/** Run a command and return { ok, exitCode, stdout, stderr } without rejecting on non-zero exit. */
+function runInDirCapture(dirPath, command, args, options = {}) {
+  return new Promise((resolve) => {
+    const isWin = process.platform === 'win32';
+    const cmd = isWin ? 'cmd.exe' : command;
+    const cargs = isWin ? ['/c', command, ...args] : args;
+    const proc = spawn(cmd, cargs, {
+      cwd: dirPath,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...options,
+    });
+    let stdout = '';
+    let stderr = '';
+    proc.stdout?.on('data', (d) => { stdout += d.toString(); });
+    proc.stderr?.on('data', (d) => { stderr += d.toString(); });
+    proc.on('close', (code) => {
+      resolve({
+        ok: code === 0,
+        exitCode: code ?? -1,
+        stdout: stdout.trim(),
+        stderr: stderr.trim(),
+      });
+    });
+    proc.on('error', (e) => {
+      resolve({ ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Spawn failed' });
+    });
+  });
 }
 
 async function getProjectInfoAsync(dirPath) {
@@ -167,7 +213,7 @@ async function runVersionBump(dirPath, bump, projectType = 'npm') {
     return { ok: false, error: 'Invalid bump type' };
   }
   if (projectType !== 'npm') {
-    return { ok: false, error: 'Version bump from app is only supported for npm. For Rust/Go/Python, update the version in your manifest and use "Tag and push".' };
+    return { ok: false, error: 'Version bump from app is only supported for npm. For Rust/Go/Python/PHP, update the version in your manifest and use "Tag and push".' };
   }
   try {
     if (isPrereleaseBump(bump)) {
@@ -349,10 +395,23 @@ async function showSaveDialogAndDownload(win, defaultPath, url) {
 
 const iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon.png');
 
+const DEFAULT_WINDOW_WIDTH = 800;
+const DEFAULT_WINDOW_HEIGHT = 640;
+
 function createWindow() {
+  const saved = getStore().get('windowBounds');
+  const width = typeof saved?.width === 'number' && saved.width >= 400 ? saved.width : DEFAULT_WINDOW_WIDTH;
+  const height = typeof saved?.height === 'number' && saved.height >= 300 ? saved.height : DEFAULT_WINDOW_HEIGHT;
+  const x = typeof saved?.x === 'number' ? saved.x : undefined;
+  const y = typeof saved?.y === 'number' ? saved.y : undefined;
+
   const win = new BrowserWindow({
-    width: 800,
-    height: 640,
+    width,
+    height,
+    x: x !== undefined ? x : undefined,
+    y: y !== undefined ? y : undefined,
+    minWidth: 400,
+    minHeight: 300,
     icon: fs.existsSync(iconPath) ? iconPath : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -361,8 +420,26 @@ function createWindow() {
     },
   });
 
+  if (saved?.isMaximized === true) {
+    win.maximize();
+  }
+
   win.loadFile(path.join(__dirname, '..', 'src-renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
+
+  win.on('close', () => {
+    try {
+      const bounds = win.getBounds();
+      getStore().set('windowBounds', {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        isMaximized: win.isMaximized(),
+      });
+    } catch (_) {}
+  });
+
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('rm-theme', getEffectiveTheme());
   });
@@ -428,6 +505,137 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('rm-show-directory-dialog', () => showDirectoryDialog());
   ipcMain.handle('rm-get-project-info', (_e, dirPath) => getProjectInfoAsync(dirPath));
+  ipcMain.handle('rm-get-composer-info', (_e, dirPath) => {
+    const result = getComposerManifestInfo(dirPath, fs);
+    return Promise.resolve(result.ok ? result : { ok: false, error: result.error });
+  });
+  ipcMain.handle('rm-get-composer-outdated', async (_e, dirPath, direct = false) => {
+    try {
+      const args = ['outdated', '--format=json', '--no-ansi'];
+      if (direct) args.push('--direct');
+      const out = await runInDir(dirPath, 'composer', args);
+      const parsed = parseComposerOutdatedJson(out.stdout);
+      if (!parsed.ok) return { ok: false, error: parsed.error, packages: [] };
+      return { ok: true, packages: parsed.packages || [] };
+    } catch (e) {
+      const msg = e.message || '';
+      if (/ENOENT|not found|spawn composer/i.test(msg)) {
+        return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.', packages: [] };
+      }
+      return { ok: false, error: msg || 'composer outdated failed', packages: [] };
+    }
+  });
+  ipcMain.handle('rm-get-composer-validate', async (_e, dirPath) => {
+    try {
+      await runInDir(dirPath, 'composer', ['validate', '--no-ansi']);
+      return { valid: true };
+    } catch (e) {
+      return parseComposerValidateOutput('', e.message || '', 1);
+    }
+  });
+  ipcMain.handle('rm-get-composer-audit', async (_e, dirPath) => {
+    try {
+      const out = await runInDir(dirPath, 'composer', ['audit', '--format=json', '--no-ansi']);
+      const parsed = parseComposerAuditJson(out.stdout);
+      if (!parsed.ok) return { ok: false, error: parsed.error, advisories: [] };
+      return { ok: true, advisories: parsed.advisories || [] };
+    } catch (e) {
+      const msg = e.message || '';
+      if (/ENOENT|not found|spawn composer/i.test(msg)) {
+        return { ok: false, error: 'Composer not found.', advisories: [] };
+      }
+      return { ok: false, error: msg || 'composer audit failed', advisories: [] };
+    }
+  });
+  ipcMain.handle('rm-composer-update', async (_e, dirPath, packageNames) => {
+    try {
+      const args = ['update', '--no-interaction', '--no-ansi'];
+      if (Array.isArray(packageNames) && packageNames.length > 0) {
+        packageNames.forEach((name) => {
+          if (typeof name === 'string' && name.trim()) args.push(name.trim());
+        });
+      }
+      await runInDir(dirPath, 'composer', args);
+      return { ok: true };
+    } catch (e) {
+      const msg = e.message || '';
+      if (/ENOENT|not found|spawn composer/i.test(msg)) {
+        return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.' };
+      }
+      return { ok: false, error: msg || 'composer update failed' };
+    }
+  });
+  function getProjectTestScripts(dirPath, projectType) {
+    try {
+      if (projectType === 'npm') {
+        const pkgPath = path.join(dirPath, 'package.json');
+        if (!fs.existsSync(pkgPath)) return { ok: true, scripts: [] };
+        const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+        const scripts = typeof data.scripts === 'object' && data.scripts !== null ? Object.keys(data.scripts) : [];
+        return { ok: true, scripts };
+      }
+      if (projectType === 'php') {
+        const manifest = getComposerManifestInfo(dirPath);
+        if (!manifest.ok || !manifest.scripts || manifest.scripts.length === 0) return { ok: true, scripts: [] };
+        return { ok: true, scripts: manifest.scripts };
+      }
+      return { ok: true, scripts: [] };
+    } catch (e) {
+      return { ok: false, scripts: [], error: e.message || 'Failed to get test scripts' };
+    }
+  }
+  ipcMain.handle('rm-get-project-test-scripts', (_e, dirPath, projectType) => getProjectTestScripts(dirPath, projectType));
+  ipcMain.handle('rm-run-project-tests', async (_e, dirPath, projectType, scriptName) => {
+    try {
+      const runNpm = (script) => runInDirCapture(dirPath, 'npm', ['run', script, '--no-color']);
+      const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi']);
+      if (projectType === 'npm') {
+        const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
+        const result = await runNpm(script);
+        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+      }
+      if (projectType === 'php') {
+        const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
+        const result = await runComposer(script);
+        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+      }
+      return { ok: false, error: 'Run tests is supported for npm and PHP projects only.', stdout: '', stderr: '' };
+    } catch (e) {
+      return { ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Failed to run tests' };
+    }
+  });
+  ipcMain.handle('rm-run-project-coverage', async (_e, dirPath, projectType) => {
+    try {
+      if (projectType === 'npm') {
+        const pkgPath = path.join(dirPath, 'package.json');
+        let scriptName = null;
+        if (fs.existsSync(pkgPath)) {
+          const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          const scripts = typeof data.scripts === 'object' && data.scripts !== null ? data.scripts : {};
+          if (typeof scripts.coverage === 'string') scriptName = 'coverage';
+          else if (typeof scripts['test:coverage'] === 'string') scriptName = 'test:coverage';
+        }
+        const result = scriptName
+          ? await runInDirCapture(dirPath, 'npm', ['run', scriptName, '--no-color'])
+          : await runInDirCapture(dirPath, 'npm', ['test', '--', '--coverage', '--no-color']);
+        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+      }
+      if (projectType === 'php') {
+        const manifest = getComposerManifestInfo(dirPath);
+        const scripts = manifest.ok && manifest.scripts ? manifest.scripts : [];
+        const coverageScript = Array.isArray(scripts)
+          ? (scripts.includes('coverage') ? 'coverage' : scripts.find((s) => String(s).toLowerCase().includes('coverage')))
+          : null;
+        const result = coverageScript
+          ? await runInDirCapture(dirPath, 'composer', ['run', coverageScript, '--no-ansi'])
+          : await runInDirCapture(dirPath, 'composer', ['run', 'test', '--', '--coverage-text', '--no-ansi']);
+        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+      }
+      return { ok: false, error: 'Coverage is supported for npm and PHP projects only.', stdout: '', stderr: '' };
+    } catch (e) {
+      return { ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Failed to run coverage' };
+    }
+  });
   ipcMain.handle('rm-version-bump', (_e, dirPath, bump) => runVersionBump(dirPath, bump));
   ipcMain.handle('rm-git-tag-and-push', (_e, dirPath, tagMessage) => gitTagAndPush(dirPath, tagMessage));
   ipcMain.handle('rm-release', async (_e, dirPath, bump, force, options = {}) => {
@@ -634,6 +842,11 @@ app.whenReady().then(() => {
       return { ok: false, error: e.message || 'Could not load changelog.' };
     }
   });
+  ipcMain.handle('rm-get-preference', (_e, key) => getPreference(key));
+  ipcMain.handle('rm-set-preference', (_e, key, value) => {
+    setPreference(key, value);
+    return null;
+  });
   ipcMain.handle('rm-get-theme', () => ({ theme: getThemeSetting(), effective: getEffectiveTheme() }));
   ipcMain.handle('rm-set-theme', (_e, theme) => {
     setThemeSetting(theme);
@@ -649,6 +862,21 @@ nativeTheme.on('updated', () => {
   }
 });
 
+app.on('before-quit', () => {
+  try {
+    const w = BrowserWindow.getAllWindows()[0];
+    if (w && !w.isDestroyed()) {
+      const bounds = w.getBounds();
+      getStore().set('windowBounds', {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        isMaximized: w.isMaximized(),
+      });
+    }
+  } catch (_) {}
+});
 app.on('window-all-closed', () => app.quit());
 app.on('activate', () => {
   if (BrowserWindow.getAllWindows().length === 0) createWindow();

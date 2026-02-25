@@ -54,5 +54,11 @@ describe('releaseStrategy', () => {
       expect(plan.action).toBe('tag_only');
       expect(plan.versionForTag).toBe('1.0.0');
     });
+
+    it('returns tag_only for php with version', () => {
+      const plan = getReleasePlan('php', '2.0.1');
+      expect(plan.action).toBe('tag_only');
+      expect(plan.versionForTag).toBe('2.0.1');
+    });
   });
 });

@@ -390,4 +390,14 @@ html[data-theme="light"] {
   .modal-list-item:hover {
     @apply bg-rm-surface-hover;
   }
+
+  .detail-tabs-bar .detail-tab-btn.is-active {
+    @apply text-rm-accent border-rm-accent/50 bg-rm-accent/10;
+  }
+  .detail-tab-panels.detail-tabs-mode .detail-tab-panel {
+    display: none;
+  }
+  .detail-tab-panels.detail-tabs-mode .detail-tab-panel.detail-tab-panel-visible {
+    display: block;
+  }
 }

@@ -8,7 +8,7 @@ const fs = require('fs');
 const { parsePackageInfo } = require('./packageJson');
 const { detectProjectType, getNonNpmProjectInfo } = require('./packageManagers');
 
-const DEFAULT_ERROR = 'Not a supported project (package.json, Cargo.toml, go.mod, or pyproject.toml)';
+const DEFAULT_ERROR = 'Not a supported project (package.json, Cargo.toml, go.mod, pyproject.toml, or composer.json)';
 
 /**
  * Get project name, version, and projectType from dirPath. Tries package.json first, then non-npm manifests.

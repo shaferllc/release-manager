@@ -6,16 +6,18 @@ const {
   parseGoVersion,
   parsePyprojectVersion,
   parseSetupPyVersion,
+  parseComposerVersion,
   getNonNpmProjectInfo,
 } = require('../packageManagers');
 
 describe('packageManagers', () => {
   describe('PROJECT_TYPES', () => {
-    it('includes npm, cargo, go, python', () => {
+    it('includes npm, cargo, go, python, php', () => {
       expect(PROJECT_TYPES).toContain('npm');
       expect(PROJECT_TYPES).toContain('cargo');
       expect(PROJECT_TYPES).toContain('go');
       expect(PROJECT_TYPES).toContain('python');
+      expect(PROJECT_TYPES).toContain('php');
     });
   });
 
@@ -52,6 +54,14 @@ describe('packageManagers', () => {
       };
       const result = detectProjectType('/proj', fsMock);
       expect(result).toEqual({ type: 'python', manifestPath: path.join('/proj', 'setup.py') });
+    });
+
+    it('returns php for composer.json when no cargo, go, or python', () => {
+      const fsMock = {
+        existsSync: (p) => p.endsWith('composer.json'),
+      };
+      const result = detectProjectType('/proj', fsMock);
+      expect(result).toEqual({ type: 'php', manifestPath: path.join('/proj', 'composer.json') });
     });
 
     it('returns null when no manifest', () => {
@@ -116,6 +126,25 @@ describe('packageManagers', () => {
     });
   });
 
+  describe('parseComposerVersion', () => {
+    it('extracts version from composer.json', () => {
+      expect(parseComposerVersion('{"name":"vendor/app","version":"2.1.0"}')).toBe('2.1.0');
+    });
+    it('returns null for empty or no version', () => {
+      expect(parseComposerVersion('')).toBeNull();
+      expect(parseComposerVersion('{"name":"x"}')).toBeNull();
+    });
+    it('returns null for non-string input', () => {
+      expect(parseComposerVersion(null)).toBeNull();
+    });
+    it('returns null when version is not a string', () => {
+      expect(parseComposerVersion('{"version":1}')).toBeNull();
+    });
+    it('trims version', () => {
+      expect(parseComposerVersion('{"version":"  1.0.0  "}')).toBe('1.0.0');
+    });
+  });
+
   describe('getNonNpmProjectInfo', () => {
     it('returns error when detected is null', () => {
       const result = getNonNpmProjectInfo('/dir', null);
@@ -123,12 +152,60 @@ describe('packageManagers', () => {
       expect(result.error).toBeDefined();
     });
 
-    it('returns basename and null version when detected type is not cargo go or python', () => {
+    it('returns basename and null version when detected type is not cargo go python or php', () => {
       const result = getNonNpmProjectInfo('/some-dir', { type: 'other', manifestPath: '/x' });
       expect(result.ok).toBe(true);
       expect(result.name).toBe('some-dir');
       expect(result.version).toBe(null);
       expect(result.projectType).toBe('other');
+    });
+
+    it('returns php name and version from composer.json', () => {
+      const fsMock = {
+        readFileSync: () => '{"name":"acme/my-app","version":"1.2.3"}',
+      };
+      const result = getNonNpmProjectInfo('/proj', { type: 'php', manifestPath: '/proj/composer.json' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('my-app');
+      expect(result.version).toBe('1.2.3');
+      expect(result.projectType).toBe('php');
+    });
+
+    it('returns php name from composer.json with no vendor (single segment)', () => {
+      const fsMock = {
+        readFileSync: () => '{"name":"standalone","version":"0.1.0"}',
+      };
+      const result = getNonNpmProjectInfo('/proj', { type: 'php', manifestPath: '/proj/composer.json' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('standalone');
+      expect(result.version).toBe('0.1.0');
+    });
+    it('returns basename when composer.json has invalid JSON for name parse', () => {
+      const fsMock = {
+        readFileSync: () => '{"version":"1.0.0" name invalid}',
+      };
+      const result = getNonNpmProjectInfo('/my-php-app', { type: 'php', manifestPath: '/my-php-app/composer.json' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('my-php-app');
+      expect(result.version).toBeNull();
+    });
+    it('uses basename when composer.json name ends with slash (empty pop)', () => {
+      const fsMock = {
+        readFileSync: () => '{"name":"vendor/","version":"1.0.0"}',
+      };
+      const result = getNonNpmProjectInfo('/my-php-app', { type: 'php', manifestPath: '/my-php-app/composer.json' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('my-php-app');
+      expect(result.version).toBe('1.0.0');
+    });
+    it('uses basename when composer.json name is empty or not a string', () => {
+      const fsMock = {
+        readFileSync: () => '{"name":"","version":"1.0.0"}',
+      };
+      const result = getNonNpmProjectInfo('/php-proj', { type: 'php', manifestPath: '/php-proj/composer.json' }, fsMock);
+      expect(result.ok).toBe(true);
+      expect(result.name).toBe('php-proj');
+      expect(result.version).toBe('1.0.0');
     });
 
     it('returns cargo name and version', () => {

@@ -59,6 +59,22 @@
       <div class="aside-header">
         <span class="aside-title">Projects</span>
       </div>
+      <div id="project-filters" class="project-filters px-3 pt-2 pb-1 border-b border-rm-border">
+        <label class="block text-xs font-medium text-rm-muted mb-1">Type</label>
+        <select id="filter-type" class="filter-select w-full text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5 mb-2">
+          <option value="">All types</option>
+          <option value="npm">npm</option>
+          <option value="php">PHP</option>
+          <option value="cargo">Rust</option>
+          <option value="go">Go</option>
+          <option value="python">Python</option>
+        </select>
+        <label class="block text-xs font-medium text-rm-muted mb-1">Tag</label>
+        <select id="filter-tag" class="filter-select w-full text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5">
+          <option value="">All tags</option>
+          <!-- options filled by renderer -->
+        </select>
+      </div>
       <div id="batch-release-bar" class="batch-bar hidden">
         <p class="batch-bar-label"><span id="batch-release-count">0</span> selected</p>
         <p class="batch-bar-hint">Release:</p>
@@ -72,7 +88,7 @@
         <!-- populated by renderer.js -->
       </ul>
       <p id="empty-projects-hint" class="p-4 text-sm text-rm-muted hidden">
-        Click “Add project” to add a folder (npm, Rust, Go, or Python: <code class="bg-rm-surface px-1 rounded text-xs">package.json</code>, <code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code>, <code class="bg-rm-surface px-1 rounded text-xs">go.mod</code>, or <code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code>).
+        Click “Add project” to add a folder (npm, Rust, Go, Python, or PHP: <code class="bg-rm-surface px-1 rounded text-xs">package.json</code>, <code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code>, <code class="bg-rm-surface px-1 rounded text-xs">go.mod</code>, <code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code>, or <code class="bg-rm-surface px-1 rounded text-xs">composer.json</code>).
       </p>
     </aside>
 
@@ -150,6 +166,18 @@
               <div id="settings-ollama-models-list" class="flex flex-wrap gap-1.5 mt-1.5 hidden"></div>
             </div>
           </section>
+          <section class="card mb-6">
+            <div class="card-section">
+              <span class="card-label">Project view</span>
+              <p class="m-0 mb-4 text-sm text-rm-muted">
+                When viewing a project, use tabs to switch between Git, Version &amp; release, Composer (if present), and Sync instead of scrolling through all sections.
+              </p>
+              <label class="checkbox-label text-sm text-rm-text cursor-pointer flex items-center gap-2">
+                <input type="checkbox" id="detail-use-tabs" class="checkbox-input" />
+                <span>Use tabs in project detail</span>
+              </label>
+            </div>
+          </section>
         </div>
       </div>
 
@@ -166,7 +194,7 @@
 
           <section class="mb-8">
             <h3 class="text-base font-semibold text-rm-text mb-2">Overview</h3>
-            <p class="m-0 mb-3 text-rm-muted">Release Manager helps you version, tag, and release multiple projects from one place. It supports <strong>npm</strong>, <strong>Rust</strong> (Cargo.toml), <strong>Go</strong> (go.mod), and <strong>Python</strong> (pyproject.toml / setup.py). Add project folders, see version and git status, then bump and push or tag-and-push.</p>
+            <p class="m-0 mb-3 text-rm-muted">Release Manager helps you version, tag, and release multiple projects from one place. It supports <strong>npm</strong>, <strong>Rust</strong> (Cargo.toml), <strong>Go</strong> (go.mod), <strong>Python</strong> (pyproject.toml / setup.py), and <strong>PHP</strong> (composer.json). Add project folders, see version and git status, then bump and push or tag-and-push.</p>
           </section>
 
           <section class="mb-8">
@@ -177,6 +205,7 @@
               <li><code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code> (Rust)</li>
               <li><code class="bg-rm-surface px-1 rounded text-xs">go.mod</code> (Go)</li>
               <li><code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code> or <code class="bg-rm-surface px-1 rounded text-xs">setup.py</code> (Python)</li>
+              <li><code class="bg-rm-surface px-1 rounded text-xs">composer.json</code> (PHP)</li>
             </ul>
             <p class="m-0 text-rm-muted">The app detects the type and shows name and version. Projects are stored in app data; use <strong>Remove</strong> on a project to drop it from the list.</p>
           </section>
@@ -186,7 +215,7 @@
             <p class="m-0 mb-3 text-rm-muted">Select a project to see its detail. Sections are collapsible (click the header to expand/collapse).</p>
             <ul class="m-0 mb-3 pl-5 text-rm-muted list-disc space-y-1">
               <li><strong>Git</strong> — Branch, ahead/behind, uncommitted files. If there are changes, you can enter a commit message and <strong>Commit</strong> from the app.</li>
-              <li><strong>Version &amp; release</strong> — Current version and latest tag; list of released versions (with links and <strong>Download</strong> per version for GitHub repos). Release creates a git tag and pushes it; pushing the tag triggers <strong>GitHub Actions</strong> to build and attach the DMG (and other installers) to the release. For <strong>npm</strong>: Patch / Minor / Major / Pre-release bump then tag and push. For <strong>Rust, Go, Python</strong>: <strong>Tag and push</strong> uses the current version in the manifest (no bump; update the version in the file first if needed). Release notes, draft, and pre-release options use your GitHub token when set. The app shows <strong>recent commits</strong> and an optional <strong>suggested bump</strong> from conventional commits (<code class="bg-rm-surface px-1 rounded text-xs">feat:</code> → minor, <code class="bg-rm-surface px-1 rounded text-xs">fix:</code> → patch, breaking change → major); you choose the bump.</li>
+              <li><strong>Version &amp; release</strong> — Current version and latest tag; list of released versions (with links and <strong>Download</strong> per version for GitHub repos). Release creates a git tag and pushes it; pushing the tag triggers <strong>GitHub Actions</strong> to build and attach the DMG (and other installers) to the release. For <strong>npm</strong>: Patch / Minor / Major / Pre-release bump then tag and push. For <strong>Rust, Go, Python, PHP</strong>: <strong>Tag and push</strong> uses the current version in the manifest (no bump; update the version in the file first if needed). Release notes, draft, and pre-release options use your GitHub token when set. The app shows <strong>recent commits</strong> and an optional <strong>suggested bump</strong> from conventional commits (<code class="bg-rm-surface px-1 rounded text-xs">feat:</code> → minor, <code class="bg-rm-surface px-1 rounded text-xs">fix:</code> → patch, breaking change → major); you choose the bump.</li>
               <li><strong>Sync &amp; download</strong> — <strong>Sync</strong> runs <code class="bg-rm-surface px-1 rounded text-xs">git fetch</code>. <strong>Download latest</strong> / <strong>Choose version…</strong> fetch GitHub Release assets for your platform.</li>
             </ul>
             <p class="m-0 mb-2 text-rm-muted">Header actions:</p>
@@ -236,6 +265,7 @@
               <li><strong>Rust</strong> — Version and name from <code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code>. Release = tag and push current version (update version in Cargo.toml manually first if needed).</li>
               <li><strong>Go</strong> — Name from <code class="bg-rm-surface px-1 rounded text-xs">go.mod</code> module path; no version in go.mod. Use <strong>Tag and push</strong> only if you’ve set a version elsewhere; otherwise create tags manually.</li>
               <li><strong>Python</strong> — Version and name from <code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code> or <code class="bg-rm-surface px-1 rounded text-xs">setup.py</code>. Release = tag and push current version.</li>
+              <li><strong>PHP</strong> — Version and name from <code class="bg-rm-surface px-1 rounded text-xs">composer.json</code>. Release = tag and push current version (set <code class="bg-rm-surface px-1 rounded text-xs">version</code> in composer.json, e.g. <code class="bg-rm-surface px-1 rounded text-xs">"1.2.3"</code>, then use <strong>Tag and push</strong>).</li>
             </ul>
           </section>
 
@@ -253,6 +283,15 @@
             <div class="min-w-0 flex-1">
               <h2 id="detail-name" class="m-0 text-xl font-semibold text-rm-text truncate tracking-tight"></h2>
               <p id="detail-path" class="m-0 mt-1.5 text-sm text-rm-muted font-mono truncate"></p>
+              <div id="detail-tags-wrap" class="mt-3 flex items-center gap-2 flex-wrap">
+                <label class="text-xs font-medium text-rm-muted shrink-0">Tags</label>
+                <input type="text" id="detail-tags-input" class="detail-tags-input flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1" placeholder="e.g. frontend, production" />
+              </div>
+              <div id="detail-coverage-wrap" class="mt-3 flex items-center gap-2 flex-wrap hidden">
+                <span class="text-xs font-medium text-rm-muted shrink-0">Coverage</span>
+                <span id="detail-coverage-summary" class="text-sm font-mono text-rm-text">—</span>
+                <button type="button" id="btn-run-coverage-header" class="text-xs text-rm-accent hover:underline">Run</button>
+              </div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
               <button type="button" id="btn-open-in-terminal" class="icon-btn" title="Open in Terminal" aria-label="Open in Terminal">
@@ -273,7 +312,17 @@
           </div>
         </header>
 
-        <section id="detail-git-state" class="card card-sm collapsible-card mb-6 hidden" data-section="Git">
+        <div id="detail-tabs-bar" class="detail-tabs-bar hidden mb-4 flex flex-wrap gap-1 border-b border-rm-border pb-2">
+          <button type="button" class="detail-tab-btn is-active px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="all">All</button>
+          <button type="button" class="detail-tab-btn px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="git">Git</button>
+          <button type="button" class="detail-tab-btn px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="version">Version &amp; release</button>
+          <button type="button" class="detail-tab-btn detail-tab-composer px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="composer">Composer</button>
+          <button type="button" class="detail-tab-btn px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="sync">Sync</button>
+          <button type="button" class="detail-tab-btn detail-tab-tests px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="tests">Tests</button>
+          <button type="button" class="detail-tab-btn detail-tab-coverage px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="coverage">Coverage</button>
+        </div>
+        <div id="detail-tab-panels" class="detail-tab-panels">
+        <section id="detail-git-state" class="card card-sm collapsible-card mb-6 hidden detail-tab-panel" data-detail-tab="git" data-section="Git">
           <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-git-body">
             <span class="collapsible-card-title">Git</span>
             <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -301,7 +350,7 @@
           </div>
         </section>
 
-        <section id="detail-version-card" class="card mb-6 collapsible-card" data-section="Version">
+        <section id="detail-version-card" class="card mb-6 collapsible-card detail-tab-panel" data-detail-tab="version" data-section="Version">
           <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-version-body">
             <span class="collapsible-card-title">Version &amp; release</span>
             <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -392,7 +441,72 @@
           </div>
         </section>
 
-        <section id="detail-sync-card" class="card mb-6 collapsible-card" data-section="Sync">
+        <section id="detail-composer-card" class="card mb-6 collapsible-card hidden detail-tab-panel" data-detail-tab="composer" data-section="Composer">
+          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-composer-body">
+            <span class="collapsible-card-title">Composer</span>
+            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div id="detail-composer-body" class="collapsible-card-body">
+          <div class="card-section pt-0">
+            <p id="detail-composer-summary" class="m-0 mb-1 text-sm text-rm-muted">—</p>
+            <p id="detail-composer-meta" class="m-0 mb-2 text-xs text-rm-muted hidden"></p>
+            <p id="detail-composer-validate" class="m-0 mb-2 text-xs hidden"></p>
+            <p id="detail-composer-lock-warning" class="m-0 mb-3 text-xs text-rm-warning hidden">composer.lock is out of date. Run <code class="bg-rm-surface px-1 rounded">composer update</code>.</p>
+            <div id="detail-composer-scripts-wrap" class="mb-4 hidden">
+              <span class="card-label text-rm-muted mb-1 block">Scripts</span>
+              <ul id="detail-composer-scripts" class="m-0 pl-4 text-sm text-rm-muted list-disc"></ul>
+            </div>
+            <div class="flex flex-wrap items-center gap-3 mb-4">
+              <button type="button" id="btn-composer-refresh" class="btn-secondary btn-compact">Refresh outdated</button>
+              <button type="button" id="btn-composer-update-all" class="btn-secondary btn-compact hidden" title="Run composer update for all packages">Update all</button>
+              <label class="checkbox-label text-sm text-rm-muted cursor-pointer flex items-center gap-2">
+                <input type="checkbox" id="detail-composer-direct-only" class="checkbox-input" checked />
+                <span>Direct only</span>
+              </label>
+              <span id="detail-composer-outdated-loading" class="text-xs text-rm-muted hidden">Checking…</span>
+              <span id="detail-composer-outdated-error" class="text-xs text-rm-warning hidden"></span>
+              <span id="detail-composer-update-status" class="text-xs text-rm-muted hidden"></span>
+            </div>
+            <div id="detail-composer-outdated-wrap" class="hidden mb-6">
+              <span class="card-label text-rm-muted mb-2 block">Outdated packages</span>
+              <div class="overflow-x-auto rounded-rm border border-rm-border">
+                <table class="w-full text-sm" id="detail-composer-outdated-table">
+                  <thead>
+                    <tr class="border-b border-rm-border bg-rm-surface/50">
+                      <th class="text-left py-2 px-3 font-medium text-rm-muted">Package</th>
+                      <th class="text-left py-2 px-3 font-medium text-rm-muted">Installed</th>
+                      <th class="text-left py-2 px-3 font-medium text-rm-muted">Latest</th>
+                      <th class="text-left py-2 px-3 font-medium text-rm-muted">Status</th>
+                      <th class="text-left py-2 px-3 font-medium text-rm-muted w-20">Update</th>
+                    </tr>
+                  </thead>
+                  <tbody id="detail-composer-outdated-tbody"></tbody>
+                </table>
+              </div>
+              <p id="detail-composer-outdated-empty" class="m-0 mt-2 text-xs text-rm-muted hidden">All packages are up to date.</p>
+            </div>
+            <div id="detail-composer-audit-wrap" class="hidden">
+              <span class="card-label text-rm-muted mb-2 block">Security (composer audit)</span>
+              <div class="overflow-x-auto rounded-rm border border-rm-border">
+                <table class="w-full text-sm" id="detail-composer-audit-table">
+                  <thead>
+                    <tr class="border-b border-rm-border bg-rm-surface/50">
+                      <th class="text-left py-2 px-3 font-medium text-rm-muted">Package</th>
+                      <th class="text-left py-2 px-3 font-medium text-rm-muted">Severity</th>
+                      <th class="text-left py-2 px-3 font-medium text-rm-muted">Advisory</th>
+                    </tr>
+                  </thead>
+                  <tbody id="detail-composer-audit-tbody"></tbody>
+                </table>
+              </div>
+              <p id="detail-composer-audit-empty" class="m-0 mt-2 text-xs text-rm-muted hidden">No security advisories.</p>
+              <p id="detail-composer-audit-error" class="m-0 mt-2 text-xs text-rm-warning hidden"></p>
+            </div>
+          </div>
+          </div>
+        </section>
+
+        <section id="detail-sync-card" class="card mb-6 collapsible-card detail-tab-panel" data-detail-tab="sync" data-section="Sync">
           <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-sync-body">
             <span class="collapsible-card-title">Sync &amp; download</span>
             <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
@@ -416,7 +530,50 @@
           </div>
         </section>
 
+        <section id="detail-tests-card" class="card mb-6 collapsible-card hidden detail-tab-panel" data-detail-tab="tests" data-section="Tests">
+          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-tests-body">
+            <span class="collapsible-card-title">Run tests</span>
+            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div id="detail-tests-body" class="collapsible-card-body">
+          <div class="card-section pt-0">
+            <p class="m-0 mb-3 text-sm text-rm-muted">
+              Run the project test suite: <code class="bg-rm-surface px-1 rounded text-xs font-mono">npm test</code> for npm, <code class="bg-rm-surface px-1 rounded text-xs font-mono">composer run test</code> for PHP.
+            </p>
+            <div class="flex flex-wrap items-center gap-3 mb-3">
+              <button type="button" id="btn-run-tests" class="btn-secondary btn-compact">Run all</button>
+              <span id="detail-tests-status" class="text-xs text-rm-muted hidden"></span>
+            </div>
+            <div id="detail-tests-scripts-wrap" class="mb-3 hidden">
+              <p class="m-0 mb-2 text-xs text-rm-muted">Run individually:</p>
+              <div id="detail-tests-scripts" class="flex flex-wrap gap-2"></div>
+            </div>
+            <pre id="detail-tests-output" class="m-0 p-4 rounded-rm border border-rm-border bg-rm-surface/50 text-xs font-mono text-rm-text overflow-x-auto overflow-y-auto max-h-64 hidden"></pre>
+          </div>
+          </div>
+        </section>
+
+        <section id="detail-coverage-card" class="card mb-6 collapsible-card hidden detail-tab-panel" data-detail-tab="coverage" data-section="Coverage">
+          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-coverage-body">
+            <span class="collapsible-card-title">Code coverage</span>
+            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div id="detail-coverage-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-sm text-rm-muted">
+                Run the test suite with coverage and see the report below. Uses <code class="bg-rm-surface px-1 rounded text-xs font-mono">npm run coverage</code> or <code class="bg-rm-surface px-1 rounded text-xs font-mono">npm test -- --coverage</code> for npm; <code class="bg-rm-surface px-1 rounded text-xs font-mono">composer run coverage</code> or <code class="bg-rm-surface px-1 rounded text-xs font-mono">composer run test -- --coverage-text</code> for PHP.
+              </p>
+              <div class="flex flex-wrap items-center gap-3 mb-3">
+                <button type="button" id="btn-run-coverage" class="btn-secondary btn-compact">Run coverage</button>
+                <span id="detail-coverage-status" class="text-xs text-rm-muted hidden"></span>
+              </div>
+              <pre id="detail-coverage-output" class="m-0 p-4 rounded-rm border border-rm-border bg-rm-surface/50 text-xs font-mono text-rm-text overflow-x-auto overflow-y-auto max-h-96 hidden"></pre>
+            </div>
+          </div>
+        </section>
+
         <div id="detail-error" class="mt-6 p-5 rounded-rm bg-rm-warning/10 border border-rm-warning/30 text-sm text-rm-text hidden"></div>
+        </div>
         </div>
       </div>
     </section>

@@ -58,13 +58,79 @@ const modalPickAssetListEl = document.getElementById('modal-pick-asset-list');
 const detailRecentCommitsWrapEl = document.getElementById('detail-recent-commits-wrap');
 const detailRecentCommitsEl = document.getElementById('detail-recent-commits');
 const detailBumpSuggestionEl = document.getElementById('detail-bump-suggestion');
+const filterTypeEl = document.getElementById('filter-type');
+const filterTagEl = document.getElementById('filter-tag');
+const detailTagsWrapEl = document.getElementById('detail-tags-wrap');
+const detailTagsInputEl = document.getElementById('detail-tags-input');
+const detailComposerCardEl = document.getElementById('detail-composer-card');
+const detailTestsCardEl = document.getElementById('detail-tests-card');
+const detailCoverageCardEl = document.getElementById('detail-coverage-card');
+const detailCoverageWrapEl = document.getElementById('detail-coverage-wrap');
+const detailCoverageSummaryEl = document.getElementById('detail-coverage-summary');
+
+/** Last parsed coverage summary per project path (e.g. "87%" or "Lines 85%"). */
+let lastCoverageByPath = {};
 
 let projects = [];
 let selectedPath = null;
+let filterByType = '';
+let filterByTag = '';
 let currentInfo = null;
 let viewMode = 'detail';
 let dashboardData = [];
 let selectedPaths = new Set();
+
+const PREF_DETAIL_USE_TABS = 'detailUseTabs';
+const PREF_COLLAPSED_SECTIONS = 'collapsedSections';
+
+/** Parse coverage report text for a short summary (Jest, Vitest, PHPUnit, Istanbul/c8). */
+function parseCoverageSummary(text) {
+  if (!text || typeof text !== 'string') return null;
+  const lines = text.split('\n');
+  // Jest / Vitest: "All files | 85.71 | ..." or "Statements : 85.71%"
+  for (const line of lines) {
+    const allFiles = line.match(/All files\s*\|\s*([\d.]+)/);
+    if (allFiles) return `${allFiles[1]}%`;
+    const stmt = line.match(/Statements\s*:\s*([\d.]+)%?/);
+    if (stmt) return `Stmts ${stmt[1]}%`;
+    const linesPct = line.match(/Lines\s*:\s*([\d.]+)%?/);
+    if (linesPct) return `Lines ${linesPct[1]}%`;
+  }
+  // PHPUnit text: "Code Coverage: 87.50%" or "Lines: 85.71%"
+  for (const line of lines) {
+    const phpUnit = line.match(/Code Coverage:\s*([\d.]+)%/);
+    if (phpUnit) return `${phpUnit[1]}%`;
+    const linesPct = line.match(/^\s*Lines:\s*([\d.]+)%/);
+    if (linesPct) return `Lines ${linesPct[1]}%`;
+  }
+  // Generic: "X% coverage" or "Coverage: X%"
+  const generic = text.match(/(?:Coverage|coverage)[:\s]+([\d.]+)%/i) || text.match(/([\d.]+)%\s*coverage/i);
+  if (generic) return `${generic[1]}%`;
+  return null;
+}
+
+function updateDetailTabPanelVisibility() {
+  const useTabsEl = document.getElementById('detail-use-tabs');
+  const panelsEl = document.getElementById('detail-tab-panels');
+  const barEl = document.getElementById('detail-tabs-bar');
+  if (!panelsEl || !barEl) return;
+  const useTabs = useTabsEl?.checked ?? false;
+  if (useTabs) {
+    barEl.classList.remove('hidden');
+    panelsEl.classList.add('detail-tabs-mode');
+    const activeBtn = document.querySelector('.detail-tab-btn.is-active');
+    const activeTab = activeBtn?.dataset?.tab || 'all';
+    document.querySelectorAll('.detail-tab-panel').forEach((panel) => {
+      const tab = panel.dataset.detailTab;
+      const show = activeTab === 'all' || tab === activeTab;
+      panel.classList.toggle('detail-tab-panel-visible', show);
+    });
+  } else {
+    barEl.classList.add('hidden');
+    panelsEl.classList.remove('detail-tabs-mode');
+    document.querySelectorAll('.detail-tab-panel').forEach((p) => p.classList.remove('detail-tab-panel-visible'));
+  }
+}
 
 function applyTheme(effective) {
   document.documentElement.setAttribute('data-theme', effective || 'dark');
@@ -80,15 +146,51 @@ async function initTheme() {
   document.getElementById('theme-light')?.addEventListener('click', () => window.releaseManager.setTheme('light'));
 }
 
+function getFilteredProjects() {
+  const filtered = projects.filter((p) => {
+    if (filterByType && (p.projectType || '') !== filterByType) return false;
+    if (filterByTag) {
+      const tags = Array.isArray(p.tags) ? p.tags : [];
+      if (!tags.includes(filterByTag)) return false;
+    }
+    return true;
+  });
+  return filtered.sort((a, b) => {
+    const aStarred = a.starred === true;
+    const bStarred = b.starred === true;
+    if (aStarred && !bStarred) return -1;
+    if (!aStarred && bStarred) return 1;
+    const aName = (a.name || a.path || '').toString();
+    const bName = (b.name || b.path || '').toString();
+    return aName.localeCompare(bName, undefined, { sensitivity: 'base' });
+  });
+}
+
+function updateFilterTagOptions() {
+  if (!filterTagEl) return;
+  const allTags = new Set();
+  projects.forEach((p) => {
+    (Array.isArray(p.tags) ? p.tags : []).forEach((t) => { if (t && String(t).trim()) allTags.add(String(t).trim()); });
+  });
+  const current = filterTagEl.value;
+  filterTagEl.innerHTML = '<option value="">All tags</option>' + [...allTags].sort().map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+  if (allTags.has(current)) filterTagEl.value = current;
+}
+
 function renderProjectList() {
+  const filtersEl = document.getElementById('project-filters');
+  if (filtersEl) filtersEl.classList.toggle('hidden', projects.length === 0);
   projectListEl.innerHTML = '';
-  if (projects.length === 0) {
+  updateFilterTagOptions();
+  const list = getFilteredProjects();
+  if (list.length === 0) {
     emptyHintEl.classList.remove('hidden');
+    emptyHintEl.textContent = projects.length > 0 ? 'No projects match the current filters.' : 'Click “Add project” to add a folder (npm, Rust, Go, Python, or PHP: package.json, Cargo.toml, go.mod, pyproject.toml, or composer.json).';
     batchReleaseBarEl.classList.add('hidden');
     return;
   }
   emptyHintEl.classList.add('hidden');
-  projects.forEach((p) => {
+  list.forEach((p) => {
     const li = document.createElement('li');
     li.className = `project-list-item flex items-center gap-1.5 rounded-rm px-3 py-2 text-sm cursor-pointer transition-colors group ${selectedPath === p.path ? 'bg-rm-accent/20 text-rm-accent font-medium' : 'text-rm-text hover:bg-rm-surface-hover'}`;
     li.dataset.path = p.path;
@@ -105,6 +207,21 @@ function renderProjectList() {
       if (countEl) countEl.textContent = selectedPaths.size;
     });
     li.appendChild(cb);
+    const starBtn = document.createElement('button');
+    starBtn.type = 'button';
+    starBtn.className = 'project-star-btn p-0.5 rounded shrink-0 border-none cursor-pointer text-rm-muted hover:text-rm-accent transition-colors';
+    starBtn.title = p.starred ? 'Unstar (remove from top)' : 'Star (keep at top)';
+    starBtn.setAttribute('aria-label', p.starred ? 'Unstar' : 'Star');
+    starBtn.innerHTML = p.starred
+      ? '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 6.86 14.14 2 9.27 8.91 8.26 12 2"/></svg>'
+      : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 6.86 14.14 2 9.27 8.91 8.26 12 2"/></svg>';
+    starBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      p.starred = !p.starred;
+      window.releaseManager.setProjects(projects);
+      renderProjectList();
+    });
+    li.appendChild(starBtn);
     const name = p.name || (p.path && p.path.split(/[/\\]/).filter(Boolean).pop()) || 'Project';
     const label = document.createElement('span');
     label.className = 'flex-1 min-w-0 truncate';
@@ -124,7 +241,10 @@ function renderProjectList() {
       removeProject(p.path);
     });
     li.appendChild(removeBtn);
-    li.addEventListener('click', (e) => { if (!e.target.classList.contains('batch-checkbox')) selectProject(p.path); });
+    li.addEventListener('click', (e) => {
+      if (e.target.classList.contains('batch-checkbox') || e.target.closest('.project-star-btn') || e.target.closest('.project-remove-btn')) return;
+      selectProject(p.path);
+    });
     projectListEl.appendChild(li);
   });
   batchReleaseBarEl.classList.toggle('hidden', selectedPaths.size < 2);
@@ -163,6 +283,7 @@ function applyViewChoice(value) {
 
 function showNoSelection() {
   viewMode = 'detail';
+  window.releaseManager.setPreference('selectedProjectPath', '');
   setViewDropdown(null);
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
@@ -173,7 +294,9 @@ function showNoSelection() {
 }
 
 function showDetail() {
+  saveSettingsToStore();
   viewMode = 'detail';
+  window.releaseManager.setPreference('viewMode', viewMode);
   setViewDropdown(null);
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
@@ -183,8 +306,24 @@ function showDetail() {
   projectDetailEl.classList.remove('hidden');
 }
 
+function saveSettingsToStore() {
+  if (viewMode !== 'settings') return;
+  const tokenEl = document.getElementById('settings-github-token');
+  const baseUrlEl = document.getElementById('settings-ollama-base-url');
+  const modelEl = document.getElementById('settings-ollama-model');
+  if (tokenEl) window.releaseManager.setGitHubToken(tokenEl.value?.trim() ?? '');
+  if (baseUrlEl && modelEl) {
+    window.releaseManager.setOllamaSettings(
+      baseUrlEl.value?.trim() || 'http://localhost:11434',
+      modelEl.value?.trim() || 'llama3.2'
+    );
+  }
+}
+
 function showDashboard() {
+  saveSettingsToStore();
   viewMode = 'dashboard';
+  window.releaseManager.setPreference('viewMode', viewMode);
   setViewDropdown('dashboard');
   settingsViewEl?.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
@@ -197,6 +336,7 @@ function showDashboard() {
 
 async function showSettings() {
   viewMode = 'settings';
+  window.releaseManager.setPreference('viewMode', viewMode);
   setViewDropdown('settings');
   dashboardViewEl.classList.add('hidden');
   docsViewEl?.classList.add('hidden');
@@ -214,7 +354,9 @@ async function showSettings() {
 }
 
 function showDocs() {
+  saveSettingsToStore();
   viewMode = 'docs';
+  window.releaseManager.setPreference('viewMode', viewMode);
   setViewDropdown('docs');
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
@@ -225,7 +367,9 @@ function showDocs() {
 }
 
 async function showChangelog() {
+  saveSettingsToStore();
   viewMode = 'changelog';
+  window.releaseManager.setPreference('viewMode', viewMode);
   setViewDropdown('changelog');
   dashboardViewEl.classList.add('hidden');
   settingsViewEl?.classList.add('hidden');
@@ -311,6 +455,227 @@ function formatAheadBehind(ahead, behind) {
   return parts.length ? parts.join(', ') : null;
 }
 
+async function runComposerUpdate(dirPath, packageNames) {
+  const statusEl = document.getElementById('detail-composer-update-status');
+  const isAll = !packageNames || packageNames.length === 0;
+  if (statusEl) {
+    statusEl.textContent = isAll ? 'Updating all packages…' : `Updating ${packageNames.join(', ')}…`;
+    statusEl.classList.remove('hidden', 'text-rm-warning');
+  }
+  try {
+    const result = await window.releaseManager.composerUpdate(dirPath, packageNames);
+    if (result?.ok) {
+      if (statusEl) statusEl.textContent = 'Update complete. Refreshing…';
+      await loadComposerSection(dirPath);
+      if (statusEl) {
+        statusEl.textContent = '';
+        statusEl.classList.add('hidden');
+      }
+    } else {
+      if (statusEl) {
+        statusEl.textContent = result?.error || 'Update failed';
+        statusEl.classList.add('text-rm-warning');
+      }
+    }
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = e?.message || 'Update failed';
+      statusEl.classList.add('text-rm-warning');
+    }
+  }
+}
+
+async function loadComposerSection(dirPath) {
+  const summaryEl = document.getElementById('detail-composer-summary');
+  const metaEl = document.getElementById('detail-composer-meta');
+  const validateEl = document.getElementById('detail-composer-validate');
+  const lockWarningEl = document.getElementById('detail-composer-lock-warning');
+  const scriptsWrapEl = document.getElementById('detail-composer-scripts-wrap');
+  const scriptsListEl = document.getElementById('detail-composer-scripts');
+  const loadingEl = document.getElementById('detail-composer-outdated-loading');
+  const errorEl = document.getElementById('detail-composer-outdated-error');
+  const wrapEl = document.getElementById('detail-composer-outdated-wrap');
+  const tbodyEl = document.getElementById('detail-composer-outdated-tbody');
+  const emptyEl = document.getElementById('detail-composer-outdated-empty');
+  const auditWrapEl = document.getElementById('detail-composer-audit-wrap');
+  const auditTbodyEl = document.getElementById('detail-composer-audit-tbody');
+  const auditEmptyEl = document.getElementById('detail-composer-audit-empty');
+  const auditErrorEl = document.getElementById('detail-composer-audit-error');
+  if (!summaryEl) return;
+  errorEl?.classList.add('hidden');
+  lockWarningEl?.classList.add('hidden');
+  metaEl?.classList.add('hidden');
+  validateEl?.classList.add('hidden');
+  scriptsWrapEl?.classList.add('hidden');
+  auditWrapEl?.classList.add('hidden');
+  auditErrorEl?.classList.add('hidden');
+  document.getElementById('detail-composer-update-status')?.classList.add('hidden');
+  document.getElementById('btn-composer-update-all')?.classList.add('hidden');
+  loadingEl?.classList.remove('hidden');
+  wrapEl?.classList.add('hidden');
+  emptyEl?.classList.add('hidden');
+  try {
+    const manifest = await window.releaseManager.getComposerInfo(dirPath);
+    if (manifest.ok) {
+      const req = manifest.requireCount ?? 0;
+      const dev = manifest.requireDevCount ?? 0;
+      const lock = manifest.hasLock ? 'composer.lock present' : 'No composer.lock';
+      summaryEl.textContent = `${req} require, ${dev} require-dev · ${lock}`;
+      const metaParts = [];
+      if (manifest.phpRequire) metaParts.push(`PHP ${manifest.phpRequire}`);
+      if (manifest.license) metaParts.push(manifest.license);
+      if (metaParts.length) {
+        metaEl.textContent = metaParts.join(' · ');
+        metaEl.classList.remove('hidden');
+      }
+      if (manifest.description) {
+        if (!metaEl.textContent) metaEl.textContent = manifest.description;
+        else metaEl.textContent += ' · ' + manifest.description;
+        metaEl.classList.remove('hidden');
+      }
+      if (manifest.scripts && manifest.scripts.length > 0 && scriptsListEl) {
+        scriptsWrapEl?.classList.remove('hidden');
+        scriptsListEl.innerHTML = manifest.scripts.map((s) => `<li><code class="bg-rm-surface px-1 rounded text-xs">${escapeHtml(s)}</code></li>`).join('');
+      }
+    } else {
+      summaryEl.textContent = manifest.error || 'Could not read composer.json';
+    }
+  } catch (_) {
+    summaryEl.textContent = 'Could not read composer info';
+  }
+  try {
+    const validateResult = await window.releaseManager.getComposerValidate(dirPath);
+    if (validateEl) {
+      validateEl.classList.remove('hidden');
+      if (validateResult.valid) {
+        validateEl.textContent = 'composer.json is valid.';
+        validateEl.classList.remove('text-rm-warning');
+        validateEl.classList.add('text-rm-muted');
+      } else {
+        validateEl.textContent = 'Invalid: ' + (validateResult.message || 'validation failed').split('\n')[0];
+        validateEl.classList.add('text-rm-warning');
+        validateEl.classList.remove('text-rm-muted');
+      }
+    }
+    if (lockWarningEl && validateResult.lockOutOfDate) lockWarningEl.classList.remove('hidden');
+  } catch (_) {
+    if (validateEl) {
+      validateEl.classList.remove('hidden');
+      validateEl.textContent = 'Could not run composer validate.';
+      validateEl.classList.add('text-rm-warning');
+    }
+  }
+  const directOnly = document.getElementById('detail-composer-direct-only')?.checked ?? false;
+  try {
+    const outdated = await window.releaseManager.getComposerOutdated(dirPath, directOnly);
+    if (errorEl) errorEl.classList.add('hidden');
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (!outdated.ok) {
+      if (errorEl) {
+        errorEl.textContent = outdated.error || 'Failed to check outdated';
+        errorEl.classList.remove('hidden');
+      }
+      if (wrapEl) wrapEl.classList.add('hidden');
+    } else {
+      const packages = outdated.packages || [];
+      if (wrapEl) wrapEl.classList.remove('hidden');
+      const updateAllBtn = document.getElementById('btn-composer-update-all');
+      if (updateAllBtn) updateAllBtn.classList.toggle('hidden', packages.length === 0);
+      if (tbodyEl) {
+        tbodyEl.innerHTML = '';
+        packages.forEach((p) => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-b border-rm-border last:border-b-0';
+          const updateBtn = document.createElement('button');
+          updateBtn.type = 'button';
+          updateBtn.className = 'text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0';
+          updateBtn.textContent = 'Update';
+          updateBtn.addEventListener('click', () => runComposerUpdate(dirPath, [p.name]));
+          tr.innerHTML = `
+          <td class="py-2 px-3 font-mono text-rm-text">${escapeHtml(p.name)}</td>
+          <td class="py-2 px-3 font-mono text-sm text-rm-muted">${escapeHtml(p.version)}</td>
+          <td class="py-2 px-3 font-mono text-sm text-rm-accent">${escapeHtml(p.latest)}</td>
+          <td class="py-2 px-3 text-sm text-rm-muted">${escapeHtml(p.latestStatus || '')}</td>
+          <td class="py-2 px-3"></td>
+        `;
+          tr.querySelector('td:last-child').appendChild(updateBtn);
+          tbodyEl.appendChild(tr);
+        });
+      }
+      if (emptyEl) emptyEl.classList.toggle('hidden', packages.length > 0);
+    }
+  } catch (_) {
+    if (loadingEl) loadingEl.classList.add('hidden');
+    if (errorEl) {
+      errorEl.textContent = 'Failed to check outdated packages';
+      errorEl.classList.remove('hidden');
+    }
+    if (wrapEl) wrapEl.classList.add('hidden');
+  }
+  try {
+    const auditResult = await window.releaseManager.getComposerAudit(dirPath);
+    if (auditWrapEl) auditWrapEl.classList.remove('hidden');
+    if (auditErrorEl) auditErrorEl.classList.add('hidden');
+    if (!auditResult.ok) {
+      if (auditErrorEl) {
+        auditErrorEl.textContent = auditResult.error || 'composer audit failed';
+        auditErrorEl.classList.remove('hidden');
+      }
+      if (auditEmptyEl) auditEmptyEl.classList.add('hidden');
+      if (auditTbodyEl) auditTbodyEl.innerHTML = '';
+    } else {
+      const advisories = auditResult.advisories || [];
+      if (auditTbodyEl) {
+        auditTbodyEl.innerHTML = '';
+        advisories.forEach((a) => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-b border-rm-border last:border-b-0';
+          const linkCell = a.link && String(a.link).startsWith('http')
+            ? `<a href="${escapeHtml(a.link)}" class="text-rm-accent hover:underline" target="_blank" rel="noopener">${escapeHtml(a.advisory)}</a>`
+            : escapeHtml(a.advisory);
+          tr.innerHTML = `
+          <td class="py-2 px-3 font-mono text-rm-text">${escapeHtml(a.name)}${a.version ? ` ${escapeHtml(a.version)}` : ''}</td>
+          <td class="py-2 px-3 text-sm">${escapeHtml(a.severity || '—')}</td>
+          <td class="py-2 px-3 text-sm text-rm-muted">${linkCell}</td>
+        `;
+          auditTbodyEl.appendChild(tr);
+        });
+      }
+      if (auditEmptyEl) auditEmptyEl.classList.toggle('hidden', advisories.length > 0);
+    }
+  } catch (_) {
+    if (auditWrapEl) auditWrapEl.classList.remove('hidden');
+    if (auditErrorEl) {
+      auditErrorEl.textContent = 'Could not run composer audit.';
+      auditErrorEl.classList.remove('hidden');
+    }
+    if (auditEmptyEl) auditEmptyEl.classList.add('hidden');
+  }
+}
+
+async function loadTestsScripts(dirPath, projectType) {
+  const wrapEl = document.getElementById('detail-tests-scripts-wrap');
+  const listEl = document.getElementById('detail-tests-scripts');
+  if (!wrapEl || !listEl) return;
+  wrapEl.classList.add('hidden');
+  listEl.innerHTML = '';
+  try {
+    const { ok, scripts } = await window.releaseManager.getProjectTestScripts(dirPath, projectType);
+    if (!ok || !scripts || scripts.length === 0) return;
+    wrapEl.classList.remove('hidden');
+    scripts.forEach((name) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'btn-secondary btn-compact text-xs';
+      btn.dataset.script = name;
+      btn.textContent = name;
+      listEl.appendChild(btn);
+    });
+  } catch (_) {
+    // leave list empty and wrap hidden
+  }
+}
+
 function setDetailContent(info, releasesUrl = null, githubReleases = []) {
   currentInfo = info;
   if (!info || !info.ok) {
@@ -323,8 +688,19 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     detailRecentCommitsWrapEl?.classList.add('hidden');
     detailErrorEl.classList.add('hidden');
     linkReleasesEl.classList.add('hidden');
+    detailTagsWrapEl?.classList.add('hidden');
+    detailComposerCardEl?.classList.add('hidden');
+    detailTestsCardEl?.classList.add('hidden');
+    detailCoverageCardEl?.classList.add('hidden');
+    detailCoverageWrapEl?.classList.add('hidden');
     if (releaseNotesEl) releaseNotesEl.value = '';
     return;
+  }
+  const proj = projects.find((p) => p.path === selectedPath);
+  if (detailTagsWrapEl && detailTagsInputEl) {
+    detailTagsWrapEl.classList.remove('hidden');
+    const tags = Array.isArray(proj?.tags) ? proj.tags : [];
+    detailTagsInputEl.value = tags.join(', ');
   }
   if (releaseNotesEl) releaseNotesEl.value = '';
   const project = projects.find((p) => p.path === selectedPath);
@@ -348,7 +724,7 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     }
   }
   const projectType = info.projectType || 'npm';
-  const projectTypeLabel = { npm: '', cargo: 'Rust', go: 'Go', python: 'Python' }[projectType] || '';
+  const projectTypeLabel = { npm: '', cargo: 'Rust', go: 'Go', python: 'Python', php: 'PHP' }[projectType] || '';
   if (detailProjectTypeEl) {
     detailProjectTypeEl.textContent = projectTypeLabel ? `(${projectTypeLabel})` : '';
     detailProjectTypeEl.classList.toggle('hidden', !projectTypeLabel);
@@ -361,6 +737,45 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
   }
   if (detailReleaseBumpButtonsEl) detailReleaseBumpButtonsEl.classList.toggle('hidden', isNonNpm);
   if (detailReleaseTagOnlyWrapEl) detailReleaseTagOnlyWrapEl.classList.toggle('hidden', !isNonNpm);
+  if (detailComposerCardEl) {
+    detailComposerCardEl.classList.add('hidden');
+    const composerTabBtn = document.querySelector('.detail-tab-composer');
+    if (composerTabBtn) composerTabBtn.classList.add('hidden');
+    updateDetailTabPanelVisibility();
+    if (selectedPath) {
+      window.releaseManager.getComposerInfo(selectedPath).then((manifest) => {
+        if (manifest && manifest.ok) {
+          detailComposerCardEl.classList.remove('hidden');
+          if (composerTabBtn) composerTabBtn.classList.remove('hidden');
+          loadComposerSection(selectedPath);
+        }
+        updateDetailTabPanelVisibility();
+      }).catch(() => {
+        updateDetailTabPanelVisibility();
+      });
+    } else {
+      updateDetailTabPanelVisibility();
+    }
+  } else {
+    updateDetailTabPanelVisibility();
+  }
+  const showTests = projectType === 'npm' || projectType === 'php';
+  if (detailTestsCardEl) {
+    detailTestsCardEl.classList.toggle('hidden', !showTests);
+    const testsTabBtn = document.querySelector('.detail-tab-tests');
+    if (testsTabBtn) testsTabBtn.classList.toggle('hidden', !showTests);
+    if (showTests && selectedPath) loadTestsScripts(selectedPath, projectType);
+  }
+  if (detailCoverageCardEl) {
+    detailCoverageCardEl.classList.toggle('hidden', !showTests);
+    const coverageTabBtn = document.querySelector('.detail-tab-coverage');
+    if (coverageTabBtn) coverageTabBtn.classList.toggle('hidden', !showTests);
+  }
+  if (detailCoverageWrapEl && detailCoverageSummaryEl) {
+    detailCoverageWrapEl.classList.toggle('hidden', !showTests);
+    detailCoverageSummaryEl.textContent = (showTests && selectedPath && lastCoverageByPath[selectedPath]) ? lastCoverageByPath[selectedPath] : '—';
+  }
+  updateDetailTabPanelVisibility();
   const tagsFromReleases = githubReleases.length > 0 ? githubReleases.map((r) => r.tag_name) : (info.allTags || []);
   if (detailAllVersionsWrapEl) {
     detailAllVersionsWrapEl.classList.toggle('hidden', !info.hasGit);
@@ -514,6 +929,11 @@ async function loadProjectInfo(dirPath) {
       }
     }
     setDetailContent(info, releasesUrl, githubReleases);
+    const proj = projects.find((p) => p.path === dirPath);
+    if (proj && info.projectType) {
+      proj.projectType = info.projectType;
+      await window.releaseManager.setProjects(projects);
+    }
   } catch (e) {
     setDetailContent({ ok: false, error: e.message });
     detailErrorEl.textContent = e.message || 'Failed to load project';
@@ -523,6 +943,7 @@ async function loadProjectInfo(dirPath) {
 
 function selectProject(path) {
   selectedPath = path;
+  window.releaseManager.setPreference('selectedProjectPath', path || '');
   renderProjectList();
   showDetail();
   setDetailContent(null);
@@ -539,7 +960,7 @@ async function addProject() {
   }
   const name = info.name || dirPath.split(/[/\\]/).filter(Boolean).pop();
   if (projects.some((p) => p.path === dirPath)) return;
-  projects.push({ path: dirPath, name });
+  projects.push({ path: dirPath, name, projectType: info.projectType || null, tags: [], starred: false });
   await window.releaseManager.setProjects(projects);
   renderProjectList();
   selectProject(dirPath);
@@ -783,6 +1204,108 @@ githubTokenEl.addEventListener('blur', async () => {
   projects = updated;
 });
 
+async function runProjectTestAndShowOutput(scriptName) {
+  if (!selectedPath || !currentInfo?.ok) return;
+  const projectType = currentInfo.projectType || 'npm';
+  if (projectType !== 'npm' && projectType !== 'php') return;
+  const statusEl = document.getElementById('detail-tests-status');
+  const outputEl = document.getElementById('detail-tests-output');
+  if (statusEl) {
+    statusEl.textContent = scriptName ? `Running ${scriptName}…` : 'Running…';
+    statusEl.classList.remove('hidden', 'text-rm-warning');
+  }
+  if (outputEl) {
+    outputEl.textContent = '';
+    outputEl.classList.add('hidden');
+  }
+  try {
+    const result = await window.releaseManager.runProjectTests(selectedPath, projectType, scriptName);
+    const out = [result.stdout, result.stderr].filter(Boolean).join(result.stdout && result.stderr ? '\n' : '') || '(no output)';
+    if (outputEl) {
+      outputEl.textContent = out;
+      outputEl.classList.remove('hidden');
+    }
+    if (statusEl) {
+      statusEl.textContent = result.ok ? 'Done (passed).' : `Done (exit code ${result.exitCode}).`;
+      statusEl.classList.toggle('text-rm-warning', !result.ok);
+    }
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = e?.message || 'Failed to run tests';
+      statusEl.classList.add('text-rm-warning');
+    }
+    if (outputEl) {
+      outputEl.textContent = e?.message || 'Failed';
+      outputEl.classList.remove('hidden');
+    }
+  }
+}
+
+document.getElementById('btn-run-tests')?.addEventListener('click', () => runProjectTestAndShowOutput());
+
+document.getElementById('detail-tests-scripts')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('button[data-script]');
+  if (btn) runProjectTestAndShowOutput(btn.dataset.script);
+});
+
+async function runCoverageAndShowOutput() {
+  if (!selectedPath || !currentInfo?.ok) return;
+  const projectType = currentInfo.projectType || 'npm';
+  if (projectType !== 'npm' && projectType !== 'php') return;
+  const statusEl = document.getElementById('detail-coverage-status');
+  const outputEl = document.getElementById('detail-coverage-output');
+  if (statusEl) {
+    statusEl.textContent = 'Running…';
+    statusEl.classList.remove('hidden', 'text-rm-warning');
+  }
+  if (outputEl) {
+    outputEl.textContent = '';
+    outputEl.classList.add('hidden');
+  }
+  if (detailCoverageSummaryEl) detailCoverageSummaryEl.textContent = '…';
+  try {
+    const result = await window.releaseManager.runProjectCoverage(selectedPath, projectType);
+    const out = [result.stdout, result.stderr].filter(Boolean).join(result.stdout && result.stderr ? '\n' : '') || '(no output)';
+    if (outputEl) {
+      outputEl.textContent = out;
+      outputEl.classList.remove('hidden');
+    }
+    if (statusEl) {
+      statusEl.textContent = result.ok ? 'Done.' : `Done (exit code ${result.exitCode}).`;
+      statusEl.classList.toggle('text-rm-warning', !result.ok);
+    }
+    const summary = parseCoverageSummary(result.stdout || result.stderr || out);
+    if (summary) {
+      lastCoverageByPath[selectedPath] = summary;
+      if (detailCoverageSummaryEl) detailCoverageSummaryEl.textContent = summary;
+    } else if (detailCoverageSummaryEl) detailCoverageSummaryEl.textContent = '—';
+  } catch (e) {
+    if (statusEl) {
+      statusEl.textContent = e?.message || 'Failed to run coverage';
+      statusEl.classList.add('text-rm-warning');
+    }
+    if (outputEl) {
+      outputEl.textContent = e?.message || 'Failed';
+      outputEl.classList.remove('hidden');
+    }
+    if (detailCoverageSummaryEl) detailCoverageSummaryEl.textContent = '—';
+  }
+}
+
+document.getElementById('btn-run-coverage')?.addEventListener('click', runCoverageAndShowOutput);
+document.getElementById('btn-run-coverage-header')?.addEventListener('click', runCoverageAndShowOutput);
+
+document.getElementById('btn-composer-refresh')?.addEventListener('click', () => {
+  if (selectedPath) loadComposerSection(selectedPath);
+});
+document.getElementById('btn-composer-update-all')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  if (!confirm('Run composer update for all packages? This may change composer.lock and many dependencies.')) return;
+  runComposerUpdate(selectedPath, []);
+});
+document.getElementById('detail-composer-direct-only')?.addEventListener('change', () => {
+  if (selectedPath) loadComposerSection(selectedPath);
+});
 document.getElementById('btn-sync').addEventListener('click', syncFromRemote);
 document.getElementById('btn-download-latest').addEventListener('click', downloadLatestRelease);
 
@@ -1089,13 +1612,11 @@ document.getElementById('modal-pick-asset-close').addEventListener('click', () =
   if (confirm('Close without downloading?')) modalPickAssetEl.classList.add('hidden');
 });
 
-const COLLAPSED_STORAGE_KEY = 'release-manager-collapsed-sections';
-
-function initCollapsibleSections() {
+async function initCollapsibleSections() {
   let saved = {};
   try {
-    const raw = localStorage.getItem(COLLAPSED_STORAGE_KEY);
-    if (raw) saved = JSON.parse(raw);
+    const prefs = await window.releaseManager.getPreference(PREF_COLLAPSED_SECTIONS);
+    if (typeof prefs === 'object' && prefs !== null) saved = prefs;
   } catch (_) {}
   document.querySelectorAll('.collapsible-card').forEach((card) => {
     const section = card.dataset.section;
@@ -1111,13 +1632,13 @@ function initCollapsibleSections() {
     }
     if (header && bodyId) {
       header.setAttribute('aria-controls', bodyId);
-      header.addEventListener('click', () => {
+      header.addEventListener('click', async () => {
         const isCollapsed = card.classList.toggle('is-collapsed');
         header.setAttribute('aria-expanded', String(!isCollapsed));
         try {
-          const current = JSON.parse(localStorage.getItem(COLLAPSED_STORAGE_KEY) || '{}');
-          current[section] = isCollapsed;
-          localStorage.setItem(COLLAPSED_STORAGE_KEY, JSON.stringify(current));
+          const current = (await window.releaseManager.getPreference(PREF_COLLAPSED_SECTIONS)) || {};
+          const next = { ...current, [section]: isCollapsed };
+          await window.releaseManager.setPreference(PREF_COLLAPSED_SECTIONS, next);
         } catch (_) {}
       });
     }
@@ -1136,17 +1657,80 @@ async function refreshFromFilesystem() {
 
 async function init() {
   await initTheme();
-  initCollapsibleSections();
+  await initCollapsibleSections();
+  try {
+    const useTabs = await window.releaseManager.getPreference(PREF_DETAIL_USE_TABS);
+    const useTabsEl = document.getElementById('detail-use-tabs');
+    if (useTabsEl) useTabsEl.checked = useTabs === true;
+  } catch (_) {}
+  updateDetailTabPanelVisibility();
+  document.getElementById('detail-use-tabs')?.addEventListener('change', () => {
+    const checked = document.getElementById('detail-use-tabs')?.checked ?? false;
+    window.releaseManager.setPreference(PREF_DETAIL_USE_TABS, checked);
+    updateDetailTabPanelVisibility();
+  });
+  document.querySelectorAll('.detail-tab-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.detail-tab-btn').forEach((b) => b.classList.remove('is-active'));
+      btn.classList.add('is-active');
+      updateDetailTabPanelVisibility();
+    });
+  });
   projects = await window.releaseManager.getProjects();
+  const savedPath = await window.releaseManager.getPreference('selectedProjectPath');
+  const savedView = await window.releaseManager.getPreference('viewMode');
+  const pathStillInList = typeof savedPath === 'string' && savedPath && projects.some((p) => p.path === savedPath);
+  if (pathStillInList) selectedPath = savedPath;
+  else if (projects.length > 0 && !selectedPath) selectedPath = projects[0].path;
+  else selectedPath = null;
   renderProjectList();
-  if (projects.length > 0 && !selectedPath) {
-    selectProject(projects[0].path);
-  } else if (selectedPath) {
+  if (selectedPath) {
     selectProject(selectedPath);
   } else {
     showNoSelection();
   }
+  if (savedView && savedView !== 'detail') {
+    if (savedView === 'dashboard') showDashboard();
+    else if (savedView === 'settings') showSettings();
+    else if (savedView === 'docs') showDocs();
+    else if (savedView === 'changelog') showChangelog();
+  }
+  window.addEventListener('beforeunload', saveSettingsToStore);
 }
+
+filterTypeEl?.addEventListener('change', () => {
+  filterByType = (filterTypeEl.value || '').trim();
+  const filtered = getFilteredProjects();
+  if (selectedPath && !filtered.some((p) => p.path === selectedPath)) {
+    selectedPath = filtered.length ? filtered[0].path : null;
+    if (selectedPath) selectProject(selectedPath);
+    else showNoSelection();
+  }
+  renderProjectList();
+});
+
+filterTagEl?.addEventListener('change', () => {
+  filterByTag = (filterTagEl.value || '').trim();
+  const filtered = getFilteredProjects();
+  if (selectedPath && !filtered.some((p) => p.path === selectedPath)) {
+    selectedPath = filtered.length ? filtered[0].path : null;
+    if (selectedPath) selectProject(selectedPath);
+    else showNoSelection();
+  }
+  renderProjectList();
+});
+
+detailTagsInputEl?.addEventListener('blur', async () => {
+  if (!selectedPath) return;
+  const proj = projects.find((p) => p.path === selectedPath);
+  if (!proj) return;
+  const raw = (detailTagsInputEl.value || '').trim();
+  const tags = raw ? raw.split(/[\s,]+/).map((t) => t.trim()).filter(Boolean) : [];
+  proj.tags = [...new Set(tags)];
+  await window.releaseManager.setProjects(projects);
+  updateFilterTagOptions();
+  renderProjectList();
+});
 
 document.getElementById('btn-refresh').addEventListener('click', async () => {
   const btn = document.getElementById('btn-refresh');

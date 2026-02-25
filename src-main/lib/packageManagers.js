@@ -6,10 +6,10 @@
 const fs = require('fs');
 const path = require('path');
 
-const PROJECT_TYPES = ['npm', 'cargo', 'go', 'python'];
+const PROJECT_TYPES = ['npm', 'cargo', 'go', 'python', 'php'];
 
 /**
- * Detect project type by checking for manifest files. Order: package.json (caller), Cargo.toml, go.mod, pyproject.toml, setup.py.
+ * Detect project type by checking for manifest files. Order: package.json (caller), Cargo.toml, go.mod, pyproject.toml, setup.py, composer.json.
  * @param {string} dirPath
  * @param {object} fsImpl - optional fs for testing
  * @returns {{ type: string, manifestPath: string } | null}
@@ -28,6 +28,9 @@ function detectProjectType(dirPath, fsImpl) {
   }
   if (fsMod.existsSync(path.join(dirPath, 'setup.py'))) {
     return { type: 'python', manifestPath: path.join(dirPath, 'setup.py') };
+  }
+  if (fsMod.existsSync(path.join(dirPath, 'composer.json'))) {
+    return { type: 'php', manifestPath: path.join(dirPath, 'composer.json') };
   }
   return null;
 }
@@ -74,7 +77,23 @@ function parseSetupPyVersion(content) {
 }
 
 /**
- * Get project name and version for a non-npm project (cargo, go, python).
+ * Parse version from composer.json. Returns the "version" field (e.g. "1.2.3" or "1.2.x-dev").
+ * @param {string} content
+ * @returns {string|null}
+ */
+function parseComposerVersion(content) {
+  if (!content || typeof content !== 'string') return null;
+  try {
+    const data = JSON.parse(content);
+    const v = data.version;
+    return typeof v === 'string' && v.trim() ? v.trim() : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Get project name and version for a non-npm project (cargo, go, python, php).
  * @param {string} dirPath
  * @param {{ type: string, manifestPath: string }} detected
  * @param {object} fsImpl - optional fs for testing
@@ -110,6 +129,15 @@ function getNonNpmProjectInfo(dirPath, detected, fsImpl) {
         const nameMatch = content.match(/name\s*=\s*["']([^"']+)["']/);
         if (nameMatch) name = nameMatch[1].trim();
       }
+    } else if (detected.type === 'php') {
+      const content = fsMod.readFileSync(detected.manifestPath, 'utf8');
+      version = parseComposerVersion(content);
+      try {
+        const data = JSON.parse(content);
+        if (typeof data.name === 'string' && data.name.trim()) {
+          name = data.name.trim().split('/').pop() || name;
+        }
+      } catch (_) {}
     }
   } catch (e) {
     return { ok: false, error: e.message || 'Failed to read manifest', path: dirPath };
@@ -130,5 +158,6 @@ module.exports = {
   parseGoVersion,
   parsePyprojectVersion,
   parseSetupPyVersion,
+  parseComposerVersion,
   getNonNpmProjectInfo,
 };
