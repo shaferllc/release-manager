@@ -20,6 +20,7 @@ const { getReleasePlan } = require('./lib/releaseStrategy');
 const { getRecentCommits: getRecentCommitsLib } = require('./lib/gitLog');
 const { suggestBumpFromCommits } = require('./lib/conventionalCommits');
 const { getShortcutAction } = require('./lib/shortcuts');
+const { parsePorcelainLines } = require('./lib/gitPorcelain');
 const {
   generate: ollamaGenerate,
   listModels: ollamaListModels,
@@ -237,6 +238,7 @@ async function getProjectInfoAsync(dirPath) {
   let ahead = null;
   let behind = null;
   let uncommittedLines = [];
+  let conflictCount = 0;
   let allTags = [];
   let commitsSinceLatestTag = null;
 
@@ -271,7 +273,9 @@ async function getProjectInfoAsync(dirPath) {
       const behindMatch = statusLine.match(/behind\s+(\d+)/);
       if (behindMatch) behind = parseInt(behindMatch[1], 10);
       const porcelain = (porcelainOut.stdout || '').trim();
-      uncommittedLines = porcelain ? porcelain.split(/\r?\n/).filter(Boolean) : [];
+      const { lines: parsedLines, conflictCount: parsedConflictCount } = parsePorcelainLines(porcelain);
+      uncommittedLines = parsedLines;
+      conflictCount = parsedConflictCount;
     } catch (_) {}
   }
 
@@ -291,6 +295,7 @@ async function getProjectInfoAsync(dirPath) {
     ahead,
     behind,
     uncommittedLines,
+    conflictCount,
   };
 }
 

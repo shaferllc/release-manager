@@ -894,8 +894,9 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     detailAheadBehindEl.textContent = ab || 'Up to date';
     detailAheadBehindEl.classList.toggle('text-rm-muted', !ab);
     const lines = info.uncommittedLines || [];
-    const conflictCount = lines.filter((line) => /^[UAD][UAD]$/.test(line.length >= 2 ? line.slice(0, 2) : '')).length;
+    const conflictCount = info.conflictCount ?? 0;
     const hasMergeConflicts = conflictCount > 0;
+    const isParsed = lines.length > 0 && typeof lines[0] === 'object' && lines[0] !== null && 'filePath' in lines[0];
     if (detailUncommittedLabelEl) {
       if (hasMergeConflicts) {
         detailUncommittedLabelEl.textContent = `Merge conflicts (${conflictCount}) — resolve in editor or abort merge`;
@@ -915,10 +916,9 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     if (detailUncommittedListEl) {
       detailUncommittedListEl.innerHTML = '';
       lines.forEach((line) => {
-        const status = line.length >= 2 ? line.slice(0, 2) : '';
-        const filePath = line.includes(' -> ') ? line.split(' -> ')[1].trim() : (line.length > 3 ? line.slice(3).trim() : line);
-        const isUntracked = status === '??' || (status.length > 0 && status[0] === '?');
-        const isUnmerged = /^[UAD][UAD]$/.test(status);
+        const filePath = isParsed ? line.filePath : (line.includes(' -> ') ? line.split(' -> ')[1].trim() : (line.length > 3 ? line.slice(3).trim() : line));
+        const isUntracked = isParsed ? line.isUntracked : (line.slice(0, 2) === '??' || (line.length > 0 && line[0] === '?'));
+        const isUnmerged = isParsed ? line.isUnmerged : /^[UAD][UAD]$/.test(line.length >= 2 ? line.slice(0, 2) : '');
         const li = document.createElement('li');
         li.className = 'truncate' + (isUnmerged ? ' font-medium text-rm-warning' : '');
         const btn = document.createElement('button');
