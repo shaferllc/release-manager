@@ -31,6 +31,13 @@ const {
 } = require('./lib/ollama');
 const { getGitDiffForCommit: getGitDiffForCommitLib } = require('./lib/gitDiff');
 const {
+  parseStashList: parseStashListLib,
+  parseRemoteBranches: parseRemoteBranchesLib,
+  parseCommitLog: parseCommitLogLib,
+  parseRemotes: parseRemotesLib,
+  parseLocalBranches: parseLocalBranchesLib,
+} = require('./lib/gitOutputParsers');
+const {
   getComposerManifestInfo,
   parseComposerOutdatedJson,
   parseComposerValidateOutput,
@@ -391,14 +398,18 @@ async function getGitStatus(dirPath) {
   }
 }
 
-async function gitCommit(dirPath, message) {
+/** options: { sign?: boolean } — if sign true, use -S (uses commit.gpgsign or default key) */
+async function gitCommit(dirPath, message, options = {}) {
   if (!message || typeof message !== 'string' || !message.trim()) {
     return { ok: false, error: 'Commit message is required' };
   }
   const msg = message.trim();
+  const sign = options.sign !== undefined ? options.sign : getPreference('signCommits');
   try {
     await runInDir(dirPath, 'git', ['add', '-A']);
-    await runInDir(dirPath, 'git', ['commit', '-m', msg]);
+    const commitArgs = ['commit', '-m', msg];
+    if (sign) commitArgs.push('-S');
+    await runInDir(dirPath, 'git', commitArgs);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Commit failed' };
@@ -432,9 +443,13 @@ async function gitMergeAbort(dirPath) {
   }
 }
 
-async function gitStashPush(dirPath, message) {
+/** options: { includeUntracked?: boolean, keepIndex?: boolean } */
+async function gitStashPush(dirPath, message, options = {}) {
   try {
-    const args = message && message.trim() ? ['stash', 'push', '-m', message.trim()] : ['stash', 'push'];
+    const args = ['stash', 'push'];
+    if (options.includeUntracked) args.push('--include-untracked');
+    if (options.keepIndex) args.push('--keep-index');
+    if (message && message.trim()) args.push('-m', message.trim());
     await runInDir(dirPath, 'git', args);
     return { ok: true };
   } catch (e) {
@@ -458,6 +473,828 @@ async function gitDiscardChanges(dirPath) {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Discard failed' };
+  }
+}
+
+/** Get local branch names and current branch. */
+async function getBranches(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['branch', '--no-color']);
+    const branches = parseLocalBranchesLib(out.stdout || '');
+    const currentOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
+    const current = (currentOut.stdout || '').trim() || null;
+    return { ok: true, branches, current };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list branches', branches: [], current: null };
+  }
+}
+
+/** Checkout an existing branch. */
+async function checkoutBranch(dirPath, branchName) {
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', name]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Checkout failed' };
+  }
+}
+
+/** Create a new branch; if checkout is true, check it out. */
+async function createBranch(dirPath, branchName, checkout = true) {
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    if (checkout) {
+      await runInDir(dirPath, 'git', ['checkout', '-b', name]);
+    } else {
+      await runInDir(dirPath, 'git', ['branch', name]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Create branch failed' };
+  }
+}
+
+/** Rename a branch. If newName only, renames current branch. */
+async function renameBranch(dirPath, oldName, newName) {
+  const n = (newName || '').trim();
+  if (!n) return { ok: false, error: 'New branch name is required' };
+  try {
+    if (oldName && oldName.trim()) {
+      await runInDir(dirPath, 'git', ['branch', '-m', oldName.trim(), n]);
+    } else {
+      await runInDir(dirPath, 'git', ['branch', '-m', n]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rename branch failed' };
+  }
+}
+
+/** Push current branch to its upstream (or origin if none). */
+async function gitPush(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['push']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Push failed' };
+  }
+}
+
+/** Force-push current branch (overwrites remote). Use with care. */
+async function gitPushForce(dirPath, withLease = false) {
+  try {
+    const branchOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
+    const branch = (branchOut.stdout || '').trim();
+    if (!branch) return { ok: false, error: 'Not on a branch' };
+    const upstreamOut = await runInDir(dirPath, 'git', ['rev-parse', '--abbrev-ref', '@{u}']).catch(() => ({ stdout: '' }));
+    const hasUpstream = (upstreamOut.stdout || '').trim().length > 0;
+    const args = ['push'];
+    if (withLease) args.push('--force-with-lease');
+    else args.push('--force');
+    if (hasUpstream) {
+      await runInDir(dirPath, 'git', args);
+    } else {
+      args.push('-u', 'origin', branch);
+      await runInDir(dirPath, 'git', args);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Force push failed' };
+  }
+}
+
+/** Merge another branch into the current branch. strategy: 'ours'|'theirs'|null, strategyOption: 'ours'|'theirs'|null for -X */
+async function gitMerge(dirPath, branchName, options = {}) {
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    const args = ['merge'];
+    if (options.strategy === 'ours') args.push('-s', 'ours');
+    else if (options.strategy === 'theirs') args.push('-s', 'theirs');
+    if (options.strategyOption === 'ours') args.push('-X', 'ours');
+    else if (options.strategyOption === 'theirs') args.push('-X', 'theirs');
+    args.push(name);
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Merge failed' };
+  }
+}
+
+// ---------- Phase 1: Remote branches, push -u, stash list ----------
+/** Get remote-tracking branch refs (e.g. origin/main). Call after fetch. */
+async function getRemoteBranches(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['fetch', '--prune']);
+    const out = await runInDir(dirPath, 'git', ['branch', '-r', '--no-color']);
+    const branches = parseRemoteBranchesLib(out.stdout || '');
+    return { ok: true, branches };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list remote branches', branches: [] };
+  }
+}
+
+/** Checkout a remote branch (create local tracking branch). ref e.g. origin/feature. */
+async function checkoutRemoteBranch(dirPath, ref) {
+  const r = (ref || '').trim();
+  if (!r || r.indexOf('/') === -1) return { ok: false, error: 'Remote branch ref required (e.g. origin/feature)' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', '--track', r]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Checkout failed' };
+  }
+}
+
+/** Push with -u origin <current> when branch has no upstream. */
+async function gitPushWithUpstream(dirPath) {
+  try {
+    const branchOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
+    const branch = (branchOut.stdout || '').trim();
+    if (!branch) return { ok: false, error: 'Not on a branch' };
+    const upstreamOut = await runInDir(dirPath, 'git', ['rev-parse', '--abbrev-ref', '@{u}']).catch(() => ({ stdout: '' }));
+    const hasUpstream = (upstreamOut.stdout || '').trim().length > 0;
+    if (hasUpstream) {
+      await runInDir(dirPath, 'git', ['push']);
+    } else {
+      await runInDir(dirPath, 'git', ['push', '-u', 'origin', branch]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Push failed' };
+  }
+}
+
+/** List stash entries: [{ index, message }]. */
+async function getStashList(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['stash', 'list', '--pretty=format:%gd %s']);
+    const entries = parseStashListLib(out.stdout || '');
+    return { ok: true, entries };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list stash', entries: [] };
+  }
+}
+
+async function stashApply(dirPath, index) {
+  try {
+    const args = index ? ['stash', 'apply', index] : ['stash', 'apply'];
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Stash apply failed' };
+  }
+}
+
+async function stashDrop(dirPath, index) {
+  try {
+    const args = index ? ['stash', 'drop', index] : ['stash', 'drop'];
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Stash drop failed' };
+  }
+}
+
+// ---------- Phase 2: Tags, commit log ----------
+/** Get tag names (sorted by version). */
+async function getTags(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['tag', '-l', '--sort=-version:refname']);
+    const tags = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    return { ok: true, tags };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list tags', tags: [] };
+  }
+}
+
+async function checkoutTag(dirPath, tagName) {
+  const name = (tagName || '').trim();
+  if (!name) return { ok: false, error: 'Tag name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', name]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Checkout failed' };
+  }
+}
+
+/** Create a tag. ref defaults to HEAD. If message is set, creates an annotated tag. */
+async function createTag(dirPath, tagName, message, ref) {
+  const name = (tagName || '').trim();
+  if (!name) return { ok: false, error: 'Tag name is required' };
+  const r = (ref || 'HEAD').trim();
+  try {
+    if (message != null && String(message).trim()) {
+      await runInDir(dirPath, 'git', ['tag', '-a', name, '-m', String(message).trim(), r]);
+    } else {
+      await runInDir(dirPath, 'git', ['tag', name, r]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Create tag failed' };
+  }
+}
+
+/** Commit log entries: { sha, subject, author, date }. */
+async function getCommitLog(dirPath, n = 30) {
+  const limit = Math.max(1, Math.min(100, n));
+  try {
+    const out = await runInDir(dirPath, 'git', [
+      'log',
+      '-n',
+      String(limit),
+      '--pretty=format:%h%x00%s%x00%an%x00%ad',
+      '--date=short',
+      '--no-merges',
+    ]);
+    const commits = parseCommitLogLib(out.stdout || '');
+    return { ok: true, commits };
+  } catch (e) {
+    return { ok: false, error: e.message || 'git log failed', commits: [] };
+  }
+}
+
+/** Get one commit detail and diff (for modal). */
+async function getCommitDetail(dirPath, sha) {
+  const s = (sha || '').trim();
+  if (!s) return { ok: false, error: 'SHA required' };
+  try {
+    const [infoOut, diffOut] = await Promise.all([
+      runInDir(dirPath, 'git', ['show', '-s', '--format=%s%n%an%n%ad%n%b', '--date=short', s]).catch(() => ({ stdout: '' })),
+      runInDir(dirPath, 'git', ['show', '--no-color', s]).catch(() => ({ stdout: '' })),
+    ]);
+    const infoLines = (infoOut.stdout || '').trim().split(/\r?\n/);
+    const subject = infoLines[0] || '';
+    const author = infoLines[1] || '';
+    const date = infoLines[2] || '';
+    const body = infoLines.slice(3).join('\n').trim();
+    const diff = (diffOut.stdout || '').trim();
+    return { ok: true, sha: s, subject, author, date, body, diff };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to get commit' };
+  }
+}
+
+// ---------- Phase 3: Branch delete, rebase ----------
+async function deleteBranch(dirPath, branchName, force = false) {
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['branch', force ? '-D' : '-d', name]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Delete branch failed' };
+  }
+}
+
+async function deleteRemoteBranch(dirPath, remoteName, branchName) {
+  const remote = (remoteName || 'origin').trim();
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['push', remote, '--delete', name]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Delete remote branch failed' };
+  }
+}
+
+async function gitRebase(dirPath, ontoBranch) {
+  const onto = (ontoBranch || '').trim();
+  if (!onto) return { ok: false, error: 'Branch name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['rebase', onto]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rebase failed' };
+  }
+}
+
+async function gitRebaseAbort(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['rebase', '--abort']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rebase abort failed' };
+  }
+}
+
+/** Start interactive rebase onto ref. Opens the rebase-todo in Cursor or VS Code (--wait). */
+async function gitRebaseInteractive(dirPath, ref) {
+  const r = (ref || '').trim();
+  if (!r) return { ok: false, error: 'Ref is required (e.g. branch name or HEAD~5)' };
+  const editors = ['cursor --wait', 'code --wait'];
+  for (const editor of editors) {
+    try {
+      await runInDir(dirPath, 'git', ['rebase', '-i', r], { env: { ...process.env, GIT_EDITOR: editor } });
+      return { ok: true };
+    } catch (e) {
+      try {
+        await runInDir(dirPath, 'git', ['rebase', '--abort']).catch(() => {});
+      } catch (_) {}
+      if (editor === editors[editors.length - 1]) {
+        return { ok: false, error: (e.message || 'Interactive rebase failed') + '. Ensure Cursor or VS Code is in PATH with --wait support.' };
+      }
+    }
+  }
+  return { ok: false, error: 'Interactive rebase failed. Ensure Cursor or VS Code is in PATH.' };
+}
+
+async function gitRebaseContinue(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['rebase', '--continue']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rebase continue failed' };
+  }
+}
+
+async function gitRebaseSkip(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['rebase', '--skip']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rebase skip failed' };
+  }
+}
+
+async function gitMergeContinue(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['merge', '--continue']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Merge continue failed' };
+  }
+}
+
+// ---------- Phase 4: Remotes, cherry-pick, reset, compare ----------
+async function getRemotes(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['remote', '-v']);
+    const remotes = parseRemotesLib(out.stdout || '');
+    return { ok: true, remotes };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list remotes', remotes: [] };
+  }
+}
+
+async function addRemote(dirPath, name, url) {
+  const n = (name || '').trim();
+  const u = (url || '').trim();
+  if (!n || !u) return { ok: false, error: 'Name and URL required' };
+  try {
+    await runInDir(dirPath, 'git', ['remote', 'add', n, u]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Add remote failed' };
+  }
+}
+
+async function removeRemote(dirPath, name) {
+  const n = (name || '').trim();
+  if (!n) return { ok: false, error: 'Remote name required' };
+  try {
+    await runInDir(dirPath, 'git', ['remote', 'remove', n]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Remove remote failed' };
+  }
+}
+
+async function gitCherryPick(dirPath, sha) {
+  const s = (sha || '').trim();
+  if (!s) return { ok: false, error: 'Commit SHA required' };
+  try {
+    await runInDir(dirPath, 'git', ['cherry-pick', s]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Cherry-pick failed' };
+  }
+}
+
+async function gitCherryPickAbort(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['cherry-pick', '--abort']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Cherry-pick abort failed' };
+  }
+}
+
+async function gitCherryPickContinue(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['cherry-pick', '--continue']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Cherry-pick continue failed' };
+  }
+}
+
+async function gitReset(dirPath, ref, mode) {
+  const r = (ref || 'HEAD').trim();
+  const m = mode === 'soft' || mode === 'mixed' || mode === 'hard' ? mode : 'mixed';
+  try {
+    await runInDir(dirPath, 'git', ['reset', `--${m}`, r]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Reset failed' };
+  }
+}
+
+/** Diff summary between two refs: { files: string[], stats: string }. */
+async function getDiffBetween(dirPath, refA, refB) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['diff', '--stat', refA, refB]);
+    const stats = (out.stdout || '').trim();
+    const nameOut = await runInDir(dirPath, 'git', ['diff', '--name-only', refA, refB]);
+    const files = (nameOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    return { ok: true, files, stats };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Diff failed', files: [], stats: '' };
+  }
+}
+
+/** Full diff text between two refs (for modal). */
+async function getDiffBetweenFull(dirPath, refA, refB) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['diff', '--no-color', refA, refB]);
+    return { ok: true, diff: (out.stdout || '').trim() };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Diff failed', diff: '' };
+  }
+}
+
+/** Revert a commit by SHA (creates a new commit that undoes it). */
+async function gitRevert(dirPath, sha) {
+  try {
+    await runInDir(dirPath, 'git', ['revert', '--no-edit', sha]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Revert failed' };
+  }
+}
+
+/** Prune remote-tracking branches (remove refs for branches deleted on remote). */
+async function gitPruneRemotes(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['fetch', '--prune']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Prune failed' };
+  }
+}
+
+/** Amend the last commit (optionally with new message). Uses -S if signCommits preference is set. */
+async function gitAmend(dirPath, message) {
+  const sign = getPreference('signCommits');
+  try {
+    const args = ['commit', '--amend'];
+    if (sign) args.push('-S');
+    if (message != null && String(message).trim()) {
+      args.push('-m', String(message).trim());
+      await runInDir(dirPath, 'git', args);
+    } else {
+      args.push('--no-edit');
+      await runInDir(dirPath, 'git', args);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Amend failed' };
+  }
+}
+
+/** Get reflog entries (e.g. last 50). */
+async function getReflog(dirPath, n = 50) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['reflog', '-n', String(n), '--format=%h %gD %s']);
+    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    const entries = lines.map((line) => {
+      const match = line.match(/^(\S+)\s+(\S+)\s+(.*)$/);
+      return match ? { sha: match[1], ref: match[2], message: match[3] } : { sha: line.split(/\s/)[0] || '', ref: '', message: line };
+    });
+    return { ok: true, entries };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Reflog failed', entries: [] };
+  }
+}
+
+/** Checkout any ref (SHA, branch, reflog ref like HEAD@{1}). */
+async function checkoutRef(dirPath, ref) {
+  const r = (ref || '').trim();
+  if (!r) return { ok: false, error: 'Ref required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', r]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Checkout failed' };
+  }
+}
+
+/** Get blame for a file (first 500 lines of output). */
+async function getBlame(dirPath, filePath) {
+  const f = (filePath || '').trim();
+  if (!f) return { ok: false, error: 'File path required', text: '' };
+  try {
+    const out = await runInDir(dirPath, 'git', ['blame', '-w', '--no-color', '-L', '1,500', '--', f]);
+    return { ok: true, text: (out.stdout || '').trim() };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Blame failed', text: '' };
+  }
+}
+
+/** Delete a tag locally. */
+async function deleteTag(dirPath, tagName) {
+  const t = (tagName || '').trim();
+  if (!t) return { ok: false, error: 'Tag name required' };
+  try {
+    await runInDir(dirPath, 'git', ['tag', '-d', t]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Delete tag failed' };
+  }
+}
+
+/** Push a single tag to remote (default origin). */
+async function pushTag(dirPath, tagName, remoteName = 'origin') {
+  const t = (tagName || '').trim();
+  const r = (remoteName || 'origin').trim();
+  if (!t) return { ok: false, error: 'Tag name required' };
+  try {
+    await runInDir(dirPath, 'git', ['push', r, 'refs/tags/' + t]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Push tag failed' };
+  }
+}
+
+/** Stage a single file (or pathspec). */
+async function stageFile(dirPath, filePath) {
+  const f = (filePath || '').trim();
+  if (!f) return { ok: false, error: 'File path required' };
+  try {
+    await runInDir(dirPath, 'git', ['add', f]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Stage failed' };
+  }
+}
+
+/** Unstage a single file (reset from index). */
+async function unstageFile(dirPath, filePath) {
+  const f = (filePath || '').trim();
+  if (!f) return { ok: false, error: 'File path required' };
+  try {
+    await runInDir(dirPath, 'git', ['reset', 'HEAD', '--', f]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Unstage failed' };
+  }
+}
+
+/** Discard changes in one file (working tree only; not delete). */
+async function discardFile(dirPath, filePath) {
+  const f = (filePath || '').trim();
+  if (!f) return { ok: false, error: 'File path required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', '--', f]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Discard file failed' };
+  }
+}
+
+/** Fetch from a specific remote (optional ref). */
+async function gitFetchRemote(dirPath, remoteName, ref) {
+  const remote = (remoteName || 'origin').trim();
+  if (!remote) return { ok: false, error: 'Remote name required' };
+  try {
+    const args = ['fetch', remote];
+    if (ref && String(ref).trim()) args.push(String(ref).trim());
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Fetch failed' };
+  }
+}
+
+// ---------- Phase 5: Pull rebase, gitignore, submodules ----------
+async function gitPullRebase(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['pull', '--rebase']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Pull (rebase) failed' };
+  }
+}
+
+/** Read .gitignore (first 8KB). */
+async function getGitignore(dirPath) {
+  const p = path.join(dirPath, '.gitignore');
+  try {
+    if (!fs.existsSync(p)) return { ok: true, content: null, path: p };
+    const content = fs.readFileSync(p, 'utf8').slice(0, 8192);
+    return { ok: true, content, path: p };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to read .gitignore', content: null, path: p };
+  }
+}
+
+/** Read .gitattributes (first 8KB). */
+async function getGitattributes(dirPath) {
+  const p = path.join(dirPath, '.gitattributes');
+  try {
+    if (!fs.existsSync(p)) return { ok: true, content: null, path: p };
+    const content = fs.readFileSync(p, 'utf8').slice(0, 8192);
+    return { ok: true, content, path: p };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to read .gitattributes', content: null, path: p };
+  }
+}
+
+/** Write .gitignore content. Creates file if missing. */
+async function writeGitignore(dirPath, content) {
+  const p = path.join(dirPath, '.gitignore');
+  try {
+    fs.writeFileSync(p, typeof content === 'string' ? content : '', 'utf8');
+    return { ok: true, path: p };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to write .gitignore', path: p };
+  }
+}
+
+/** Write .gitattributes content. Creates file if missing. */
+async function writeGitattributes(dirPath, content) {
+  const p = path.join(dirPath, '.gitattributes');
+  try {
+    fs.writeFileSync(p, typeof content === 'string' ? content : '', 'utf8');
+    return { ok: true, path: p };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to write .gitattributes', path: p };
+  }
+}
+
+/** List submodules: [{ path, url, sha }]. */
+async function getSubmodules(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['submodule', 'status']);
+    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    const subs = [];
+    for (const line of lines) {
+      const match = line.match(/^[\s\-+]?([a-f0-9]+)\s+(\S+)(?:\s+\([^)]*\))?$/);
+      if (match) {
+        const sha = match[1];
+        const subPath = match[2];
+        let url = '';
+        try {
+          const cfg = await runInDir(dirPath, 'git', ['config', '--get', `submodule.${subPath}.url`]);
+          url = (cfg.stdout || '').trim();
+        } catch (_) {}
+        subs.push({ path: subPath, url, sha });
+      }
+    }
+    return { ok: true, submodules: subs };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list submodules', submodules: [] };
+  }
+}
+
+async function submoduleUpdate(dirPath, init = true) {
+  try {
+    const args = init ? ['submodule', 'update', '--init', '--recursive'] : ['submodule', 'update', '--recursive'];
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Submodule update failed' };
+  }
+}
+
+/** Detect rebase/cherry-pick/merge state for showing Abort buttons. */
+async function getGitState(dirPath) {
+  const gitDir = path.join(dirPath, '.git');
+  const rebasing = fs.existsSync(path.join(gitDir, 'rebase-merge')) || fs.existsSync(path.join(gitDir, 'rebase-apply'));
+  const cherryPicking = fs.existsSync(path.join(gitDir, 'sequencer'));
+  const merging = fs.existsSync(path.join(gitDir, 'MERGE_HEAD'));
+  return { ok: true, rebasing, cherryPicking, merging };
+}
+
+/** List worktrees: [{ path, head, branch }]. */
+async function getWorktrees(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['worktree', 'list', '--porcelain']);
+    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    const worktrees = [];
+    let current = {};
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        if (current.worktree) worktrees.push(current);
+        current = { path: line.slice(9).trim(), head: '', branch: '' };
+      } else if (line.startsWith('HEAD ')) current.head = line.slice(5).trim();
+      else if (line.startsWith('branch ')) current.branch = line.slice(7).trim().replace(/^refs\/heads\//, '');
+    }
+    if (current.path) worktrees.push(current);
+    return { ok: true, worktrees };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Worktree list failed', worktrees: [] };
+  }
+}
+
+/** Add a linked worktree. */
+async function worktreeAdd(dirPath, worktreePath, branch) {
+  const wt = (worktreePath || '').trim();
+  if (!wt) return { ok: false, error: 'Worktree path required' };
+  try {
+    const args = ['worktree', 'add', path.isAbsolute(wt) ? wt : path.join(path.dirname(dirPath), wt)];
+    if (branch && String(branch).trim()) args.push('-b', String(branch).trim());
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Worktree add failed' };
+  }
+}
+
+/** Remove a worktree (must be clean and not current). */
+async function worktreeRemove(dirPath, worktreePath) {
+  const wt = (worktreePath || '').trim();
+  if (!wt) return { ok: false, error: 'Worktree path required' };
+  try {
+    await runInDir(dirPath, 'git', ['worktree', 'remove', wt]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Worktree remove failed' };
+  }
+}
+
+/** Get bisect status: { active, current, currentSha, good, bad, remaining, raw }. */
+async function getBisectStatus(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['bisect', 'status']);
+    const text = (out.stdout || '').trim();
+    const active = text.includes('bisecting');
+    let current = '';
+    let currentSha = '';
+    let good = '';
+    let bad = '';
+    let remaining = '';
+    const currentMatch = text.match(/Currently at: ([^\n]+)/);
+    if (currentMatch) {
+      current = currentMatch[1].trim();
+      const shaMatch = current.match(/^([0-9a-f]{7,40})/i);
+      if (shaMatch) currentSha = shaMatch[1];
+    }
+    const goodMatch = text.match(/between ([^\n]+) and/);
+    if (goodMatch) good = goodMatch[1].trim();
+    const badMatch = text.match(/and ([^\n\s]+)/);
+    if (badMatch) bad = badMatch[1].trim();
+    const remMatch = text.match(/(\d+) revisions left/);
+    if (remMatch) remaining = remMatch[1];
+    return { ok: true, active, current, currentSha, good, bad, remaining, raw: text };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect status failed', active: false, raw: '' };
+  }
+}
+
+async function bisectStart(dirPath, badRef, goodRef) {
+  const bad = (badRef || 'HEAD').trim();
+  const good = (goodRef || '').trim();
+  try {
+    const args = ['bisect', 'start'];
+    await runInDir(dirPath, 'git', args);
+    await runInDir(dirPath, 'git', ['bisect', 'bad', bad]);
+    if (good) await runInDir(dirPath, 'git', ['bisect', 'good', good]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect start failed' };
+  }
+}
+
+async function bisectGood(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['bisect', 'good']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect good failed' };
+  }
+}
+
+async function bisectBad(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['bisect', 'bad']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect bad failed' };
+  }
+}
+
+async function bisectReset(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['bisect', 'reset']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect reset failed' };
   }
 }
 
@@ -552,8 +1389,8 @@ async function showSaveDialogAndDownload(win, defaultPath, url) {
 
 const iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon.png');
 
-const DEFAULT_WINDOW_WIDTH = 1200;
-const DEFAULT_WINDOW_HEIGHT = 800;
+const DEFAULT_WINDOW_WIDTH = 1600;
+const DEFAULT_WINDOW_HEIGHT = 900;
 
 /** Ensure saved bounds are on a visible display (handles disconnected monitors). */
 function clampBoundsToDisplay(saved) {
@@ -954,12 +1791,79 @@ app.whenReady().then(() => {
     return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
   });
   ipcMain.handle('rm-get-git-status', (_e, dirPath) => getGitStatus(dirPath));
-  ipcMain.handle('rm-commit-changes', (_e, dirPath, message) => gitCommit(dirPath, message));
+  ipcMain.handle('rm-commit-changes', (_e, dirPath, message, options) => gitCommit(dirPath, message, options || {}));
   ipcMain.handle('rm-git-pull', (_e, dirPath) => gitPull(dirPath));
-  ipcMain.handle('rm-git-stash-push', (_e, dirPath, message) => gitStashPush(dirPath, message));
+  ipcMain.handle('rm-git-stash-push', (_e, dirPath, message, options) => gitStashPush(dirPath, message, options || {}));
   ipcMain.handle('rm-git-stash-pop', (_e, dirPath) => gitStashPop(dirPath));
   ipcMain.handle('rm-git-discard-changes', (_e, dirPath) => gitDiscardChanges(dirPath));
   ipcMain.handle('rm-git-merge-abort', (_e, dirPath) => gitMergeAbort(dirPath));
+  ipcMain.handle('rm-get-branches', (_e, dirPath) => getBranches(dirPath));
+  ipcMain.handle('rm-checkout-branch', (_e, dirPath, branchName) => checkoutBranch(dirPath, branchName));
+  ipcMain.handle('rm-create-branch', (_e, dirPath, branchName, checkout) => createBranch(dirPath, branchName, checkout !== false));
+  ipcMain.handle('rm-git-push', (_e, dirPath) => gitPushWithUpstream(dirPath));
+  ipcMain.handle('rm-git-push-force', (_e, dirPath, withLease) => gitPushForce(dirPath, !!withLease));
+  ipcMain.handle('rm-git-merge', (_e, dirPath, branchName, options) => gitMerge(dirPath, branchName, options || {}));
+  ipcMain.handle('rm-rename-branch', (_e, dirPath, oldName, newName) => renameBranch(dirPath, oldName, newName));
+  ipcMain.handle('rm-create-tag', (_e, dirPath, tagName, message, ref) => createTag(dirPath, tagName, message, ref));
+  ipcMain.handle('rm-git-cherry-pick-continue', (_e, dirPath) => gitCherryPickContinue(dirPath));
+  ipcMain.handle('rm-write-gitignore', (_e, dirPath, content) => writeGitignore(dirPath, content));
+  ipcMain.handle('rm-write-gitattributes', (_e, dirPath, content) => writeGitattributes(dirPath, content));
+  ipcMain.handle('rm-git-rebase-interactive', (_e, dirPath, ref) => gitRebaseInteractive(dirPath, ref));
+  // Phase 1
+  ipcMain.handle('rm-get-remote-branches', (_e, dirPath) => getRemoteBranches(dirPath));
+  ipcMain.handle('rm-checkout-remote-branch', (_e, dirPath, ref) => checkoutRemoteBranch(dirPath, ref));
+  ipcMain.handle('rm-get-stash-list', (_e, dirPath) => getStashList(dirPath));
+  ipcMain.handle('rm-stash-apply', (_e, dirPath, index) => stashApply(dirPath, index));
+  ipcMain.handle('rm-stash-drop', (_e, dirPath, index) => stashDrop(dirPath, index));
+  // Phase 2
+  ipcMain.handle('rm-get-tags', (_e, dirPath) => getTags(dirPath));
+  ipcMain.handle('rm-checkout-tag', (_e, dirPath, tagName) => checkoutTag(dirPath, tagName));
+  ipcMain.handle('rm-get-commit-log', (_e, dirPath, n) => getCommitLog(dirPath, n));
+  ipcMain.handle('rm-get-commit-detail', (_e, dirPath, sha) => getCommitDetail(dirPath, sha));
+  // Phase 3
+  ipcMain.handle('rm-delete-branch', (_e, dirPath, branchName, force) => deleteBranch(dirPath, branchName, force));
+  ipcMain.handle('rm-delete-remote-branch', (_e, dirPath, remoteName, branchName) => deleteRemoteBranch(dirPath, remoteName, branchName));
+  ipcMain.handle('rm-git-rebase', (_e, dirPath, ontoBranch) => gitRebase(dirPath, ontoBranch));
+  ipcMain.handle('rm-git-rebase-abort', (_e, dirPath) => gitRebaseAbort(dirPath));
+  ipcMain.handle('rm-git-rebase-continue', (_e, dirPath) => gitRebaseContinue(dirPath));
+  ipcMain.handle('rm-git-rebase-skip', (_e, dirPath) => gitRebaseSkip(dirPath));
+  ipcMain.handle('rm-git-merge-continue', (_e, dirPath) => gitMergeContinue(dirPath));
+  // Phase 4
+  ipcMain.handle('rm-get-remotes', (_e, dirPath) => getRemotes(dirPath));
+  ipcMain.handle('rm-add-remote', (_e, dirPath, name, url) => addRemote(dirPath, name, url));
+  ipcMain.handle('rm-remove-remote', (_e, dirPath, name) => removeRemote(dirPath, name));
+  ipcMain.handle('rm-git-cherry-pick', (_e, dirPath, sha) => gitCherryPick(dirPath, sha));
+  ipcMain.handle('rm-git-cherry-pick-abort', (_e, dirPath) => gitCherryPickAbort(dirPath));
+  ipcMain.handle('rm-git-reset', (_e, dirPath, ref, mode) => gitReset(dirPath, ref, mode));
+  ipcMain.handle('rm-get-diff-between', (_e, dirPath, refA, refB) => getDiffBetween(dirPath, refA, refB));
+  ipcMain.handle('rm-get-diff-between-full', (_e, dirPath, refA, refB) => getDiffBetweenFull(dirPath, refA, refB));
+  ipcMain.handle('rm-git-revert', (_e, dirPath, sha) => gitRevert(dirPath, sha));
+  ipcMain.handle('rm-git-prune-remotes', (_e, dirPath) => gitPruneRemotes(dirPath));
+  ipcMain.handle('rm-git-amend', (_e, dirPath, message) => gitAmend(dirPath, message));
+  ipcMain.handle('rm-get-reflog', (_e, dirPath, n) => getReflog(dirPath, n));
+  ipcMain.handle('rm-checkout-ref', (_e, dirPath, ref) => checkoutRef(dirPath, ref));
+  ipcMain.handle('rm-get-blame', (_e, dirPath, filePath) => getBlame(dirPath, filePath));
+  ipcMain.handle('rm-delete-tag', (_e, dirPath, tagName) => deleteTag(dirPath, tagName));
+  ipcMain.handle('rm-push-tag', (_e, dirPath, tagName, remoteName) => pushTag(dirPath, tagName, remoteName));
+  ipcMain.handle('rm-stage-file', (_e, dirPath, filePath) => stageFile(dirPath, filePath));
+  ipcMain.handle('rm-unstage-file', (_e, dirPath, filePath) => unstageFile(dirPath, filePath));
+  ipcMain.handle('rm-discard-file', (_e, dirPath, filePath) => discardFile(dirPath, filePath));
+  ipcMain.handle('rm-git-fetch-remote', (_e, dirPath, remoteName, ref) => gitFetchRemote(dirPath, remoteName, ref));
+  // Phase 5
+  ipcMain.handle('rm-git-pull-rebase', (_e, dirPath) => gitPullRebase(dirPath));
+  ipcMain.handle('rm-get-gitignore', (_e, dirPath) => getGitignore(dirPath));
+  ipcMain.handle('rm-get-gitattributes', (_e, dirPath) => getGitattributes(dirPath));
+  ipcMain.handle('rm-get-submodules', (_e, dirPath) => getSubmodules(dirPath));
+  ipcMain.handle('rm-submodule-update', (_e, dirPath, init) => submoduleUpdate(dirPath, init));
+  ipcMain.handle('rm-get-git-state', (_e, dirPath) => getGitState(dirPath));
+  ipcMain.handle('rm-get-worktrees', (_e, dirPath) => getWorktrees(dirPath));
+  ipcMain.handle('rm-worktree-add', (_e, dirPath, worktreePath, branch) => worktreeAdd(dirPath, worktreePath, branch));
+  ipcMain.handle('rm-worktree-remove', (_e, dirPath, worktreePath) => worktreeRemove(dirPath, worktreePath));
+  ipcMain.handle('rm-get-bisect-status', (_e, dirPath) => getBisectStatus(dirPath));
+  ipcMain.handle('rm-bisect-start', (_e, dirPath, badRef, goodRef) => bisectStart(dirPath, badRef, goodRef));
+  ipcMain.handle('rm-bisect-good', (_e, dirPath) => bisectGood(dirPath));
+  ipcMain.handle('rm-bisect-bad', (_e, dirPath) => bisectBad(dirPath));
+  ipcMain.handle('rm-bisect-reset', (_e, dirPath) => bisectReset(dirPath));
   ipcMain.handle('rm-copy-to-clipboard', (_e, text) => {
     if (text != null && typeof text === 'string') clipboard.writeText(text);
     return null;

@@ -44,6 +44,16 @@ describe('gitPorcelain', () => {
       expect(r.filePath).toBe('readme.md');
       expect(r.isUntracked).toBe(false);
       expect(r.isUnmerged).toBe(false);
+      expect(r.isStaged).toBe(false);
+      expect(r.hasUnstaged).toBe(true);
+    });
+    it('parses staged-only and staged+unstaged', () => {
+      const r1 = parsePorcelainLine('M  staged-only.js');
+      expect(r1.isStaged).toBe(true);
+      expect(r1.hasUnstaged).toBe(false);
+      const r2 = parsePorcelainLine('MM both.js');
+      expect(r2.isStaged).toBe(true);
+      expect(r2.hasUnstaged).toBe(true);
     });
     it('parses untracked line ??', () => {
       const r = parsePorcelainLine('?? newfile.txt');

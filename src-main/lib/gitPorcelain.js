@@ -15,21 +15,26 @@ function isUnmergedStatus(status) {
 
 /**
  * Parse a single git status --porcelain line into status, path, and flags.
+ * Column 1 = index (staged), column 2 = work tree (unstaged). ' ' = none, '?' = untracked.
  * @param {string} line - One line (e.g. 'UU path/to/file' or 'R  old -> new')
- * @returns {{ status: string, filePath: string, isUntracked: boolean, isUnmerged: boolean }}
+ * @returns {{ status: string, filePath: string, isUntracked: boolean, isUnmerged: boolean, isStaged: boolean, hasUnstaged: boolean }}
  */
 function parsePorcelainLine(line) {
   const status = line.length >= 2 ? line.slice(0, 2) : '';
   const filePath = line.includes(' -> ') ? line.split(' -> ')[1].trim() : (line.length > 2 ? line.slice(2).trim() : line);
   const isUntracked = status === '??' || (status.length > 0 && status[0] === '?');
   const isUnmerged = isUnmergedStatus(status);
-  return { status, filePath, isUntracked, isUnmerged };
+  const idx = status[0];
+  const work = status[1];
+  const isStaged = !isUntracked && idx && idx !== ' ';
+  const hasUnstaged = isUntracked || (work && work !== ' ');
+  return { status, filePath, isUntracked, isUnmerged, isStaged, hasUnstaged };
 }
 
 /**
  * Parse full porcelain output and return parsed lines plus conflict count.
  * @param {string} porcelain - Raw stdout from `git status --porcelain -uall`
- * @returns {{ lines: Array<{ status: string, filePath: string, isUntracked: boolean, isUnmerged: boolean }>, conflictCount: number }}
+ * @returns {{ lines: Array<{ status: string, filePath: string, isUntracked: boolean, isUnmerged: boolean, isStaged: boolean, hasUnstaged: boolean }>, conflictCount: number }}
  */
 function parsePorcelainLines(porcelain) {
   const raw = typeof porcelain === 'string' ? porcelain.trim() : '';
