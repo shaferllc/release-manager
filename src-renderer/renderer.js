@@ -22,6 +22,7 @@ const syncDownloadStatusWrapEl = document.getElementById('sync-download-status-w
 const detailGitStateEl = document.getElementById('detail-git-state');
 const detailBranchEl = document.getElementById('detail-branch');
 const detailAheadBehindEl = document.getElementById('detail-ahead-behind');
+const detailBranchSelectEl = document.getElementById('detail-branch-select');
 const detailUncommittedWrapEl = document.getElementById('detail-uncommitted-wrap');
 const detailUncommittedLabelEl = document.getElementById('detail-uncommitted-label');
 const detailUncommittedListEl = document.getElementById('detail-uncommitted-list');
@@ -46,6 +47,34 @@ const viewDropdownLabelEl = document.getElementById('view-dropdown-label');
 const viewDropdownMenuEl = document.getElementById('view-dropdown-menu');
 
 const VIEW_LABELS = { detail: 'Project', dashboard: 'Dashboard', settings: 'Settings', docs: 'Documentation', changelog: 'Changelog' };
+
+/** Create a 14px stroke icon SVG for use in buttons (Feather-style path d). */
+function createBtnIcon(pathDOrArray) {
+  if (pathDOrArray == null) return null;
+  const paths = Array.isArray(pathDOrArray) ? pathDOrArray : [pathDOrArray];
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('class', 'btn-icon');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  paths.forEach((d) => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  });
+  return svg;
+}
+const BTN_ICONS = {
+  plus: 'M12 5v14M5 12h14',
+  check: 'M20 6 9 17l-5-5',
+  minus: 'M5 12h14',
+  trash: ['M3 6h18', 'M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2'],
+  play: 'M5 3l14 9-14 9V3z',
+  'git-branch': 'M6 3v12M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM6 21a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM15 6a9 9 0 0 1-9 9',
+};
 const settingsGithubTokenEl = document.getElementById('settings-github-token');
 const dashboardFilterEl = document.getElementById('dashboard-filter');
 const dashboardSortEl = document.getElementById('dashboard-sort');
@@ -70,6 +99,17 @@ const detailTestsCardEl = document.getElementById('detail-tests-card');
 const detailCoverageCardEl = document.getElementById('detail-coverage-card');
 const detailCoverageWrapEl = document.getElementById('detail-coverage-wrap');
 const detailCoverageSummaryEl = document.getElementById('detail-coverage-summary');
+const detailTagsCardEl = document.getElementById('git-section-tags');
+const detailCommitLogCardEl = document.getElementById('git-section-commit-history');
+const detailBranchesDeleteCardEl = document.getElementById('git-section-delete-branch');
+const detailRemotesCardEl = document.getElementById('git-section-remotes');
+const detailCompareResetCardEl = document.getElementById('git-section-compare-reset');
+const detailGitignoreCardEl = document.getElementById('git-section-gitignore');
+const detailSubmodulesCardEl = document.getElementById('git-section-submodules');
+const detailReflogCardEl = document.getElementById('git-section-reflog');
+const detailGitattributesCardEl = document.getElementById('git-section-gitattributes');
+const detailWorktreesCardEl = document.getElementById('git-section-worktrees');
+const detailBisectCardEl = document.getElementById('git-section-bisect');
 
 /** Last parsed coverage summary per project path (e.g. "87%" or "Lines 85%"). */
 let lastCoverageByPath = {};
@@ -86,6 +126,49 @@ let selectedPaths = new Set();
 const PREF_DETAIL_USE_TABS = 'detailUseTabs';
 const PREF_COLLAPSED_SECTIONS = 'collapsedSections';
 
+let currentGitSubtab = 'main';
+
+function updateGitJumpLinks() {
+  const nav = document.getElementById('detail-git-jump-links');
+  const jumpWrap = document.getElementById('detail-git-jump');
+  if (!nav || !jumpWrap) return;
+  const visible = document.querySelectorAll(
+    `.git-subtab-panel[data-git-subtab="${currentGitSubtab}"]:not(.hidden)`
+  );
+  nav.innerHTML = '';
+  visible.forEach((panel) => {
+    const id = panel.id;
+    const label = panel.dataset.section || id;
+    if (!id) return;
+    const a = document.createElement('a');
+    a.href = `#${id}`;
+    a.className = 'text-rm-accent hover:underline';
+    a.textContent = label;
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    nav.appendChild(a);
+    if (panel !== visible[visible.length - 1]) {
+      const sep = document.createElement('span');
+      sep.className = 'text-rm-muted';
+      sep.textContent = ' · ';
+      nav.appendChild(sep);
+    }
+  });
+}
+
+function updateGitSubtabVisibility(subtab) {
+  currentGitSubtab = subtab || 'main';
+  document.querySelectorAll('.detail-git-subtab-btn').forEach((btn) => {
+    btn.classList.toggle('is-active', btn.dataset.gitSubtab === currentGitSubtab);
+  });
+  document.querySelectorAll('.git-subtab-panel').forEach((panel) => {
+    panel.classList.toggle('hidden', panel.dataset.gitSubtab !== currentGitSubtab);
+  });
+  updateGitJumpLinks();
+}
+
 function updateDetailTabPanelVisibility() {
   const useTabsEl = document.getElementById('detail-use-tabs');
   const panelsEl = document.getElementById('detail-tab-panels');
@@ -96,16 +179,26 @@ function updateDetailTabPanelVisibility() {
     barEl.classList.remove('hidden');
     panelsEl.classList.add('detail-tabs-mode');
     const activeBtn = document.querySelector('.detail-tab-btn.is-active');
-    const activeTab = activeBtn?.dataset?.tab || 'all';
+    const activeTab = activeBtn?.dataset?.tab || 'git';
     document.querySelectorAll('.detail-tab-panel').forEach((panel) => {
       const tab = panel.dataset.detailTab;
       const show = activeTab === 'all' || tab === activeTab;
       panel.classList.toggle('detail-tab-panel-visible', show);
     });
+    const gitSubtabsBar = document.getElementById('detail-git-subtabs-bar');
+    if (gitSubtabsBar) gitSubtabsBar.classList.toggle('hidden', activeTab !== 'git');
+    const gitJumpEl = document.getElementById('detail-git-jump');
+    if (gitJumpEl) gitJumpEl.classList.toggle('hidden', activeTab !== 'git');
+    if (activeTab === 'git') updateGitSubtabVisibility(currentGitSubtab);
   } else {
     barEl.classList.add('hidden');
     panelsEl.classList.remove('detail-tabs-mode');
     document.querySelectorAll('.detail-tab-panel').forEach((p) => p.classList.remove('detail-tab-panel-visible'));
+    document.querySelectorAll('.git-subtab-panel').forEach((p) => p.classList.remove('hidden'));
+    const gitSubtabsBar = document.getElementById('detail-git-subtabs-bar');
+    if (gitSubtabsBar) gitSubtabsBar.classList.add('hidden');
+    const gitJumpEl = document.getElementById('detail-git-jump');
+    if (gitJumpEl) gitJumpEl.classList.add('hidden');
   }
 }
 
@@ -305,6 +398,8 @@ function saveSettingsToStore() {
     );
   }
   if (phpPathEl) window.releaseManager.setPreference('phpPath', phpPathEl.value?.trim() ?? '');
+  const signCommitsEl = document.getElementById('settings-sign-commits');
+  if (signCommitsEl) window.releaseManager.setPreference('signCommits', signCommitsEl.checked);
 }
 
 function showDashboard() {
@@ -341,6 +436,9 @@ async function showSettings() {
   const phpPath = await window.releaseManager.getPreference('phpPath');
   const settingsPhpPathEl = document.getElementById('settings-php-path');
   if (settingsPhpPathEl) settingsPhpPathEl.value = phpPath || '';
+  const signCommits = await window.releaseManager.getPreference('signCommits');
+  const settingsSignCommitsEl = document.getElementById('settings-sign-commits');
+  if (settingsSignCommitsEl) settingsSignCommitsEl.checked = !!signCommits;
 }
 
 function showDocs() {
@@ -440,19 +538,25 @@ function escapeHtml(s) {
 
 let fileViewerModalProjectPath = null;
 let fileViewerModalFilePath = null;
+let fileViewerModalIsUntracked = false;
 
 async function openFileViewerModal(dirPath, filePath, isUntracked) {
   const modalEl = document.getElementById('modal-file-view');
   const titleEl = document.getElementById('modal-file-view-title');
   const contentEl = document.getElementById('modal-file-view-content');
+  const blameBtn = document.getElementById('modal-file-view-blame');
+  const diffBtn = document.getElementById('modal-file-view-diff');
   if (!modalEl || !titleEl || !contentEl) return;
   fileViewerModalProjectPath = dirPath;
   fileViewerModalFilePath = filePath;
+  fileViewerModalIsUntracked = !!isUntracked;
+  if (blameBtn) blameBtn.classList.toggle('hidden', isUntracked);
+  if (diffBtn) diffBtn.classList.add('hidden');
   titleEl.textContent = filePath;
   contentEl.textContent = 'Loading…';
   contentEl.innerHTML = '';
   modalEl.classList.remove('hidden');
-  contentEl.classList.remove('diff-view');
+  contentEl.classList.remove('diff-view', 'blame-view');
   try {
     const result = await window.releaseManager.getFileDiff(dirPath, filePath, isUntracked);
     if (!result.ok) {
@@ -486,6 +590,41 @@ async function openFileViewerModal(dirPath, filePath, isUntracked) {
     }
   } catch (e) {
     contentEl.textContent = e?.message || 'Failed to load file';
+  }
+}
+
+async function showFileViewerBlame() {
+  const contentEl = document.getElementById('modal-file-view-content');
+  const blameBtn = document.getElementById('modal-file-view-blame');
+  const diffBtn = document.getElementById('modal-file-view-diff');
+  if (!contentEl || !fileViewerModalProjectPath || !fileViewerModalFilePath) return;
+  contentEl.textContent = 'Loading blame…';
+  contentEl.classList.remove('diff-view');
+  contentEl.classList.add('blame-view');
+  if (blameBtn) blameBtn.classList.add('hidden');
+  if (diffBtn) diffBtn.classList.remove('hidden');
+  try {
+    const result = await window.releaseManager.getBlame(fileViewerModalProjectPath, fileViewerModalFilePath);
+    if (!result.ok) {
+      contentEl.textContent = result.error || 'Blame failed';
+      return;
+    }
+    const lines = (result.text || '').split('\n');
+    contentEl.innerHTML = lines
+      .map((line) => `<div class="modal-file-line blame-line">${escapeHtml(line)}</div>`)
+      .join('');
+  } catch (e) {
+    contentEl.textContent = e?.message || 'Failed to load blame';
+  }
+}
+
+async function showFileViewerDiff() {
+  const blameBtn = document.getElementById('modal-file-view-blame');
+  const diffBtn = document.getElementById('modal-file-view-diff');
+  if (diffBtn) diffBtn.classList.add('hidden');
+  if (blameBtn && !fileViewerModalIsUntracked) blameBtn.classList.remove('hidden');
+  if (fileViewerModalProjectPath && fileViewerModalFilePath != null) {
+    await openFileViewerModal(fileViewerModalProjectPath, fileViewerModalFilePath, fileViewerModalIsUntracked);
   }
 }
 
@@ -735,6 +874,9 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     detailVersionEl.textContent = '—';
     detailTagEl.textContent = '—';
     detailGitStateEl.classList.add('hidden');
+    [detailTagsCardEl, detailCommitLogCardEl, detailBranchesDeleteCardEl, detailRemotesCardEl, detailCompareResetCardEl, detailGitignoreCardEl, detailSubmodulesCardEl, detailReflogCardEl, detailGitattributesCardEl, detailWorktreesCardEl, detailBisectCardEl].forEach((el) => {
+      if (el) el.classList.add('hidden');
+    });
     detailAllVersionsWrapEl?.classList.add('hidden');
     detailRecentCommitsWrapEl?.classList.add('hidden');
     detailErrorEl.classList.add('hidden');
@@ -889,6 +1031,12 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
   }
   if (info.hasGit) {
     detailGitStateEl.classList.remove('hidden');
+    [detailTagsCardEl, detailCommitLogCardEl, detailBranchesDeleteCardEl, detailRemotesCardEl, detailCompareResetCardEl, detailGitignoreCardEl, detailSubmodulesCardEl, detailReflogCardEl, detailGitattributesCardEl, detailWorktreesCardEl, detailBisectCardEl].forEach((el) => {
+      if (el) el.classList.remove('hidden');
+    });
+    updateGitSubtabVisibility(currentGitSubtab);
+    const conflictBtn = document.getElementById('btn-open-conflicted-in-editor');
+    if (conflictBtn) conflictBtn.classList.toggle('hidden', !(info.conflictCount > 0));
     detailBranchEl.textContent = info.branch ? `Branch: ${info.branch}` : 'Branch: —';
     const ab = formatAheadBehind(info.ahead, info.behind);
     detailAheadBehindEl.textContent = ab || 'Up to date';
@@ -913,28 +1061,78 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
     if (btnMergeAbort) btnMergeAbort.classList.toggle('hidden', !hasMergeConflicts);
     const mergeConflictHintEl = document.getElementById('detail-git-merge-conflict-hint');
     if (mergeConflictHintEl) mergeConflictHintEl.classList.toggle('hidden', !hasMergeConflicts);
+    const unstagedLines = isParsed
+      ? lines.filter((l) => l.hasUnstaged)
+      : lines.filter((l) => {
+          const s = typeof l === 'string' ? l.slice(0, 2) : (l.status || '');
+          return s === '??' || (s[1] && s[1] !== ' ');
+        });
+    const stagedLines = isParsed
+      ? lines.filter((l) => l.isStaged)
+      : lines.filter((l) => {
+          const s = typeof l === 'string' ? l.slice(0, 2) : (l.status || '');
+          return s[0] && s[0] !== ' ' && s[0] !== '?';
+        });
+    const detailUnstagedLabelEl = document.getElementById('detail-unstaged-label');
+    const detailStagedLabelEl = document.getElementById('detail-staged-label');
+    const detailStagedListEl = document.getElementById('detail-staged-list');
+    if (detailUnstagedLabelEl) detailUnstagedLabelEl.classList.toggle('hidden', unstagedLines.length === 0);
+    if (detailStagedLabelEl) detailStagedLabelEl.classList.toggle('hidden', stagedLines.length === 0);
+
+    function makeFileRow(line, showStage, showUnstage) {
+      const filePath = isParsed ? line.filePath : (line.includes(' -> ') ? line.split(' -> ')[1].trim() : (line.length > 3 ? line.slice(3).trim() : line));
+      const isUntracked = isParsed ? line.isUntracked : (line.slice(0, 2) === '??' || (line.length > 0 && line[0] === '?'));
+      const isUnmerged = isParsed ? line.isUnmerged : /^[UAD][UAD]$/.test(line.length >= 2 ? line.slice(0, 2) : '');
+      const li = document.createElement('li');
+      li.className = 'flex items-center gap-2 flex-wrap' + (isUnmerged ? ' font-medium text-rm-warning' : '');
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'text-left truncate flex-1 min-w-0 text-rm-muted hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer text-xs';
+      if (isUnmerged) btn.classList.add('text-rm-warning', 'hover:text-rm-warning');
+      btn.title = isUnmerged ? `Conflict: ${filePath}` : `View: ${filePath}`;
+      btn.textContent = isUnmerged ? `${filePath} (conflict)` : filePath;
+      btn.dataset.filePath = filePath;
+      btn.dataset.untracked = isUntracked ? '1' : '0';
+      btn.addEventListener('click', () => { if (selectedPath) openFileViewerModal(selectedPath, filePath, isUntracked); });
+      li.appendChild(btn);
+      const span = document.createElement('span');
+      span.className = 'flex items-center gap-1 shrink-0';
+      if (showStage) {
+        const stageBtn = document.createElement('button');
+        stageBtn.type = 'button';
+        stageBtn.className = 'text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0 btn-with-icon';
+        stageBtn.appendChild(createBtnIcon(BTN_ICONS.plus));
+        stageBtn.appendChild(document.createTextNode('Stage'));
+        stageBtn.onclick = (e) => { e.stopPropagation(); if (selectedPath && confirm(GIT_ACTION_CONFIRMS.stage)) runGitAction('Stage', () => window.releaseManager.stageFile(selectedPath, filePath), { refreshAlways: true }); };
+        span.appendChild(stageBtn);
+      }
+      if (showUnstage) {
+        const unstageBtn = document.createElement('button');
+        unstageBtn.type = 'button';
+        unstageBtn.className = 'text-xs text-rm-muted hover:underline border-none bg-transparent cursor-pointer p-0 btn-with-icon';
+        unstageBtn.appendChild(createBtnIcon(BTN_ICONS.minus));
+        unstageBtn.appendChild(document.createTextNode('Unstage'));
+        unstageBtn.onclick = (e) => { e.stopPropagation(); if (selectedPath && confirm(GIT_ACTION_CONFIRMS.unstage)) runGitAction('Unstage', () => window.releaseManager.unstageFile(selectedPath, filePath), { refreshAlways: true }); };
+        span.appendChild(unstageBtn);
+      }
+      const discardBtn = document.createElement('button');
+      discardBtn.type = 'button';
+      discardBtn.className = 'text-xs text-rm-warning hover:underline border-none bg-transparent cursor-pointer p-0 btn-with-icon';
+      discardBtn.appendChild(createBtnIcon(BTN_ICONS.trash));
+      discardBtn.appendChild(document.createTextNode('Discard'));
+      discardBtn.onclick = (e) => { e.stopPropagation(); if (selectedPath && confirm((GIT_ACTION_CONFIRMS.discardFile || 'Discard changes in this file?') + '\n\n' + filePath)) runGitAction('Discard file', () => window.releaseManager.discardFile(selectedPath, filePath), { refreshAlways: true }); };
+      span.appendChild(discardBtn);
+      li.appendChild(span);
+      return li;
+    }
+
     if (detailUncommittedListEl) {
       detailUncommittedListEl.innerHTML = '';
-      lines.forEach((line) => {
-        const filePath = isParsed ? line.filePath : (line.includes(' -> ') ? line.split(' -> ')[1].trim() : (line.length > 3 ? line.slice(3).trim() : line));
-        const isUntracked = isParsed ? line.isUntracked : (line.slice(0, 2) === '??' || (line.length > 0 && line[0] === '?'));
-        const isUnmerged = isParsed ? line.isUnmerged : /^[UAD][UAD]$/.test(line.length >= 2 ? line.slice(0, 2) : '');
-        const li = document.createElement('li');
-        li.className = 'truncate' + (isUnmerged ? ' font-medium text-rm-warning' : '');
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'text-left w-full truncate text-rm-muted hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer text-xs';
-        if (isUnmerged) btn.classList.add('text-rm-warning', 'hover:text-rm-warning');
-        btn.title = isUnmerged ? `Conflict: ${filePath} — click to view, then open in editor to resolve` : `View changes: ${filePath}`;
-        btn.textContent = isUnmerged ? `${filePath} (conflict)` : filePath;
-        btn.dataset.filePath = filePath;
-        btn.dataset.untracked = isUntracked ? '1' : '0';
-        btn.addEventListener('click', () => {
-          if (selectedPath) openFileViewerModal(selectedPath, filePath, isUntracked);
-        });
-        li.appendChild(btn);
-        detailUncommittedListEl.appendChild(li);
-      });
+      unstagedLines.forEach((line) => detailUncommittedListEl.appendChild(makeFileRow(line, true, false)));
+    }
+    if (detailStagedListEl) {
+      detailStagedListEl.innerHTML = '';
+      stagedLines.forEach((line) => detailStagedListEl.appendChild(makeFileRow(line, false, true)));
     }
     if (detailCommitWrapEl) {
       detailCommitWrapEl.classList.toggle('hidden', lines.length === 0);
@@ -943,6 +1141,8 @@ function setDetailContent(info, releasesUrl = null, githubReleases = []) {
         detailCommitStatusEl.textContent = '';
         detailCommitStatusEl.classList.add('hidden');
       }
+      const btnAmend = document.getElementById('btn-git-amend');
+      if (btnAmend) btnAmend.classList.toggle('hidden', lines.length === 0);
     }
     const btnStash = document.getElementById('btn-git-stash');
     const btnDiscard = document.getElementById('btn-git-discard');
@@ -1011,6 +1211,310 @@ async function loadRecentCommitsHint(dirPath) {
   }
 }
 
+async function loadGitExtras(dirPath, currentBranch, branchResult) {
+  const current = currentBranch || (branchResult?.current ?? '');
+  const branches = branchResult?.ok && branchResult?.branches?.length ? branchResult.branches : [];
+  const otherBranches = branches.filter((b) => b !== current);
+  const signCommits = await window.releaseManager.getPreference('signCommits');
+  const detailCommitSignEl = document.getElementById('detail-commit-sign');
+  if (detailCommitSignEl) detailCommitSignEl.checked = !!signCommits;
+
+  const mergeSelect = document.getElementById('detail-merge-branch-select');
+  const rebaseSelect = document.getElementById('detail-rebase-onto-select');
+  const deleteSelect = document.getElementById('detail-delete-branch-select');
+  if (mergeSelect) {
+    mergeSelect.innerHTML = '<option value="">—</option>';
+    otherBranches.forEach((b) => { const o = document.createElement('option'); o.value = b; o.textContent = b; mergeSelect.appendChild(o); });
+  }
+  if (rebaseSelect) {
+    rebaseSelect.innerHTML = '<option value="">—</option>';
+    otherBranches.forEach((b) => { const o = document.createElement('option'); o.value = b; o.textContent = b; rebaseSelect.appendChild(o); });
+  }
+  if (deleteSelect) {
+    deleteSelect.innerHTML = '<option value="">—</option>';
+    otherBranches.forEach((b) => { const o = document.createElement('option'); o.value = b; o.textContent = b; deleteSelect.appendChild(o); });
+  }
+
+  const state = await window.releaseManager.getGitState(dirPath);
+  const btnMergeContinue = document.getElementById('btn-git-merge-continue');
+  const btnRebaseContinue = document.getElementById('btn-git-rebase-continue');
+  const btnRebaseSkip = document.getElementById('btn-git-rebase-skip');
+  const btnRebaseAbort = document.getElementById('btn-git-rebase-abort');
+  const btnCherryPickAbort = document.getElementById('btn-git-cherry-pick-abort');
+  const btnCherryPickContinue = document.getElementById('btn-git-cherry-pick-continue');
+  if (btnMergeContinue) btnMergeContinue.classList.toggle('hidden', !state?.merging);
+  if (btnRebaseContinue) btnRebaseContinue.classList.toggle('hidden', !state?.rebasing);
+  if (btnRebaseSkip) btnRebaseSkip.classList.toggle('hidden', !state?.rebasing);
+  if (btnRebaseAbort) btnRebaseAbort.classList.toggle('hidden', !state?.rebasing);
+  if (btnCherryPickAbort) btnCherryPickAbort.classList.toggle('hidden', !state?.cherryPicking);
+  if (btnCherryPickContinue) btnCherryPickContinue.classList.toggle('hidden', !state?.cherryPicking);
+
+  const stashWrap = document.getElementById('detail-stash-list-wrap');
+  const stashList = document.getElementById('detail-stash-list');
+  const stashRes = await window.releaseManager.getStashList(dirPath);
+  if (stashWrap && stashList) {
+    stashList.innerHTML = '';
+    if (stashRes.ok && stashRes.entries?.length) {
+      stashWrap.classList.remove('hidden');
+      stashRes.entries.forEach((e) => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center gap-2 flex-wrap';
+        li.innerHTML = `<span class="truncate">${e.index}: ${e.message || '(no message)'}</span>`;
+        const applyBtn = document.createElement('button');
+        applyBtn.type = 'button';
+        applyBtn.className = 'text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0 btn-with-icon';
+        applyBtn.appendChild(createBtnIcon(BTN_ICONS.play));
+        applyBtn.appendChild(document.createTextNode('Apply'));
+        applyBtn.dataset.index = e.index;
+        applyBtn.onclick = async () => {
+          const statusEl = document.getElementById('detail-git-action-status');
+          if (statusEl) { statusEl.textContent = 'Applying stash…'; statusEl.classList.remove('hidden'); }
+          const result = await window.releaseManager.stashApply(dirPath, e.index);
+          if (statusEl) { statusEl.textContent = result?.ok ? GIT_ACTION_SUCCESS.stashApply : (result?.error || 'Failed'); statusEl.classList.toggle('text-rm-warning', !result?.ok); }
+          loadProjectInfo(dirPath);
+        };
+        const dropBtn = document.createElement('button');
+        dropBtn.type = 'button';
+        dropBtn.className = 'text-xs text-rm-warning hover:underline border-none bg-transparent cursor-pointer p-0 btn-with-icon';
+        dropBtn.appendChild(createBtnIcon(BTN_ICONS.trash));
+        dropBtn.appendChild(document.createTextNode('Drop'));
+        dropBtn.dataset.index = e.index;
+        dropBtn.onclick = async () => {
+          if (!confirm('Drop this stash entry?')) return;
+          const statusEl = document.getElementById('detail-git-action-status');
+          if (statusEl) { statusEl.textContent = 'Dropping stash…'; statusEl.classList.remove('hidden'); }
+          const result = await window.releaseManager.stashDrop(dirPath, e.index);
+          if (statusEl) { statusEl.textContent = result?.ok ? GIT_ACTION_SUCCESS.stashDrop : (result?.error || 'Failed'); statusEl.classList.toggle('text-rm-warning', !result?.ok); }
+          loadProjectInfo(dirPath);
+        };
+        li.appendChild(applyBtn);
+        li.appendChild(dropBtn);
+        stashList.appendChild(li);
+      });
+    } else stashWrap.classList.add('hidden');
+  }
+
+  const tagSelect = document.getElementById('detail-tag-select');
+  if (tagSelect) {
+    const tagRes = await window.releaseManager.getTags(dirPath);
+    tagSelect.innerHTML = '<option value="">—</option>';
+    if (tagRes.ok && tagRes.tags?.length) tagRes.tags.forEach((t) => { const o = document.createElement('option'); o.value = t; o.textContent = t; tagSelect.appendChild(o); });
+  }
+  const createTagRefSelect = document.getElementById('detail-create-tag-ref');
+  if (createTagRefSelect) {
+    createTagRefSelect.innerHTML = '<option value="">HEAD</option>';
+    branches.forEach((b) => { const o = document.createElement('option'); o.value = b; o.textContent = b; createTagRefSelect.appendChild(o); });
+  }
+
+  const logList = document.getElementById('detail-commit-log-list');
+  const logEmpty = document.getElementById('detail-commit-log-empty');
+  if (logList && logEmpty) {
+    const logRes = await window.releaseManager.getCommitLog(dirPath, 50);
+    logList.innerHTML = '';
+    if (logRes.ok && logRes.commits?.length) {
+      logEmpty.classList.add('hidden');
+      logRes.commits.forEach((c) => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center gap-2 flex-wrap cursor-pointer hover:text-rm-text';
+        li.innerHTML = `<span class="font-mono text-rm-accent">${c.sha}</span> <span class="truncate flex-1 min-w-0">${escapeHtml(c.subject)}</span> <span class="text-rm-muted text-xs">${escapeHtml(c.author)} ${c.date}</span>`;
+        li.dataset.sha = c.sha;
+        li.onclick = () => openCommitDetailModal(dirPath, c.sha);
+        logList.appendChild(li);
+      });
+    } else { logEmpty.classList.remove('hidden'); }
+  }
+
+  const remotesList = document.getElementById('detail-remotes-list');
+  const fetchRemoteSelect = document.getElementById('detail-fetch-remote-select');
+  if (remotesList || fetchRemoteSelect) {
+    const remotesRes = await window.releaseManager.getRemotes(dirPath);
+    if (fetchRemoteSelect) {
+      fetchRemoteSelect.innerHTML = '<option value="">—</option>';
+      if (remotesRes.ok && remotesRes.remotes?.length) remotesRes.remotes.forEach((r) => { const o = document.createElement('option'); o.value = r.name; o.textContent = r.name; fetchRemoteSelect.appendChild(o); });
+    }
+    if (remotesList) {
+      remotesList.innerHTML = '';
+      if (remotesRes.ok && remotesRes.remotes?.length) {
+        remotesRes.remotes.forEach((r) => {
+          const li = document.createElement('li');
+          li.className = 'flex items-center justify-between gap-2 flex-wrap';
+          li.innerHTML = `<span class="font-medium">${escapeHtml(r.name)}</span> <span class="text-rm-muted text-xs truncate flex-1 min-w-0">${escapeHtml(r.url)}</span>`;
+          const rmBtn = document.createElement('button');
+          rmBtn.type = 'button';
+          rmBtn.className = 'text-xs text-rm-warning hover:underline border-none bg-transparent cursor-pointer p-0 shrink-0 btn-with-icon';
+          rmBtn.appendChild(createBtnIcon(BTN_ICONS.trash));
+          rmBtn.appendChild(document.createTextNode('Remove'));
+          rmBtn.onclick = () => { if (confirm(`Remove remote "${r.name}"?`)) runGitAction('Remove remote', () => window.releaseManager.removeRemote(dirPath, r.name), { refreshAlways: true }); };
+          li.appendChild(rmBtn);
+          remotesList.appendChild(li);
+        });
+      }
+    }
+  }
+
+  const gitignoreContent = document.getElementById('detail-gitignore-content');
+  const gitignoreEmpty = document.getElementById('detail-gitignore-empty');
+  const btnOpenGitignore = document.getElementById('btn-open-gitignore-editor');
+  const btnSaveGitignore = document.getElementById('btn-save-gitignore');
+  if (gitignoreContent && gitignoreEmpty && btnOpenGitignore) {
+    const igRes = await window.releaseManager.getGitignore(dirPath);
+    if (igRes.ok) {
+      gitignoreContent.value = igRes.content != null ? igRes.content : '';
+      gitignoreContent.classList.toggle('hidden', false);
+      gitignoreEmpty.classList.add('hidden');
+      btnOpenGitignore.classList.remove('hidden');
+      btnOpenGitignore.onclick = () => { if (selectedPath) window.releaseManager.openFileInEditor(dirPath, '.gitignore'); };
+      if (btnSaveGitignore) { btnSaveGitignore.classList.remove('hidden'); btnSaveGitignore.onclick = async () => { if (!selectedPath) return; const r = await window.releaseManager.writeGitignore(selectedPath, gitignoreContent.value); const statusEl = document.getElementById('detail-git-action-status'); if (r?.ok) { if (statusEl) { statusEl.textContent = 'Saved.'; statusEl.classList.remove('hidden'); } loadProjectInfo(selectedPath); } else if (statusEl && r?.error) statusEl.textContent = r.error; }; }
+    } else {
+      gitignoreContent.classList.add('hidden');
+      gitignoreEmpty.classList.remove('hidden');
+      gitignoreEmpty.textContent = igRes.error || 'No .gitignore file.';
+      btnOpenGitignore.classList.add('hidden');
+      if (btnSaveGitignore) btnSaveGitignore.classList.add('hidden');
+    }
+  }
+
+  const subList = document.getElementById('detail-submodules-list');
+  const subEmpty = document.getElementById('detail-submodules-empty');
+  const btnSubUpdate = document.getElementById('btn-submodule-update');
+  if (subList && subEmpty && btnSubUpdate) {
+    const subRes = await window.releaseManager.getSubmodules(dirPath);
+    subList.innerHTML = '';
+    if (subRes.ok && subRes.submodules?.length) {
+      subEmpty.classList.add('hidden');
+      btnSubUpdate.classList.remove('hidden');
+      subRes.submodules.forEach((s) => {
+        const li = document.createElement('li');
+        li.textContent = `${s.path} (${s.sha.slice(0, 7)}) ${s.url || ''}`;
+        subList.appendChild(li);
+      });
+    } else {
+      subEmpty.classList.remove('hidden');
+      subEmpty.textContent = subRes.ok ? 'No submodules.' : (subRes.error || '');
+      btnSubUpdate.classList.add('hidden');
+    }
+  }
+
+  const gitattributesContent = document.getElementById('detail-gitattributes-content');
+  const gitattributesEmpty = document.getElementById('detail-gitattributes-empty');
+  const btnOpenGitattributes = document.getElementById('btn-open-gitattributes-editor');
+  const btnSaveGitattributes = document.getElementById('btn-save-gitattributes');
+  if (gitattributesContent && gitattributesEmpty && btnOpenGitattributes) {
+    const gaRes = await window.releaseManager.getGitattributes(dirPath);
+    if (gaRes.ok) {
+      gitattributesContent.value = gaRes.content != null ? gaRes.content : '';
+      gitattributesContent.classList.toggle('hidden', false);
+      gitattributesEmpty.classList.add('hidden');
+      btnOpenGitattributes.classList.remove('hidden');
+      btnOpenGitattributes.onclick = () => { if (selectedPath) window.releaseManager.openFileInEditor(dirPath, '.gitattributes'); };
+      if (btnSaveGitattributes) { btnSaveGitattributes.classList.remove('hidden'); btnSaveGitattributes.onclick = async () => { if (!selectedPath) return; const r = await window.releaseManager.writeGitattributes(selectedPath, gitattributesContent.value); const statusEl = document.getElementById('detail-git-action-status'); if (r?.ok) { if (statusEl) { statusEl.textContent = 'Saved.'; statusEl.classList.remove('hidden'); } loadProjectInfo(selectedPath); } else if (statusEl && r?.error) statusEl.textContent = r.error; }; }
+    } else {
+      gitattributesContent.classList.add('hidden');
+      gitattributesEmpty.classList.remove('hidden');
+      gitattributesEmpty.textContent = gaRes.error || 'No .gitattributes file.';
+      btnOpenGitattributes.classList.add('hidden');
+      if (btnSaveGitattributes) btnSaveGitattributes.classList.add('hidden');
+    }
+  }
+
+  const worktreesList = document.getElementById('detail-worktrees-list');
+  if (worktreesList) {
+    const wtRes = await window.releaseManager.getWorktrees(dirPath);
+    worktreesList.innerHTML = '';
+    if (wtRes.ok && wtRes.worktrees?.length) {
+      wtRes.worktrees.forEach((w) => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between gap-2 flex-wrap text-xs';
+        li.innerHTML = `<span class="font-mono truncate">${escapeHtml(w.path)}</span> <span class="text-rm-muted">${escapeHtml(w.branch || w.head || '')}</span>`;
+        const rmBtn = document.createElement('button');
+        rmBtn.type = 'button';
+        rmBtn.className = 'text-rm-warning hover:underline border-none bg-transparent cursor-pointer p-0 shrink-0 btn-with-icon';
+        rmBtn.appendChild(createBtnIcon(BTN_ICONS.trash));
+        rmBtn.appendChild(document.createTextNode('Remove'));
+        rmBtn.dataset.path = w.path;
+        rmBtn.onclick = () => { if (confirm(`Remove worktree "${w.path}"?`)) runGitAction('Remove worktree', () => window.releaseManager.worktreeRemove(dirPath, w.path), { refreshAlways: true }); };
+        li.appendChild(rmBtn);
+        worktreesList.appendChild(li);
+      });
+    }
+  }
+
+  const bisectStatusEl = document.getElementById('detail-bisect-status');
+  const bisectActiveWrap = document.getElementById('detail-bisect-active-wrap');
+  const bisectCurrentEl = document.getElementById('detail-bisect-current');
+  const bisectGoodBadEl = document.getElementById('detail-bisect-good-bad');
+  const bisectProgressEl = document.getElementById('detail-bisect-progress');
+  const bisectViewCommitLink = document.getElementById('detail-bisect-view-commit');
+  const bisectStartWrap = document.getElementById('detail-bisect-start-wrap');
+  const btnBisectGood = document.getElementById('btn-bisect-good');
+  const btnBisectBad = document.getElementById('btn-bisect-bad');
+  const btnBisectRunTest = document.getElementById('btn-bisect-run-test');
+  const btnBisectReset = document.getElementById('btn-bisect-reset');
+  if (bisectStatusEl || btnBisectGood) {
+    const bisectRes = await window.releaseManager.getBisectStatus(dirPath);
+    if (bisectRes.ok && bisectRes.raw) {
+      if (bisectStatusEl) { bisectStatusEl.textContent = bisectRes.raw; bisectStatusEl.classList.remove('hidden'); }
+      const active = !!bisectRes.active;
+      if (bisectActiveWrap) bisectActiveWrap.classList.toggle('hidden', !active);
+      if (bisectStartWrap) bisectStartWrap.classList.toggle('hidden', active);
+      if (active) {
+        if (bisectCurrentEl) bisectCurrentEl.textContent = bisectRes.current ? `Current commit: ${bisectRes.current}` : 'Current commit: —';
+        if (bisectGoodBadEl) bisectGoodBadEl.textContent = [bisectRes.good && `Good: ${bisectRes.good}`, bisectRes.bad && `Bad: ${bisectRes.bad}`].filter(Boolean).join(' · ') || '—';
+        if (bisectProgressEl) bisectProgressEl.textContent = bisectRes.remaining !== '' ? `${bisectRes.remaining} revisions left to test` : '';
+        const sha = bisectRes.currentSha || (bisectRes.current ? bisectRes.current.trim().split(/\s/)[0] : '');
+        if (bisectViewCommitLink) {
+          bisectViewCommitLink.classList.toggle('hidden', !sha);
+          bisectViewCommitLink.dataset.bisectSha = sha || '';
+        }
+      }
+      if (btnBisectGood) btnBisectGood.classList.toggle('hidden', !active);
+      if (btnBisectBad) btnBisectBad.classList.toggle('hidden', !active);
+      const canRunTest = (currentInfo?.projectType === 'npm' || currentInfo?.projectType === 'php') && active;
+      if (btnBisectRunTest) btnBisectRunTest.classList.toggle('hidden', !canRunTest);
+      if (btnBisectReset) btnBisectReset.classList.toggle('hidden', !active);
+    } else {
+      if (bisectStatusEl) bisectStatusEl.classList.add('hidden');
+      if (bisectActiveWrap) bisectActiveWrap.classList.add('hidden');
+      if (bisectStartWrap) bisectStartWrap.classList.remove('hidden');
+      if (bisectViewCommitLink) bisectViewCommitLink.classList.add('hidden');
+      if (btnBisectGood) btnBisectGood.classList.add('hidden');
+      if (btnBisectBad) btnBisectBad.classList.add('hidden');
+      if (btnBisectRunTest) btnBisectRunTest.classList.add('hidden');
+      if (btnBisectReset) btnBisectReset.classList.add('hidden');
+    }
+  }
+}
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+let modalCommitDetailSha = null;
+function openCommitDetailModal(dirPath, sha) {
+  modalCommitDetailSha = sha;
+  const modal = document.getElementById('modal-commit-detail');
+  const title = document.getElementById('modal-commit-detail-title');
+  const content = document.getElementById('modal-commit-detail-content');
+  if (!modal || !title || !content) return;
+  window.releaseManager.getCommitDetail(dirPath, sha).then((r) => {
+    if (!r.ok) { content.textContent = r.error || 'Failed to load'; title.textContent = sha; }
+    else { title.textContent = `${r.sha} — ${r.subject}`; content.textContent = `${r.author} ${r.date}\n\n${r.body || ''}\n\n--- diff ---\n${r.diff || ''}`; }
+    modal.classList.remove('hidden');
+  });
+  window.releaseManager.getCommitLog(dirPath, 1).then((logRes) => {
+    const headSha = logRes?.ok && logRes.commits?.[0]?.sha ? logRes.commits[0].sha : null;
+    const amendBtn = document.getElementById('btn-commit-detail-amend');
+    if (amendBtn) amendBtn.classList.toggle('hidden', !headSha || headSha !== sha);
+  });
+}
+function closeCommitDetailModal() {
+  document.getElementById('modal-commit-detail')?.classList.add('hidden');
+  modalCommitDetailSha = null;
+}
+
 async function loadProjectInfo(dirPath) {
   try {
     const info = await window.releaseManager.getProjectInfo(dirPath);
@@ -1031,6 +1535,20 @@ async function loadProjectInfo(dirPath) {
       if (info.projectType != null) proj.projectType = info.projectType;
       if (info.hasComposer != null) proj.hasComposer = info.hasComposer;
       await window.releaseManager.setProjects(projects);
+    }
+    if (info.ok && info.hasGit && selectedPath === dirPath && detailBranchSelectEl) {
+      const branchResult = await window.releaseManager.getBranches(dirPath);
+      detailBranchSelectEl.innerHTML = '<option value="">—</option>';
+      if (branchResult.ok && branchResult.branches?.length) {
+        branchResult.branches.forEach((b) => {
+          const opt = document.createElement('option');
+          opt.value = b;
+          opt.textContent = b;
+          if (b === (branchResult.current || info.branch)) opt.selected = true;
+          detailBranchSelectEl.appendChild(opt);
+        });
+      }
+      loadGitExtras(dirPath, info.branch, branchResult);
     }
   } catch (e) {
     setDetailContent({ ok: false, error: e.message });
@@ -1227,6 +1745,14 @@ function showCopyFeedback(feedbackId, buttonId, resetTitle) {
   }
 }
 
+document.getElementById('btn-copy-branch')?.addEventListener('click', () => {
+  const branch = currentInfo?.branch || detailBranchSelectEl?.value?.trim();
+  if (branch) {
+    window.releaseManager.copyToClipboard(branch);
+    document.getElementById('btn-copy-branch')?.setAttribute('title', 'Copied!');
+    setTimeout(() => document.getElementById('btn-copy-branch')?.setAttribute('title', 'Copy branch name'), 1200);
+  }
+});
 document.getElementById('btn-copy-version').addEventListener('click', () => {
   if (currentInfo?.ok && currentInfo.version) {
     window.releaseManager.copyToClipboard(currentInfo.version);
@@ -1281,7 +1807,9 @@ document.getElementById('btn-commit').addEventListener('click', async () => {
     detailCommitStatusEl.classList.remove('text-rm-success');
   }
   try {
-    const result = await window.releaseManager.commitChanges(selectedPath, message);
+    const signEl = document.getElementById('detail-commit-sign');
+    const sign = signEl?.checked ?? false;
+    const result = await window.releaseManager.commitChanges(selectedPath, message, { sign });
     if (result?.ok) {
       detailCommitStatusEl.textContent = 'Committed. All changes have been recorded to the current branch.';
       detailCommitStatusEl.classList.add('text-rm-success');
@@ -1299,10 +1827,19 @@ document.getElementById('btn-commit').addEventListener('click', async () => {
 
 const GIT_ACTION_CONFIRMS = {
   pull: 'Pull fetches from the remote and merges into your current branch. Your local commits and any uncommitted changes may be updated or merged with remote changes.\n\nContinue?',
+  push: 'Push uploads your current branch to the remote. Continue?',
+  forcePush: 'Force push overwrites the remote branch with your local branch. This can discard others\' commits. Only use if you are sure (e.g. after rebasing).\n\nContinue?',
+  forcePushLease: 'Force push with lease overwrites the remote only if no one else has pushed. Safer than plain force push.\n\nContinue?',
   stash: 'Stash temporarily saves your uncommitted changes (modified and untracked files) so you can switch branches or pull. You can restore them later with Pop stash.\n\nContinue?',
   pop: 'Pop stash reapplies the most recent stashed changes to your working tree. If you already have uncommitted changes, they may conflict and you may need to resolve them.\n\nContinue?',
   discard: 'Discard all will permanently remove every uncommitted change: modified and staged files will be reverted to the last commit, and untracked files and directories will be deleted. This cannot be undone.\n\nAre you sure?',
+  stage: 'Stage this file so it will be included in the next commit?',
+  unstage: 'Unstage this file? Changes will remain in the working tree but won\'t be included in the next commit.',
+  discardFile: 'Discard all changes in this file? This cannot be undone.',
   mergeAbort: 'Abort the current merge? Your branch will be restored to its state before the merge. Uncommitted changes from the merge (including conflict resolutions) will be lost.\n\nContinue?',
+  checkout: 'Switch branch? Uncommitted changes may need to be committed or stashed first.\n\nContinue?',
+  push: 'Push the current branch to the remote?\n\nContinue?',
+  merge: 'Merge the chosen branch into the current branch. Resolve any conflicts in your editor if needed.\n\nContinue?',
 };
 
 const GIT_ACTION_SUCCESS = {
@@ -1311,6 +1848,20 @@ const GIT_ACTION_SUCCESS = {
   pop: 'Stash applied. Your stashed changes are back in the working tree.',
   discard: 'Uncommitted changes discarded.',
   mergeAbort: 'Merge aborted. Branch restored to pre-merge state.',
+  checkout: 'Switched branch.',
+  fetch: 'Fetched from remote.',
+  push: 'Pushed to remote.',
+  createBranch: 'Branch created and checked out.',
+  merge: 'Merge completed.',
+  stashApply: 'Stash applied.',
+  stashDrop: 'Stash dropped.',
+  rebase: 'Rebase completed.',
+  rebaseAbort: 'Rebase aborted.',
+  cherryPickAbort: 'Cherry-pick aborted.',
+  cherryPick: 'Cherry-pick applied.',
+  amend: 'Commit amended.',
+  deleteTag: 'Tag deleted.',
+  revert: 'Revert committed.',
 };
 
 async function runGitAction(label, fn, options = {}) {
@@ -1340,19 +1891,87 @@ async function runGitAction(label, fn, options = {}) {
   }
 }
 
+detailBranchSelectEl?.addEventListener('change', async () => {
+  if (!selectedPath || !detailBranchSelectEl?.value) return;
+  const branch = detailBranchSelectEl.value.trim();
+  if (!branch) return;
+  if (currentInfo?.branch === branch) return;
+  if (!confirm(GIT_ACTION_CONFIRMS.checkout)) {
+    detailBranchSelectEl.value = currentInfo?.branch || '';
+    return;
+  }
+  runGitAction('Switch branch', () => window.releaseManager.checkoutBranch(selectedPath, branch), { successKey: 'checkout', refreshAlways: true });
+});
+
 document.getElementById('btn-git-pull')?.addEventListener('click', () => {
   if (!selectedPath) return;
   runGitAction('Pull', () => window.releaseManager.gitPull(selectedPath), { confirmKey: 'pull', successKey: 'pull', refreshAlways: true });
+});
+document.getElementById('btn-git-fetch')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Fetch', () => window.releaseManager.gitFetch(selectedPath), { successKey: 'fetch', refreshAlways: true });
+});
+document.getElementById('btn-git-prune')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Prune remotes', () => window.releaseManager.gitPruneRemotes(selectedPath), { successKey: 'prune', refreshAlways: true });
+});
+document.getElementById('btn-git-push')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Push', () => window.releaseManager.gitPush(selectedPath), { confirmKey: 'push', successKey: 'push', refreshAlways: true });
+});
+document.getElementById('btn-git-push-force')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Force push', () => window.releaseManager.gitPushForce(selectedPath, false), { confirmKey: 'forcePush', successKey: 'push', refreshAlways: true });
+});
+document.getElementById('btn-git-push-force-lease')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Force push (lease)', () => window.releaseManager.gitPushForce(selectedPath, true), { confirmKey: 'forcePushLease', successKey: 'push', refreshAlways: true });
+});
+document.getElementById('btn-git-create-branch')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const name = (window.prompt('New branch name:') ?? '').trim();
+  if (!name) return;
+  runGitAction('Create branch', () => window.releaseManager.createBranch(selectedPath, name, true), { successKey: 'createBranch', refreshAlways: true });
+});
+document.getElementById('btn-git-merge-picker')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-merge-branch-select');
+  const branch = sel?.value?.trim();
+  if (!branch) return;
+  if (!confirm(GIT_ACTION_CONFIRMS.merge)) return;
+  const strategySel = document.getElementById('detail-merge-strategy');
+  const strategyOptionSel = document.getElementById('detail-merge-strategy-option');
+  const options = {};
+  if (strategySel?.value) options.strategy = strategySel.value;
+  if (strategyOptionSel?.value) options.strategyOption = strategyOptionSel.value;
+  runGitAction('Merge', () => window.releaseManager.gitMerge(selectedPath, branch, options), { successKey: 'merge', refreshAlways: true });
+});
+document.querySelectorAll('.detail-git-subtab-btn').forEach((btn) => {
+  btn.addEventListener('click', () => updateGitSubtabVisibility(btn.dataset.gitSubtab));
+});
+document.getElementById('btn-git-merge-continue')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Continue merge', () => window.releaseManager.gitMergeContinue(selectedPath), { successKey: 'merge', refreshAlways: true });
 });
 document.getElementById('btn-git-merge-abort')?.addEventListener('click', () => {
   if (!selectedPath) return;
   runGitAction('Abort merge', () => window.releaseManager.gitMergeAbort(selectedPath), { confirmKey: 'mergeAbort', successKey: 'mergeAbort' });
 });
+document.getElementById('btn-git-rebase-continue')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Continue rebase', () => window.releaseManager.gitRebaseContinue(selectedPath), { successKey: 'rebase', refreshAlways: true });
+});
+document.getElementById('btn-git-rebase-skip')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Skip rebase', () => window.releaseManager.gitRebaseSkip(selectedPath), { successKey: 'rebase', refreshAlways: true });
+});
 document.getElementById('btn-git-stash')?.addEventListener('click', () => {
   if (!selectedPath) return;
   if (!confirm(GIT_ACTION_CONFIRMS.stash)) return;
   const msg = window.prompt('Stash message (optional):') ?? '';
-  runGitAction('Stash', () => window.releaseManager.gitStashPush(selectedPath, msg || undefined), { successKey: 'stash' });
+  const includeUntracked = document.getElementById('stash-include-untracked')?.checked ?? false;
+  const keepIndex = document.getElementById('stash-keep-index')?.checked ?? false;
+  runGitAction('Stash', () => window.releaseManager.gitStashPush(selectedPath, msg || undefined, { includeUntracked, keepIndex }), { successKey: 'stash' });
 });
 document.getElementById('btn-git-stash-pop')?.addEventListener('click', () => {
   if (!selectedPath) return;
@@ -1361,6 +1980,402 @@ document.getElementById('btn-git-stash-pop')?.addEventListener('click', () => {
 document.getElementById('btn-git-discard')?.addEventListener('click', () => {
   if (!selectedPath) return;
   runGitAction('Discard', () => window.releaseManager.gitDiscardChanges(selectedPath), { confirmKey: 'discard', successKey: 'discard' });
+});
+document.getElementById('btn-git-amend')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const msg = document.getElementById('detail-commit-message')?.value?.trim();
+  runGitAction('Amend', () => window.releaseManager.gitAmend(selectedPath, msg || undefined), { successKey: 'amend', refreshAlways: true });
+});
+
+document.getElementById('btn-load-remote-branches')?.addEventListener('click', async () => {
+  if (!selectedPath) return;
+  const statusEl = document.getElementById('detail-git-action-status');
+  if (statusEl) { statusEl.textContent = 'Fetching remote branches…'; statusEl.classList.remove('hidden'); }
+  const res = await window.releaseManager.getRemoteBranches(selectedPath);
+  const sel = document.getElementById('detail-remote-branch-select');
+  if (sel) {
+    sel.innerHTML = '<option value="">—</option>';
+    if (res.ok && res.branches?.length) res.branches.forEach((b) => { const o = document.createElement('option'); o.value = b; o.textContent = b; sel.appendChild(o); });
+  }
+  if (statusEl) { statusEl.textContent = res.ok ? 'Remote branches loaded.' : (res.error || 'Failed'); statusEl.classList.toggle('text-rm-warning', !res.ok); }
+});
+document.getElementById('btn-checkout-remote-branch')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-remote-branch-select');
+  const ref = sel?.value?.trim();
+  if (!ref) return;
+  if (!confirm('Create local tracking branch from ' + ref + '?')) return;
+  runGitAction('Checkout remote branch', () => window.releaseManager.checkoutRemoteBranch(selectedPath, ref), { successKey: 'checkout', refreshAlways: true });
+});
+document.getElementById('btn-git-pull-rebase')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Pull (rebase)', () => window.releaseManager.gitPullRebase(selectedPath), { confirmKey: 'pull', successKey: 'pull', refreshAlways: true });
+});
+document.getElementById('btn-git-rebase')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-rebase-onto-select');
+  const onto = sel?.value?.trim();
+  if (!onto) return;
+  if (!confirm('Rebase current branch onto ' + onto + '?')) return;
+  runGitAction('Rebase', () => window.releaseManager.gitRebase(selectedPath, onto), { successKey: 'rebase', refreshAlways: true });
+});
+document.getElementById('btn-git-rebase-abort')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Abort rebase', () => window.releaseManager.gitRebaseAbort(selectedPath), { successKey: 'rebaseAbort', refreshAlways: true });
+});
+document.getElementById('btn-git-rebase-interactive')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-rebase-onto-select');
+  const ref = sel?.value?.trim();
+  if (!ref) return;
+  runGitAction('Interactive rebase', () => window.releaseManager.gitRebaseInteractive(selectedPath, ref), { successKey: 'rebase', refreshAlways: true });
+});
+document.getElementById('btn-git-cherry-pick-continue')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Continue cherry-pick', () => window.releaseManager.gitCherryPickContinue(selectedPath), { successKey: 'cherryPick', refreshAlways: true });
+});
+document.getElementById('btn-git-cherry-pick-abort')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Abort cherry-pick', () => window.releaseManager.gitCherryPickAbort(selectedPath), { successKey: 'cherryPickAbort', refreshAlways: true });
+});
+document.getElementById('btn-open-conflicted-in-editor')?.addEventListener('click', () => {
+  if (!selectedPath || !currentInfo?.uncommittedLines) return;
+  const lines = currentInfo.uncommittedLines;
+  const isParsed = lines.length > 0 && typeof lines[0] === 'object' && lines[0] !== null && 'filePath' in lines[0];
+  const conflicted = lines.filter((l) => (isParsed ? l.isUnmerged : /^[UAD][UAD]/.test(String(l).slice(0, 2))));
+  conflicted.forEach((l) => {
+    const fp = isParsed ? l.filePath : (String(l).includes(' -> ') ? String(l).split(' -> ')[1].trim() : String(l).slice(3).trim());
+    if (fp) window.releaseManager.openFileInEditor(selectedPath, fp);
+  });
+});
+
+document.getElementById('btn-create-tag')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const nameEl = document.getElementById('detail-create-tag-name');
+  const name = nameEl?.value?.trim();
+  if (!name) return;
+  const messageEl = document.getElementById('detail-create-tag-message');
+  const message = messageEl?.value?.trim() || undefined;
+  const refSel = document.getElementById('detail-create-tag-ref');
+  const ref = refSel?.value?.trim() || 'HEAD';
+  runGitAction('Create tag', () => window.releaseManager.createTag(selectedPath, name, message, ref), { successKey: 'createTag', refreshAlways: true });
+  if (nameEl) nameEl.value = '';
+  if (messageEl) messageEl.value = '';
+});
+document.getElementById('btn-checkout-tag')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-tag-select');
+  const tag = sel?.value?.trim();
+  if (!tag) return;
+  if (!confirm('Checkout tag ' + tag + '? (Detached HEAD)')) return;
+  runGitAction('Checkout tag', () => window.releaseManager.checkoutTag(selectedPath, tag), { successKey: 'checkout', refreshAlways: true });
+});
+document.getElementById('btn-push-tag')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-tag-select');
+  const tag = sel?.value?.trim();
+  if (!tag) return;
+  runGitAction('Push tag', () => window.releaseManager.pushTag(selectedPath, tag), { successKey: 'push', refreshAlways: true });
+});
+document.getElementById('btn-delete-tag')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-tag-select');
+  const tag = sel?.value?.trim();
+  if (!tag) return;
+  if (!confirm('Delete tag ' + tag + ' locally?')) return;
+  runGitAction('Delete tag', () => window.releaseManager.deleteTag(selectedPath, tag), { successKey: 'deleteTag', refreshAlways: true });
+});
+document.getElementById('btn-rename-branch')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const newNameEl = document.getElementById('detail-rename-branch-new-name');
+  const newName = newNameEl?.value?.trim();
+  if (!newName) return;
+  const sel = document.getElementById('detail-delete-branch-select');
+  const oldName = sel?.value?.trim() || null;
+  runGitAction('Rename branch', () => window.releaseManager.renameBranch(selectedPath, oldName, newName), { successKey: 'renameBranch', refreshAlways: true });
+  if (newNameEl) newNameEl.value = '';
+});
+document.getElementById('btn-delete-branch')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-delete-branch-select');
+  const branch = sel?.value?.trim();
+  if (!branch) return;
+  if (!confirm('Delete local branch "' + branch + '"?')) return;
+  runGitAction('Delete branch', () => window.releaseManager.deleteBranch(selectedPath, branch, false), { refreshAlways: true });
+});
+document.getElementById('btn-delete-remote-branch')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-delete-branch-select');
+  const branch = sel?.value?.trim();
+  if (!branch) return;
+  if (!confirm('Delete branch "' + branch + '" on remote origin?')) return;
+  runGitAction('Delete remote branch', () => window.releaseManager.deleteRemoteBranch(selectedPath, 'origin', branch), { refreshAlways: true });
+});
+document.getElementById('btn-fetch-remote')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const sel = document.getElementById('detail-fetch-remote-select');
+  const remote = sel?.value?.trim();
+  if (!remote) return;
+  runGitAction('Fetch ' + remote, () => window.releaseManager.gitFetchRemote(selectedPath, remote), { successKey: 'fetch', refreshAlways: true });
+});
+document.getElementById('btn-add-remote')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const name = document.getElementById('detail-add-remote-name')?.value?.trim();
+  const url = document.getElementById('detail-add-remote-url')?.value?.trim();
+  if (!name || !url) return;
+  runGitAction('Add remote', () => window.releaseManager.addRemote(selectedPath, name, url), { refreshAlways: true });
+});
+document.getElementById('btn-compare')?.addEventListener('click', async () => {
+  if (!selectedPath) return;
+  const refA = document.getElementById('detail-compare-ref-a')?.value?.trim() || 'HEAD';
+  const refB = document.getElementById('detail-compare-ref-b')?.value?.trim();
+  if (!refB) return;
+  const res = await window.releaseManager.getDiffBetween(selectedPath, refA, refB);
+  const el = document.getElementById('detail-compare-result');
+  if (el) {
+    el.classList.remove('hidden');
+    if (res.ok) el.textContent = res.stats || (res.files?.length ? res.files.length + ' file(s) changed' : 'No changes');
+    else el.textContent = res.error || 'Failed';
+  }
+});
+document.getElementById('btn-compare-show-diff')?.addEventListener('click', async () => {
+  if (!selectedPath) return;
+  const refA = document.getElementById('detail-compare-ref-a')?.value?.trim() || 'HEAD';
+  const refB = document.getElementById('detail-compare-ref-b')?.value?.trim();
+  if (!refB) return;
+  const res = await window.releaseManager.getDiffBetweenFull(selectedPath, refA, refB);
+  const modal = document.getElementById('modal-diff-full');
+  const title = document.getElementById('modal-diff-full-title');
+  const content = document.getElementById('modal-diff-full-content');
+  if (!modal || !title || !content) return;
+  title.textContent = `Diff: ${refA} .. ${refB}`;
+  content.textContent = res.ok ? (res.diff || '(no changes)') : (res.error || 'Failed');
+  modal.classList.remove('hidden');
+});
+function closeDiffFullModal() {
+  document.getElementById('modal-diff-full')?.classList.add('hidden');
+}
+document.getElementById('modal-diff-full')?.addEventListener('click', (e) => { if (e.target.id === 'modal-diff-full') closeDiffFullModal(); });
+document.getElementById('modal-diff-full-close')?.addEventListener('click', closeDiffFullModal);
+document.getElementById('modal-diff-full-close-btn')?.addEventListener('click', closeDiffFullModal);
+document.getElementById('btn-reset-soft')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const ref = document.getElementById('detail-reset-ref')?.value?.trim() || 'HEAD';
+  if (!confirm('Reset (soft) to ' + ref + '? Keeps changes staged.')) return;
+  runGitAction('Reset soft', () => window.releaseManager.gitReset(selectedPath, ref, 'soft'), { refreshAlways: true });
+});
+document.getElementById('btn-reset-mixed')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const ref = document.getElementById('detail-reset-ref')?.value?.trim() || 'HEAD';
+  if (!confirm('Reset (mixed) to ' + ref + '? Unstages changes.')) return;
+  runGitAction('Reset mixed', () => window.releaseManager.gitReset(selectedPath, ref, 'mixed'), { refreshAlways: true });
+});
+document.getElementById('btn-reset-hard')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const ref = document.getElementById('detail-reset-ref')?.value?.trim() || 'HEAD';
+  if (!confirm('Reset (hard) to ' + ref + '? This will discard all uncommitted and committed changes after that ref. Cannot be undone.')) return;
+  runGitAction('Reset hard', () => window.releaseManager.gitReset(selectedPath, ref, 'hard'), { refreshAlways: true });
+});
+document.getElementById('btn-submodule-update')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Update submodules', () => window.releaseManager.submoduleUpdate(selectedPath, true), { refreshAlways: true });
+});
+
+document.getElementById('btn-load-reflog')?.addEventListener('click', async () => {
+  if (!selectedPath) return;
+  const listEl = document.getElementById('detail-reflog-list');
+  const emptyEl = document.getElementById('detail-reflog-empty');
+  if (!listEl || !emptyEl) return;
+  listEl.innerHTML = '';
+  emptyEl.classList.add('hidden');
+  const res = await window.releaseManager.getReflog(selectedPath, 50);
+  if (!res.ok || !res.entries?.length) {
+    emptyEl.textContent = res.error || 'No reflog or load first.';
+    emptyEl.classList.remove('hidden');
+    return;
+  }
+  res.entries.forEach((e) => {
+    const li = document.createElement('li');
+    li.className = 'flex items-center gap-2 flex-wrap';
+    li.innerHTML = `<span class="font-mono text-rm-accent">${escapeHtml(e.sha)}</span> <span class="text-rm-muted truncate flex-1 min-w-0">${escapeHtml(e.message || '')}</span>`;
+    const checkoutBtn = document.createElement('button');
+    checkoutBtn.type = 'button';
+    checkoutBtn.className = 'text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0 shrink-0 btn-with-icon';
+    checkoutBtn.appendChild(createBtnIcon(BTN_ICONS['git-branch']));
+    checkoutBtn.appendChild(document.createTextNode('Checkout'));
+    checkoutBtn.onclick = () => { if (confirm('Checkout ' + e.sha + '?')) runGitAction('Checkout ref', () => window.releaseManager.checkoutRef(selectedPath, e.sha), { successKey: 'checkout', refreshAlways: true }); };
+    li.appendChild(checkoutBtn);
+    listEl.appendChild(li);
+  });
+});
+
+document.getElementById('btn-worktree-add')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const pathInput = document.getElementById('detail-worktree-path');
+  const branchInput = document.getElementById('detail-worktree-branch');
+  const worktreePath = pathInput?.value?.trim();
+  const branch = branchInput?.value?.trim() || undefined;
+  if (!worktreePath) return;
+  runGitAction('Add worktree', () => window.releaseManager.worktreeAdd(selectedPath, worktreePath, branch), { refreshAlways: true });
+});
+
+let bisectRefPickerTargetInputId = null;
+let bisectRefPickerOutsideClick = null;
+
+function closeBisectRefPicker() {
+  const picker = document.getElementById('detail-bisect-ref-picker');
+  if (picker) picker.classList.add('hidden');
+  bisectRefPickerTargetInputId = null;
+  if (bisectRefPickerOutsideClick) {
+    document.removeEventListener('click', bisectRefPickerOutsideClick);
+    bisectRefPickerOutsideClick = null;
+  }
+}
+
+async function openBisectRefPicker(anchorEl, targetInputId) {
+  if (!selectedPath || !anchorEl || !targetInputId) return;
+  const picker = document.getElementById('detail-bisect-ref-picker');
+  const listEl = document.getElementById('detail-bisect-ref-picker-list');
+  if (!picker || !listEl) return;
+  closeBisectRefPicker();
+  bisectRefPickerTargetInputId = targetInputId;
+  listEl.innerHTML = '<div class="p-3 text-xs text-rm-muted">Loading…</div>';
+  const rect = anchorEl.getBoundingClientRect();
+  picker.style.left = `${rect.left}px`;
+  picker.style.top = `${rect.bottom + 4}px`;
+  picker.classList.remove('hidden');
+
+  const [logRes, branchRes, tagRes] = await Promise.all([
+    window.releaseManager.getCommitLog(selectedPath, 30),
+    window.releaseManager.getBranches(selectedPath),
+    window.releaseManager.getTags(selectedPath),
+  ]);
+
+  listEl.innerHTML = '';
+  const addSection = (label) => {
+    const section = document.createElement('div');
+    section.className = 'detail-bisect-ref-picker-section';
+    section.textContent = label;
+    listEl.appendChild(section);
+  };
+  const addItem = (refValue, label, subLabel = '') => {
+    const item = document.createElement('div');
+    item.className = 'detail-bisect-ref-picker-item';
+    item.dataset.ref = refValue;
+    if (subLabel) {
+      item.innerHTML = `<span class="ref-sha">${escapeHtml(refValue)}</span><span class="ref-subject" title="${escapeHtml(subLabel)}">${escapeHtml(subLabel)}</span>`;
+    } else {
+      item.textContent = label;
+    }
+    item.addEventListener('click', () => {
+      const input = document.getElementById(bisectRefPickerTargetInputId);
+      if (input) input.value = refValue;
+      closeBisectRefPicker();
+    });
+    listEl.appendChild(item);
+  };
+
+  addItem('HEAD', 'HEAD');
+  if (branchRes?.ok && branchRes.branches?.length) {
+    addSection('Branches');
+    branchRes.branches.forEach((b) => addItem(b, b));
+  }
+  if (tagRes?.ok && tagRes.tags?.length) {
+    addSection('Tags');
+    tagRes.tags.forEach((t) => addItem(t, t));
+  }
+  if (logRes?.ok && logRes.commits?.length) {
+    addSection('Recent commits');
+    logRes.commits.forEach((c) => addItem(c.sha, c.sha, c.subject || '(no message)'));
+  }
+
+  bisectRefPickerOutsideClick = (e) => {
+    if (picker.contains(e.target) || anchorEl.contains(e.target)) return;
+    closeBisectRefPicker();
+  };
+  setTimeout(() => document.addEventListener('click', bisectRefPickerOutsideClick), 0);
+}
+
+document.getElementById('btn-bisect-browse-bad')?.addEventListener('click', (e) => {
+  if (!selectedPath) return;
+  e.stopPropagation();
+  openBisectRefPicker(e.currentTarget, 'detail-bisect-bad');
+});
+document.getElementById('btn-bisect-browse-good')?.addEventListener('click', (e) => {
+  if (!selectedPath) return;
+  e.stopPropagation();
+  openBisectRefPicker(e.currentTarget, 'detail-bisect-good');
+});
+
+document.getElementById('btn-bisect-start')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  const badEl = document.getElementById('detail-bisect-bad');
+  const goodEl = document.getElementById('detail-bisect-good');
+  const bad = badEl?.value?.trim() || 'HEAD';
+  const good = goodEl?.value?.trim() || undefined;
+  runGitAction('Start bisect', () => window.releaseManager.bisectStart(selectedPath, bad, good), { refreshAlways: true });
+});
+document.getElementById('btn-bisect-good')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Mark good', () => window.releaseManager.bisectGood(selectedPath), { refreshAlways: true });
+});
+document.getElementById('btn-bisect-bad')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Mark bad', () => window.releaseManager.bisectBad(selectedPath), { refreshAlways: true });
+});
+document.getElementById('btn-bisect-reset')?.addEventListener('click', () => {
+  if (!selectedPath) return;
+  runGitAction('Reset bisect', () => window.releaseManager.bisectReset(selectedPath), { refreshAlways: true });
+});
+document.getElementById('detail-bisect-view-commit')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  const link = e.currentTarget;
+  const sha = link?.dataset?.bisectSha;
+  if (selectedPath && sha) openCommitDetailModal(selectedPath, sha);
+});
+document.getElementById('btn-bisect-run-test')?.addEventListener('click', async () => {
+  if (!selectedPath || !currentInfo?.ok) return;
+  const pt = currentInfo.projectType;
+  if (pt !== 'npm' && pt !== 'php') return;
+  const statusEl = document.getElementById('detail-git-action-status');
+  if (statusEl) { statusEl.textContent = 'Running tests…'; statusEl.classList.remove('hidden'); }
+  try {
+    const result = await window.releaseManager.runProjectTests(selectedPath, pt, 'test');
+    const exitCode = result?.exitCode ?? (result?.ok ? 0 : 1);
+    if (exitCode === 0) {
+      await window.releaseManager.bisectGood(selectedPath);
+      if (statusEl) statusEl.textContent = 'Tests passed → marked Good.';
+    } else {
+      await window.releaseManager.bisectBad(selectedPath);
+      if (statusEl) statusEl.textContent = 'Tests failed → marked Bad.';
+    }
+    loadProjectInfo(selectedPath);
+  } catch (e) {
+    if (statusEl) statusEl.textContent = e?.message || 'Run test failed.';
+  }
+});
+
+document.getElementById('modal-commit-detail')?.addEventListener('click', (e) => { if (e.target.id === 'modal-commit-detail') closeCommitDetailModal(); });
+document.getElementById('modal-commit-detail-close')?.addEventListener('click', closeCommitDetailModal);
+document.getElementById('modal-commit-detail-close-btn')?.addEventListener('click', closeCommitDetailModal);
+document.getElementById('btn-commit-detail-copy-sha')?.addEventListener('click', () => {
+  if (modalCommitDetailSha) window.releaseManager.copyToClipboard(modalCommitDetailSha);
+});
+document.getElementById('btn-commit-detail-cherry-pick')?.addEventListener('click', () => {
+  if (!selectedPath || !modalCommitDetailSha) return;
+  closeCommitDetailModal();
+  runGitAction('Cherry-pick', () => window.releaseManager.gitCherryPick(selectedPath, modalCommitDetailSha), { successKey: 'cherryPick', refreshAlways: true });
+});
+document.getElementById('btn-commit-detail-revert')?.addEventListener('click', () => {
+  if (!selectedPath || !modalCommitDetailSha) return;
+  if (!confirm(`Revert commit ${modalCommitDetailSha}? This will create a new commit that undoes it.`)) return;
+  closeCommitDetailModal();
+  runGitAction('Revert', () => window.releaseManager.gitRevert(selectedPath, modalCommitDetailSha), { successKey: 'revert', refreshAlways: true });
+});
+document.getElementById('btn-commit-detail-amend')?.addEventListener('click', () => {
+  if (!selectedPath || !modalCommitDetailSha) return;
+  closeCommitDetailModal();
+  runGitAction('Amend', () => window.releaseManager.gitAmend(selectedPath), { successKey: 'amend', refreshAlways: true });
 });
 
 document.getElementById('btn-load-commits').addEventListener('click', async () => {
@@ -1891,6 +2906,39 @@ document.getElementById('modal-file-view-open-editor')?.addEventListener('click'
     window.releaseManager.openFileInEditor(fileViewerModalProjectPath, fileViewerModalFilePath);
   }
   modalFileViewEl?.classList.add('hidden');
+});
+document.getElementById('modal-file-view-blame')?.addEventListener('click', () => showFileViewerBlame());
+document.getElementById('modal-file-view-diff')?.addEventListener('click', () => showFileViewerDiff());
+
+function openDocsModal(docKey) {
+  if (typeof DOCS === 'undefined' || !DOCS[docKey]) return;
+  const entry = DOCS[docKey];
+  const modal = document.getElementById('modal-docs');
+  const titleEl = document.getElementById('modal-docs-title');
+  const bodyEl = document.getElementById('modal-docs-body');
+  if (!modal || !titleEl || !bodyEl) return;
+  titleEl.textContent = entry.title;
+  bodyEl.innerHTML = entry.body.trim();
+  modal.classList.remove('hidden');
+}
+
+function closeDocsModal() {
+  document.getElementById('modal-docs')?.classList.add('hidden');
+}
+
+document.getElementById('modal-docs-close')?.addEventListener('click', closeDocsModal);
+document.getElementById('modal-docs-close-btn')?.addEventListener('click', closeDocsModal);
+document.getElementById('modal-docs')?.addEventListener('click', (e) => {
+  if (e.target.id === 'modal-docs') closeDocsModal();
+});
+
+document.addEventListener('click', (e) => {
+  const trigger = e.target.closest('.doc-trigger');
+  if (!trigger) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const key = trigger.dataset.doc;
+  if (key) openDocsModal(key);
 });
 
 async function initCollapsibleSections() {

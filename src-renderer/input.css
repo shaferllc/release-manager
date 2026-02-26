@@ -49,6 +49,7 @@ html[data-theme="light"] {
 
 .nav-bar {
   -webkit-app-region: drag;
+  border-bottom: 1px solid rgb(var(--rm-border));
 }
 .app-logo {
   object-fit: contain;
@@ -210,13 +211,58 @@ html[data-theme="light"] {
   .card {
     @apply bg-rm-surface border border-rm-border rounded-rm-lg overflow-hidden;
   }
+  .collapsible-card-header-row {
+    @apply flex items-center w-full;
+    border-bottom: 1px solid rgb(var(--rm-border));
+  }
+  .collapsible-card-header-row .collapsible-card-header {
+    border-bottom: none;
+  }
   .collapsible-card .collapsible-card-header {
-    @apply flex items-center justify-between gap-2 w-full cursor-pointer p-5 text-left border-none bg-transparent rounded-rm-lg hover:bg-rm-surface-hover transition-colors;
+    @apply flex items-center justify-between gap-2 flex-1 cursor-pointer p-5 text-left bg-transparent rounded-t-rm-lg hover:bg-rm-surface-hover transition-colors;
+    border: none;
+    border-bottom: 1px solid rgb(var(--rm-border));
     font: inherit;
     color: inherit;
   }
+  .collapsible-card-header-row .collapsible-card-header {
+    border-bottom: none;
+    border-radius: 0;
+  }
   .collapsible-card .collapsible-card-header:focus {
     @apply outline-none ring-2 ring-rm-accent/50 ring-inset;
+  }
+  .doc-trigger {
+    @apply shrink-0 p-2 rounded-rm text-rm-muted hover:text-rm-text hover:bg-rm-surface-hover transition-colors border-none cursor-pointer;
+  }
+  .doc-trigger:focus {
+    @apply outline-none ring-2 ring-rm-accent/50 ring-inset;
+  }
+  .doc-trigger svg {
+    display: block;
+    width: 14px;
+    height: 14px;
+  }
+  .modal-docs-body {
+    @apply leading-relaxed;
+  }
+  .modal-docs-body h4 {
+    @apply text-rm-text font-semibold mt-4 mb-2 first:mt-0;
+  }
+  .modal-docs-body p {
+    @apply my-2 text-rm-muted;
+  }
+  .modal-docs-body ul {
+    @apply my-2 pl-5 list-disc text-rm-muted space-y-1;
+  }
+  .modal-docs-body code {
+    @apply bg-rm-surface px-1 rounded text-xs font-mono text-rm-text;
+  }
+  .modal-docs-body strong {
+    @apply text-rm-text;
+  }
+  .modal-docs-body a {
+    @apply text-rm-accent hover:underline;
   }
   .collapsible-card .collapsible-card-title {
     @apply text-xs font-semibold text-rm-text uppercase tracking-wider m-0;
@@ -284,6 +330,27 @@ html[data-theme="light"] {
   }
   .btn-compact {
     @apply text-xs py-1.5 px-2.5;
+  }
+  .btn-icon {
+    width: 11px;
+    height: 11px;
+    flex-shrink: 0;
+  }
+  .btn-with-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .git-card-spacing {
+    margin-bottom: 2rem;
+  }
+  .detail-git-jump {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid rgb(var(--rm-border) / 0.5);
+  }
+  .detail-git-jump a {
+    white-space: nowrap;
   }
 
   .aside-panel {
@@ -399,6 +466,9 @@ html[data-theme="light"] {
   }
   .modal-file-content.diff-view {
     @apply px-0;
+  }
+  .modal-file-content.blame-view .modal-file-line {
+    @apply whitespace-pre break-all;
   }
   .modal-file-content .modal-file-line {
     @apply py-0.5 px-4 min-h-[1.5em] text-[0.8125rem] leading-normal whitespace-pre border-l-[3px] border-transparent font-mono;
