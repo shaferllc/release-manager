@@ -1,6 +1,0 @@
-{
-  "watch": ["src-main", "src-renderer"],
-  "ext": "js,html,css,json",
-  "ignore": ["src-renderer/styles.css"],
-  "exec": "npm start"
-}

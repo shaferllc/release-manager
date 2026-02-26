@@ -331,17 +331,6 @@ html[data-theme="light"] {
   .btn-compact {
     @apply text-xs py-1.5 px-2.5;
   }
-  .btn-icon {
-    width: 11px;
-    height: 11px;
-    flex-shrink: 0;
-  }
-  .btn-with-icon {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-  }
-
   .git-card-spacing {
     margin-bottom: 2rem;
   }

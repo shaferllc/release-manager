@@ -65,7 +65,12 @@ function getStore() {
 }
 
 function getProjects() {
-  return filterValidProjects(getStore().get('projects') || []);
+  try {
+    return filterValidProjects(getStore().get('projects') || []);
+  } catch (e) {
+    console.error('getProjects failed:', e);
+    return [];
+  }
 }
 
 function setProjects(projects) {
@@ -1480,26 +1485,6 @@ function createWindow() {
   });
 }
 
-// Only enable file watcher + hard reset when explicitly in dev (npm run dev).
-// Enabling reload for all unpackaged runs (npm start) can cause SIGABRT on macOS when the watcher restarts the process.
-const devReloadEnabled =
-  process.env.NODE_ENV === 'development' &&
-  process.env.DISABLE_ELECTRON_RELOAD !== '1';
-if (devReloadEnabled) {
-  try {
-    const electronReload = require('electron-reload');
-    const root = path.join(__dirname, '..');
-    const electronPath = path.join(root, 'node_modules', 'electron', 'cli.js');
-    if (fs.existsSync(electronPath)) {
-      electronReload([path.join(root, 'src-main'), path.join(root, 'src-renderer')], {
-        electron: electronPath,
-        hardResetMethod: 'exit',
-        forceHardReset: true,
-      });
-    }
-  } catch (_) {}
-}
-
 app.whenReady().then(() => {
   store = new Store({ name: 'release-manager' });
   // One-time migration from old JSON config so projects survive rebuilds
@@ -1919,13 +1904,47 @@ app.whenReady().then(() => {
   });
 
   const MAX_FILE_VIEW_SIZE = 512 * 1024;
+  const MAX_IMAGE_VIEW_SIZE = 2 * 1024 * 1024;
+  const IMAGE_EXT_MIME = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.bmp': 'image/bmp',
+    '.ico': 'image/x-icon',
+    '.svg': 'image/svg+xml',
+  };
+  function isImageViewable(filePath) {
+    const ext = path.extname((filePath || '').toLowerCase());
+    return IMAGE_EXT_MIME[ext];
+  }
   ipcMain.handle('rm-get-file-diff', async (_e, dirPath, filePath, isUntracked) => {
     if (!dirPath || typeof filePath !== 'string') return { ok: false, error: 'Invalid path' };
     const fullPath = path.join(dirPath, (filePath || '').replace(/^[/\\]+/, ''));
+    let stat;
     try {
+      stat = fs.statSync(fullPath);
+    } catch (e) {
+      if (isUntracked) return { ok: false, error: e.message || 'Failed to load file' };
+      try {
+        const result = await runInDirCapture(dirPath, 'git', ['diff', 'HEAD', '--', filePath]);
+        const content = [result.stdout, result.stderr].filter(Boolean).join('\n').trim() || '(no diff)';
+        return { ok: true, type: 'diff', content };
+      } catch (e2) {
+        return { ok: false, error: e2.message || e.message || 'Failed to load file' };
+      }
+    }
+    try {
+      if (stat.isDirectory()) return { ok: false, error: 'Cannot view directory' };
+      const mime = isImageViewable(filePath);
+      if (mime && stat.size <= MAX_IMAGE_VIEW_SIZE) {
+        const buf = fs.readFileSync(fullPath);
+        const base64 = buf.toString('base64');
+        const dataUrl = `data:${mime};base64,${base64}`;
+        return { ok: true, type: 'image', dataUrl };
+      }
       if (isUntracked) {
-        const stat = fs.statSync(fullPath);
-        if (stat.isDirectory()) return { ok: false, error: 'Cannot view directory' };
         if (stat.size > MAX_FILE_VIEW_SIZE) return { ok: false, error: `File too large to view (${Math.round(stat.size / 1024)} KB). Open in editor instead.` };
         const content = fs.readFileSync(fullPath, 'utf8');
         return { ok: true, type: 'new', content };
