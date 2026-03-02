@@ -21,7 +21,7 @@
     "ensure-icon": "node scripts/ensure-icon.js",
     "generate-icons": "node scripts/generate-icons.js",
     "build:js": "esbuild src-renderer/main.js --bundle --outfile=src-renderer/renderer.js",
-    "build:renderer-vue": "cd renderer-vue && mkdir -p public && (cp ../assets/icons/icon-128.png public/ 2>/dev/null || true) && npm install && npm run build",
+    "build:renderer-vue": "node scripts/prepare-renderer-vue-public.js && cd renderer-vue && npm install && npm run build",
     "watch:renderer-vue": "cd renderer-vue && npm run build:watch",
     "dev:vue": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && concurrently \"npm run watch:renderer-vue\" \"electron .\"",
     "start:vue": "npm run build:renderer-vue && USE_VUE_RENDERER=1 electron .",

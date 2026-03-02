@@ -1,4 +1,4 @@
-const { getReleasesUrl, getActionsUrl, getRepoSlug, pickAssetForPlatform } = require('../github');
+const { getReleasesUrl, getActionsUrl, getPullRequestsUrl, getRepoSlug, pickAssetForPlatform } = require('../github');
 
 describe('github', () => {
   describe('getReleasesUrl', () => {
@@ -40,6 +40,18 @@ describe('github', () => {
       expect(getActionsUrl('')).toBeNull();
       expect(getActionsUrl(null)).toBeNull();
       expect(getActionsUrl(undefined)).toBeNull();
+    });
+  });
+
+  describe('getPullRequestsUrl', () => {
+    it('returns GitHub pulls URL for https remote', () => {
+      expect(getPullRequestsUrl('https://github.com/owner/repo.git')).toBe(
+        'https://github.com/owner/repo/pulls'
+      );
+    });
+    it('returns null for non-GitHub remote', () => {
+      expect(getPullRequestsUrl('https://gitlab.com/a/b')).toBeNull();
+      expect(getPullRequestsUrl('')).toBeNull();
     });
   });
 

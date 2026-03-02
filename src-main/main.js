@@ -8,7 +8,7 @@ const Store = require('electron-store');
 const appRoot = path.join(__dirname, '..');
 const { marked } = require(path.join(appRoot, 'node_modules', 'marked'));
 const sanitizeHtml = require(path.join(appRoot, 'node_modules', 'sanitize-html'));
-const { getReleasesUrl, getActionsUrl, getRepoSlug, pickAssetForPlatform } = require('./lib/github');
+const { getReleasesUrl, getActionsUrl, getPullRequestsUrl, getRepoSlug, pickAssetForPlatform } = require('./lib/github');
 const { formatGitHubError } = require('./lib/githubErrors');
 const { filterValidProjects } = require('./lib/projects');
 const debug = require('./debug');
@@ -1536,6 +1536,54 @@ async function fetchGitHubReleases(owner, repo, token = null) {
   return Array.isArray(data) ? data : [];
 }
 
+/** state: 'open' | 'closed' | 'all'. Returns list of PRs from GitHub API. */
+async function fetchGitHubPullRequests(owner, repo, token, state = 'open') {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=${encodeURIComponent(state)}&per_page=50`;
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28' };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, { headers, redirect: 'follow' });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(res.status === 404 ? 'Repo not found' : text || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+/** head and base are branch names (same repo). Returns created PR or throws. */
+async function createGitHubPullRequest(owner, repo, head, base, title, body, token) {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls`;
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ title, head, base, body: body || undefined }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/** mergeMethod: 'merge' | 'squash' | 'rebase'. */
+async function mergeGitHubPullRequest(owner, repo, prNumber, mergeMethod, token) {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${encodeURIComponent(prNumber)}/merge`;
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ merge_method: mergeMethod }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 
 async function downloadToFile(url, savePath) {
   const res = await fetch(url, {
@@ -1951,6 +1999,7 @@ app.whenReady().then(() => {
     openFileInEditor: (dirPath, relativePath) => openFileInEditorImpl(dirPath, relativePath),
     getFileDiff: async (dirPath, filePath, isUntracked) => getFileDiffImpl(dirPath, filePath, isUntracked),
     getReleasesUrl: (gitRemote) => getReleasesUrl(gitRemote),
+    getPullRequestsUrl: (gitRemote) => getPullRequestsUrl(gitRemote),
     syncFromRemote: (dirPath) => gitFetch(dirPath),
     getGitHubReleases: async (gitRemote, token = null) => {
       const slug = getRepoSlug(gitRemote);
@@ -1961,6 +2010,59 @@ app.whenReady().then(() => {
         return { ok: true, releases };
       } catch (e) {
         return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch releases'), releases: [] };
+      }
+    },
+    getPullRequests: async (gitRemote, state = 'open', token = null) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo', pullRequests: [] };
+      const authToken = token || getStore().get('githubToken') || null;
+      try {
+        const pullRequests = await fetchGitHubPullRequests(slug.owner, slug.repo, authToken, state);
+        return { ok: true, pullRequests };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch pull requests'), pullRequests: [] };
+      }
+    },
+    createPullRequest: async (dirPath, baseBranch, title, body, token = null) => {
+      let remoteName;
+      try {
+        remoteName = await getPushRemote(dirPath);
+      } catch (_) {}
+      if (!remoteName) return { ok: false, error: 'No push remote configured' };
+      let remoteUrl;
+      try {
+        const out = await runInDir(dirPath, 'git', ['remote', 'get-url', remoteName]);
+        remoteUrl = (out.stdout || '').trim() || null;
+      } catch (_) {}
+      const slug = getRepoSlug(remoteUrl);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo. Configure a GitHub remote and push branch.' };
+      let headBranch;
+      try {
+        const out = await runInDir(dirPath, 'git', ['branch', '--show-current']);
+        headBranch = (out.stdout || '').trim();
+      } catch (_) {
+        return { ok: false, error: 'Could not get current branch' };
+      }
+      if (!headBranch) return { ok: false, error: 'Not on a branch' };
+      const authToken = token || getStore().get('githubToken') || null;
+      if (!authToken) return { ok: false, error: 'GitHub token required to create pull requests. Set it in Settings or the project.' };
+      try {
+        const pr = await createGitHubPullRequest(slug.owner, slug.repo, headBranch, baseBranch || 'main', title || 'WIP', body || '', authToken);
+        return { ok: true, pullRequest: pr };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to create pull request') };
+      }
+    },
+    mergePullRequest: async (gitRemote, prNumber, mergeMethod = 'merge', token = null) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo' };
+      const authToken = token || getStore().get('githubToken') || null;
+      if (!authToken) return { ok: false, error: 'GitHub token required to merge' };
+      try {
+        const result = await mergeGitHubPullRequest(slug.owner, slug.repo, Number(prNumber), mergeMethod || 'merge', authToken);
+        return { ok: true, result };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to merge pull request') };
       }
     },
     downloadLatestRelease: async (gitRemote) => {
@@ -2369,6 +2471,10 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-open-file-in-editor': 'openFileInEditor',
     'rm-get-file-diff': 'getFileDiff',
     'rm-get-releases-url': 'getReleasesUrl',
+    'rm-get-pull-requests-url': 'getPullRequestsUrl',
+    'rm-get-pull-requests': 'getPullRequests',
+    'rm-create-pull-request': 'createPullRequest',
+    'rm-merge-pull-request': 'mergePullRequest',
     'rm-get-github-releases': 'getGitHubReleases',
     'rm-download-latest': 'downloadLatestRelease',
     'rm-download-asset': 'downloadAsset',

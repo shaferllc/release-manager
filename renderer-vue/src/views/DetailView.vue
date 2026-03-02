@@ -45,6 +45,9 @@
           <template v-else-if="store.detailTab === 'api'">
             <DetailApiCard :info="info" />
           </template>
+          <template v-else-if="store.detailTab === 'pull-requests'">
+            <DetailPullRequestsCard :info="info" @refresh="load" />
+          </template>
         </div>
       </div>
     </template>
@@ -68,6 +71,7 @@ import DetailComposerCard from '../components/detail/DetailComposerCard.vue';
 import DetailTestsCard from '../components/detail/DetailTestsCard.vue';
 import DetailCoverageCard from '../components/detail/DetailCoverageCard.vue';
 import DetailApiCard from '../components/detail/DetailApiCard.vue';
+import DetailPullRequestsCard from '../components/detail/DetailPullRequestsCard.vue';
 
 defineEmits(['refresh']);
 
@@ -88,11 +92,13 @@ const tabIcons = {
   tests: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2 1.33-2 0 0-2.77 2.24-5 5-5 1.66 0 3 1.35 3 3.02 0 1.33 2 1.33 2 0"/></svg>',
   coverage: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>',
   api: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d=\"M4 4h7v7H4z\"/><path d=\"M13 4h7v7h-7z\"/><path d=\"M4 13h7v7H4z\"/><path d=\"M13 13h7v7h-7z\"/></svg>',
+  pullRequests: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h5a2 2 0 0 1 2 2v7"/><path d="M6 9v6a2 2 0 0 0 2 2h7"/></svg>',
 };
 const baseTabs = [
   { id: 'dashboard', label: 'Dashboard', icon: tabIcons.dashboard },
   { id: 'git', label: 'Git', icon: tabIcons.git },
   { id: 'version', label: 'Version & release', icon: tabIcons.version },
+  { id: 'pull-requests', label: 'Pull requests', icon: tabIcons.pullRequests },
 ];
 const visibleTabs = computed(() => {
   const t = [...baseTabs];
