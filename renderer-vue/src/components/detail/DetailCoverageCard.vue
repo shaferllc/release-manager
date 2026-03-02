@@ -127,14 +127,28 @@
               @mouseleave="hoveredPoint = null"
               @click="openCommitForPoint(pt)"
             >
-              <circle
-                :cx="pt.x"
-                :cy="pt.y"
-                :r="hoveredPoint === pt ? 5 : 3"
-                fill="rgb(var(--rm-accent))"
-                class="detail-coverage-dot"
-                :class="{ 'detail-coverage-dot-hover': hoveredPoint === pt }"
-              />
+              <!-- Nested SVG keeps the dot round when the main chart is stretched to full width -->
+              <svg
+                :x="pt.x - 6"
+                :y="pt.y - 6"
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                preserveAspectRatio="xMidYMid meet"
+                overflow="visible"
+                class="detail-coverage-dot-svg"
+              >
+                <circle
+                  cx="6"
+                  cy="6"
+                  :r="hoveredPoint === pt ? 4 : 2.5"
+                  fill="rgb(var(--rm-surface))"
+                  stroke="rgb(var(--rm-accent))"
+                  stroke-width="1.2"
+                  class="detail-coverage-dot"
+                  :class="{ 'detail-coverage-dot-hover': hoveredPoint === pt }"
+                />
+              </svg>
             </g>
           </svg>
           <!-- Tooltip (fixed so clientX/clientY work) -->
@@ -177,6 +191,7 @@ import { useCollapsible } from '../../composables/useCollapsible';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
+import * as debug from '../../utils/debug';
 
 const COVERAGE_HISTORY_KEY = 'coverageHistory';
 const COVERAGE_LAST_OUTPUT_KEY = 'coverageLastOutput';
@@ -214,6 +229,15 @@ const exportStatus = ref('');
 const chartHeight = CHART_HEIGHT;
 
 const STATUS_RESET_MS = 2500;
+
+function stripAnsiLocal(text) {
+  if (!text || typeof text !== 'string') return text || '';
+  // Remove real ANSI escape sequences (when present from current runs)
+  let out = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, '');
+  // Remove JSON-escaped ANSI sequences like \\u001b[32m from older persisted output
+  out = out.replace(/\\u001b\[[0-9;]*[a-zA-Z]/g, '');
+  return out;
+}
 
 function clearStatusAfter(ref) {
   setTimeout(() => { ref.value = ''; }, STATUS_RESET_MS);
@@ -502,9 +526,13 @@ async function loadHistory() {
     ]);
     const map = typeof raw === 'object' && raw !== null ? raw : {};
     const list = Array.isArray(map[path]) ? map[path] : [];
-    history.value = list;
+    // Clean any old persisted ANSI sequences from history summaries (defensive).
+    history.value = list.map((e) => ({
+      ...e,
+      summary: typeof e.summary === 'string' ? stripAnsiLocal(e.summary) : e.summary,
+    }));
     const outByPath = typeof outMap === 'object' && outMap !== null ? outMap : {};
-    lastOutput.value = typeof outByPath[path] === 'string' ? outByPath[path] : '';
+    lastOutput.value = typeof outByPath[path] === 'string' ? stripAnsiLocal(outByPath[path]) : '';
     displayRangeDays.value = range === 7 || range === 30 || range === 90 || range === 365 ? range : (range === 0 || range === null ? 0 : DEFAULT_DISPLAY_RANGE_DAYS);
     retentionDays.value = retention === 30 || retention === 90 || retention === 365 ? retention : (retention === 0 || retention === null ? 0 : DEFAULT_RETENTION_DAYS);
     const goals = typeof goalMap === 'object' && goalMap !== null ? goalMap : {};
@@ -542,9 +570,9 @@ async function saveHistoryEntry(entry, fullOutput) {
     history.value = trimmed;
     if (typeof fullOutput === 'string' && api.setPreference) {
       const outByPath = typeof outMap === 'object' && outMap !== null ? { ...outMap } : {};
-      outByPath[path] = fullOutput;
+      outByPath[path] = stripAnsiLocal(fullOutput);
       await api.setPreference(COVERAGE_LAST_OUTPUT_KEY, outByPath);
-      lastOutput.value = fullOutput;
+      lastOutput.value = stripAnsiLocal(fullOutput);
     }
   } catch (_) {}
 }
@@ -577,12 +605,24 @@ watch(() => [props.info?.path, props.info?.hasGit], () => {
 async function run() {
   const path = store.selectedPath;
   const type = (props.info?.projectType || '').toLowerCase();
-  if (!path || !api.runProjectCoverage || (type !== 'npm' && type !== 'php')) return;
+  debug.log('project', 'coverage.run clicked', { path, type, hasApi: !!api.runProjectCoverage });
+  if (!path || !api.runProjectCoverage || (type !== 'npm' && type !== 'php')) {
+    debug.warn('project', 'coverage.run guard failed', { pathOk: !!path, type, hasApi: !!api.runProjectCoverage });
+    return;
+  }
   running.value = true;
   output.value = '';
   try {
+    debug.log('project', 'coverage.run call api.runProjectCoverage', { path, type });
     const result = await api.runProjectCoverage(path, type);
-    output.value = result?.stdout != null ? result.stdout : (result?.stderr || result?.error || 'No output');
+    debug.log('project', 'coverage.run result', {
+      ok: result?.ok,
+      exitCode: result?.exitCode,
+      error: result?.error || null,
+      hasSummary: !!result?.summary,
+    });
+    const rawOut = result?.stdout != null ? result.stdout : (result?.stderr || result?.error || 'No output');
+    output.value = stripAnsiLocal(rawOut);
     const summary = result?.summary ?? null;
     const percent = summary ? parsePercentFromSummary(summary) : null;
     let commitSha = null;

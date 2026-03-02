@@ -70,6 +70,7 @@
 import { ref, watch, computed } from 'vue';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
+import * as debug from '../../utils/debug';
 
 const props = defineProps({ info: { type: Object, default: null } });
 const emit = defineEmits(['remove']);
@@ -171,11 +172,27 @@ async function savePhpPath() {
 async function runCoverageHeader() {
   const path = props.info?.path;
   const type = projectType.value;
-  if (!path || !api.runProjectCoverage || (type !== 'npm' && type !== 'php')) return;
+  debug.log('project', 'coverage.header run clicked', { path, type, hasApi: !!api.runProjectCoverage });
+  if (!path || !api.runProjectCoverage || (type !== 'npm' && type !== 'php')) {
+    debug.warn('project', 'coverage.header guard failed', { pathOk: !!path, type, hasApi: !!api.runProjectCoverage });
+    return;
+  }
   coverageLoading.value = true;
   try {
+    debug.log('project', 'coverage.header call api.runProjectCoverage', { path, type });
     const result = await api.runProjectCoverage(path, type);
-    coverageSummary.value = result?.summary || '—';
+    const summary = result?.summary || null;
+    debug.log('project', 'coverage.header result', {
+      ok: result?.ok,
+      exitCode: result?.exitCode,
+      error: result?.error || null,
+      summary,
+    });
+    if (!result?.ok && result?.error) {
+      coverageSummary.value = result.error;
+    } else {
+      coverageSummary.value = summary || '—';
+    }
   } catch (e) {
     coverageSummary.value = e?.message || 'Failed';
   } finally {

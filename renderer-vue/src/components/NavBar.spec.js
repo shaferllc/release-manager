@@ -13,7 +13,7 @@ describe('NavBar', () => {
     const wrapper = mount(NavBar, {
       global: { plugins: [createPinia()] },
     });
-    expect(wrapper.text()).toContain('Release Manager');
+    expect(wrapper.text()).toContain('Shipwell');
     expect(wrapper.text()).toContain('Add project');
   });
 

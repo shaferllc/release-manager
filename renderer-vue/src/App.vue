@@ -11,6 +11,7 @@
         <SettingsView v-else-if="store.viewMode === 'settings'" />
         <DocsView v-else-if="store.viewMode === 'docs'" />
         <ChangelogView v-else-if="store.viewMode === 'changelog'" />
+        <ApiView v-else-if="store.viewMode === 'api'" />
         <NoSelection v-else />
         </div>
       </section>
@@ -33,24 +34,50 @@ import DashboardView from './views/DashboardView.vue';
 import SettingsView from './views/SettingsView.vue';
 import DocsView from './views/DocsView.vue';
 import ChangelogView from './views/ChangelogView.vue';
+import ApiView from './views/ApiView.vue';
 import ModalHost from './components/ModalHost.vue';
 import LoadingOverlay from './components/LoadingOverlay.vue';
 import LoadingBar from './components/LoadingBar.vue';
 import { useLongActionOverlay } from './composables/useLongActionOverlay';
+import * as debug from './utils/debug';
 
 const store = useAppStore();
 const api = useApi();
 const { runWithOverlay } = useLongActionOverlay();
 
+let loadProjectsRetryCount = 0;
+const LOAD_PROJECTS_MAX_RETRIES = 2;
+
 async function loadProjects() {
+  debug.log('project', 'loadProjects start');
   try {
-    const list = await api.getProjects?.() ?? [];
+    if (typeof api.getProjects !== 'function') {
+      debug.warn('project', 'loadProjects api.getProjects not ready, retry', loadProjectsRetryCount + 1);
+      if (loadProjectsRetryCount < LOAD_PROJECTS_MAX_RETRIES) {
+        loadProjectsRetryCount += 1;
+        setTimeout(() => loadProjects(), 150);
+      }
+      return;
+    }
+    loadProjectsRetryCount = 0;
+
+    debug.log('project', 'loadProjects calling api.getProjects()');
+    const list = await api.getProjects();
     const projects = Array.isArray(list) ? list : [];
-    store.setProjects(projects);
+    debug.log('project', 'loadProjects getProjects result', { count: projects.length, isArray: Array.isArray(list) });
+    // Never replace a non-empty list with empty (main may not have synced yet or returned stale data)
+    const willUpdate = projects.length > 0 || store.projects.length === 0;
+    debug.log('project', 'loadProjects store.setProjects?', { willUpdate, currentLength: store.projects.length });
+    if (willUpdate) {
+      store.setProjects(projects);
+      debug.log('project', 'loadProjects store.setProjects done', store.projects.length);
+    }
 
     if (projects.length > 0 && api.getAllProjectsInfo) {
       try {
+        debug.log('project', 'loadProjects calling getAllProjectsInfo');
         const allInfo = await api.getAllProjectsInfo();
+        debug.log('project', 'loadProjects getAllProjectsInfo result', { count: allInfo?.length ?? 0 });
         if (Array.isArray(allInfo) && allInfo.length > 0) {
           const merged = projects.map((p) => {
             const info = allInfo.find((r) => r && r.path === p.path);
@@ -65,8 +92,11 @@ async function loadProjects() {
             };
           });
           store.setProjects(merged);
+          debug.log('project', 'loadProjects merged setProjects', merged.length);
         }
-      } catch (_) {}
+      } catch (e) {
+        debug.warn('project', 'loadProjects getAllProjectsInfo failed', e?.message ?? e);
+      }
     }
 
     const savedPath = await api.getPreference?.('selectedProjectPath').catch(() => null);
@@ -75,10 +105,14 @@ async function loadProjects() {
     if (pathStillInList) store.setSelectedPath(savedPath);
     else if (store.projects.length > 0 && !store.selectedPath) store.setSelectedPath(store.projects[0].path);
     else store.setSelectedPath(null);
-    if (savedView && ['detail', 'dashboard', 'settings', 'docs', 'changelog'].includes(savedView)) store.setViewMode(savedView);
+    if (savedView && ['detail', 'dashboard', 'settings', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
+    debug.log('project', 'loadProjects done', { projectsLength: store.projects.length, selectedPath: store.selectedPath });
   } catch (e) {
-    console.error('Failed to load projects:', e);
-    store.setProjects([]);
+    debug.warn('project', 'loadProjects FAILED', e?.message ?? e, e);
+    if (loadProjectsRetryCount < LOAD_PROJECTS_MAX_RETRIES) {
+      loadProjectsRetryCount += 1;
+      setTimeout(() => loadProjects(), 300);
+    }
   }
 }
 
@@ -101,18 +135,62 @@ async function onModalRefresh() {
 }
 
 function onRefresh() {
+  debug.log('nav', 'onRefresh triggered');
+  loadProjectsRetryCount = 0;
   runWithOverlay(loadProjects());
 }
 
 function addProject() {
-  api.showDirectoryDialog?.().then((result) => {
-    if (result?.canceled || !result?.filePaths?.length) return;
-    const path = result.filePaths[0];
-    const current = store.projects.map((p) => p.path);
-    if (current.includes(path)) return;
-    const next = [...store.projects, { path, name: path.split(/[/\\]/).pop(), tags: [], starred: false }];
-    api.setProjects?.(next).then(() => loadProjects());
-  });
+  debug.log('project', 'addProject clicked', { hasShowDialog: typeof api.showDirectoryDialog === 'function', hasSetProjects: typeof api.setProjects === 'function' });
+  if (typeof api.showDirectoryDialog !== 'function') {
+    debug.warn('project', 'addProject showDirectoryDialog not available – check preload/IPC');
+    return;
+  }
+  const dialogPromise = api.showDirectoryDialog();
+  if (!dialogPromise || typeof dialogPromise.then !== 'function') {
+    debug.warn('project', 'addProject showDirectoryDialog did not return a promise');
+    return;
+  }
+  dialogPromise
+    .then((result) => {
+      const selectedPath =
+        typeof result === 'string'
+          ? result
+          : Array.isArray(result?.filePaths) && result.filePaths.length > 0
+            ? result.filePaths[0]
+            : null;
+      debug.log('project', 'addProject dialog result', {
+        shape: typeof result,
+        canceled: typeof result === 'object' ? result?.canceled : undefined,
+        raw: result,
+        selectedPath,
+      });
+      if (!selectedPath) return;
+      const path = selectedPath;
+      const current = store.projects.map((p) => p.path);
+      if (current.includes(path)) {
+        debug.log('project', 'addProject path already in list, skip');
+        return;
+      }
+      const next = [...store.projects, { path, name: path.split(/[/\\]/).pop(), tags: [], starred: false }];
+      debug.log('project', 'addProject optimistic update', { nextLength: next.length, path });
+      store.setProjects(next);
+      store.setSelectedPath(path);
+      if (typeof api.setProjects === 'function') {
+        debug.log('project', 'addProject calling api.setProjects', next.length);
+        api.setProjects(next).then(() => {
+          debug.log('project', 'addProject setProjects resolved, loadProjects');
+          loadProjects();
+        }).catch((e) => {
+          debug.warn('project', 'addProject setProjects failed', e?.message ?? e);
+        });
+      } else {
+        debug.warn('project', 'addProject api.setProjects not available');
+      }
+    })
+    .catch((e) => {
+      debug.warn('project', 'addProject dialog or flow failed', e?.message ?? e, e);
+    });
 }
 
 watch(() => store.selectedPath, (path) => {
@@ -157,6 +235,11 @@ async function handleShortcut(e) {
 }
 
 onMounted(async () => {
+  try {
+    const debugPref = await api.getPreference?.('debug').catch(() => undefined);
+    debug.setEnabled(debugPref !== false);
+    debug.log('app', 'mounted', { debug: debugPref !== false, apiReady: !!(window.releaseManager?.showDirectoryDialog) });
+  } catch (_) {}
   loadProjects();
   try {
     const useTabs = await api.getPreference?.('detailUseTabs');

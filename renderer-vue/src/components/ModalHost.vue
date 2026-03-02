@@ -8,12 +8,22 @@
       :is-head="modalPayload.isHead"
       @close="onModalClose"
       @refresh="onModalRefresh"
+      @open-diff-side-by-side="onOpenDiffSideBySide"
     />
     <DiffFullModal
       v-else-if="activeModal === 'diffFull' && modalPayload"
       :title="modalPayload.title"
       :content="modalPayload.content"
       @close="onModalClose"
+    />
+    <DiffSideBySideModal
+      v-else-if="activeModal === 'diffSideBySide' && modalPayload"
+      :dir-path="modalPayload.dirPath"
+      :file-path="modalPayload.filePath"
+      :commit-sha="modalPayload.commitSha || ''"
+      :title="modalPayload.title"
+      @close="onModalClose"
+      @refresh="onModalRefresh"
     />
     <FileViewerModal
       v-else-if="activeModal === 'fileViewer' && modalPayload"
@@ -57,13 +67,14 @@ import { useApi } from '../composables/useApi';
 import SwitchWithChangesModal from './modals/SwitchWithChangesModal.vue';
 import CommitDetailModal from './modals/CommitDetailModal.vue';
 import DiffFullModal from './modals/DiffFullModal.vue';
+import DiffSideBySideModal from './modals/DiffSideBySideModal.vue';
 import FileViewerModal from './modals/FileViewerModal.vue';
 import ChooseVersionModal from './modals/ChooseVersionModal.vue';
 import PickAssetModal from './modals/PickAssetModal.vue';
 import DocsModal from './modals/DocsModal.vue';
 import BisectRefPickerModal from './modals/BisectRefPickerModal.vue';
 
-const { activeModal: activeModalRef, modalPayload: modalPayloadRef, closeModal } = useModals();
+const { activeModal: activeModalRef, modalPayload: modalPayloadRef, closeModal, openModal } = useModals();
 const api = useApi();
 
 const activeModal = computed(() => activeModalRef.value);
@@ -73,6 +84,11 @@ const emit = defineEmits(['switch-stash-pop', 'switch-stash-only', 'choose-versi
 
 function onModalClose() {
   closeModal();
+}
+
+function onOpenDiffSideBySide(payload) {
+  closeModal();
+  openModal('diffSideBySide', payload);
 }
 
 function onModalRefresh() {

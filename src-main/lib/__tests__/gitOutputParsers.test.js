@@ -7,7 +7,7 @@ const {
 } = require('../gitOutputParsers');
 
 /**
- * Tests for Git output parsers used by Release Manager.
+ * Tests for Git output parsers used by Shipwell.
  * These parsers turn raw `git stash list`, `git branch -r`, `git log`, etc.
  * output into structured data for the UI. Each parser must handle null/empty
  * input and malformed lines without throwing.

@@ -4,7 +4,7 @@
       <h1 class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 shrink-0">
         <img :src="logoUrl" alt="" class="app-logo w-12 h-12 rounded-rm shrink-0" @error="showLogoFallback" />
         <span ref="logoFallback" class="w-12 h-12 rounded-rm bg-rm-accent/20 flex items-center justify-center text-rm-accent text-sm font-bold shrink-0 hidden" aria-hidden="true">R</span>
-        Release Manager
+        Shipwell
       </h1>
       <div class="flex items-center gap-2 shrink-0">
         <span class="text-xs font-medium text-rm-muted whitespace-nowrap">View</span>
@@ -30,7 +30,7 @@
         </div>
       </div>
     </div>
-    <div class="flex items-center gap-2 no-drag shrink-0">
+    <div class="flex items-center gap-3 no-drag shrink-0">
       <div class="theme-toggle flex items-center rounded-rm border border-rm-border bg-rm-surface overflow-hidden">
         <button type="button" class="theme-btn p-2 transition-colors" :class="{ 'is-active': store.theme === 'dark' }" title="Dark" aria-label="Dark theme" @click="setTheme('dark')">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -39,13 +39,49 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
         </button>
       </div>
-      <button type="button" class="icon-btn p-2 refresh-btn" :class="{ refreshing: isRefreshing }" title="Refresh – reload projects from filesystem" aria-label="Refresh" @click="onRefresh">
-        <svg class="refresh-btn-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+      <button
+        type="button"
+        class="icon-btn p-2 refresh-btn tooltip-btn"
+        :class="{ refreshing: isRefreshing }"
+        aria-label="Refresh current project"
+        @click="onRefresh"
+      >
+        <!-- Refresh: single circular arrow -->
+        <svg class="refresh-btn-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 8" />
+          <path d="M21 3v5h-5" />
+          <path d="M21 12a9 9 0 0 1-9 9A9 9 0 0 1 3 15" />
+        </svg>
+        <span class="tooltip-bubble">Refresh current project</span>
       </button>
-      <button type="button" class="btn-primary flex items-center gap-2" @click="onAddProject">
+      <button
+        type="button"
+        class="icon-btn p-2 tooltip-btn"
+        :disabled="syncingAll || !store.projects.length"
+        aria-label="Sync all projects from Git remotes"
+        @click="onSyncAll"
+      >
+        <!-- Sync all: up/down arrows between bar -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3v8" />
+          <path d="M5 6l3-3 3 3" />
+          <path d="M16 21v-8" />
+          <path d="M13 18l3 3 3-3" />
+          <rect x="3" y="10" width="18" height="4" rx="1" />
+        </svg>
+        <span class="tooltip-bubble">Sync all projects from Git</span>
+      </button>
+      <button
+        type="button"
+        class="btn-primary flex items-center gap-2"
+        title="Add a new project folder"
+        aria-label="Add project"
+        @click="onAddProject"
+      >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add project
       </button>
+      <span v-if="navStatus" class="text-[11px] text-rm-muted whitespace-nowrap">{{ navStatus }}</span>
     </div>
   </nav>
 </template>
@@ -54,6 +90,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
+import * as debug from '../utils/debug';
 
 const emit = defineEmits(['refresh', 'add-project']);
 
@@ -63,6 +100,8 @@ const dropdownWrap = ref(null);
 const logoFallback = ref(null);
 const viewDropdownOpen = ref(false);
 const isRefreshing = ref(false);
+const syncingAll = ref(false);
+const navStatus = ref('');
 const logoUrl = 'icon-128.png';
 function showLogoFallback(e) {
   e.target.style.display = 'none';
@@ -75,6 +114,7 @@ const VIEW_LABELS = {
   settings: 'Settings',
   docs: 'Documentation',
   changelog: 'Changelog',
+  api: 'API',
 };
 
 const viewOptions = [
@@ -83,17 +123,20 @@ const viewOptions = [
   { value: 'settings', label: VIEW_LABELS.settings, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', sep: true },
   { value: 'docs', label: VIEW_LABELS.docs, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg>', sep: false },
   { value: 'changelog', label: VIEW_LABELS.changelog, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>', sep: false },
+  { value: 'api', label: VIEW_LABELS.api, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>', sep: false },
 ];
 
 const viewLabel = computed(() => VIEW_LABELS[store.viewMode] ?? 'Project');
 
 function selectView(value) {
+  debug.log('nav', 'viewMode', value);
   store.setViewMode(value);
   if (api.setPreference) api.setPreference('state.viewMode', value);
   viewDropdownOpen.value = false;
 }
 
 function setTheme(theme) {
+  debug.log('theme', 'setTheme', theme);
   store.setTheme(theme);
   if (api.setTheme) api.setTheme(theme);
   document.documentElement.setAttribute('data-theme', theme);
@@ -102,8 +145,45 @@ function setTheme(theme) {
 function onRefresh() {
   if (isRefreshing.value) return;
   isRefreshing.value = true;
+  navStatus.value = 'Refreshing project…';
   emit('refresh');
-  setTimeout(() => { isRefreshing.value = false; }, 600);
+  setTimeout(() => {
+    isRefreshing.value = false;
+    if (navStatus.value === 'Refreshing project…') navStatus.value = '';
+  }, 800);
+}
+
+async function onSyncAll() {
+  if (syncingAll.value) return;
+  const list = store.projects || [];
+  if (!list.length) return;
+  syncingAll.value = true;
+  navStatus.value = 'Syncing all projects…';
+  debug.log('git', 'syncAll.start', { count: list.length });
+  try {
+    for (const p of list) {
+      if (!p?.path) continue;
+      try {
+        if (api.syncFromRemote) {
+          await api.syncFromRemote(p.path);
+        } else if (api.gitFetch) {
+          await api.gitFetch(p.path);
+        }
+      } catch (e) {
+        debug.warn('git', 'syncAll.projectFailed', p.path, e?.message ?? e);
+      }
+    }
+    debug.log('git', 'syncAll.done');
+    emit('refresh');
+  } finally {
+    syncingAll.value = false;
+    setTimeout(() => {
+      if (navStatus.value === 'Syncing all projects…') navStatus.value = 'Sync complete';
+      setTimeout(() => {
+        if (navStatus.value === 'Sync complete') navStatus.value = '';
+      }, 1200);
+    }, 200);
+  }
 }
 
 function onAddProject() {
@@ -164,4 +244,26 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside));
 .theme-btn { @apply text-rm-muted hover:text-rm-text hover:bg-rm-surface-hover border-none cursor-pointer bg-transparent inline-flex items-center justify-center; }
 .theme-btn.is-active { @apply text-rm-accent bg-rm-accent/15; }
 .icon-btn { @apply p-2 rounded-rm border border-rm-border bg-rm-surface text-rm-muted hover:bg-rm-surface-hover hover:text-rm-text transition-colors inline-flex items-center justify-center; }
+.tooltip-btn { position: relative; }
+.tooltip-bubble {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.95);
+  color: #e5e7eb;
+  font-size: 10px;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform-origin: top center;
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  z-index: 60;
+}
+.tooltip-btn:hover .tooltip-bubble {
+  opacity: 1;
+  transform: translateX(-50%) translateY(2px);
+}
 </style>

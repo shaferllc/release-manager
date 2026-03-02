@@ -5,7 +5,7 @@
 
       <section class="mb-8">
         <h3 class="text-base font-semibold text-rm-text mb-2">Overview</h3>
-        <p class="m-0 mb-3 text-rm-muted">Release Manager helps you version, tag, and release multiple projects from one place. It supports <strong>npm</strong>, <strong>Rust</strong> (Cargo.toml), <strong>Go</strong> (go.mod), <strong>Python</strong> (pyproject.toml / setup.py), and <strong>PHP</strong> (composer.json). Add project folders, see version and git status, then bump and push or tag-and-push.</p>
+        <p class="m-0 mb-3 text-rm-muted">Shipwell helps you version, tag, and release multiple projects from one place. It supports <strong>npm</strong>, <strong>Rust</strong> (Cargo.toml), <strong>Go</strong> (go.mod), <strong>Python</strong> (pyproject.toml / setup.py), and <strong>PHP</strong> (composer.json). Add project folders, see version and git status, then bump and push or tag-and-push.</p>
       </section>
 
       <section class="mb-8">

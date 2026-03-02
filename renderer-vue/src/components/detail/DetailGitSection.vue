@@ -171,11 +171,13 @@
               <li v-for="f in unstaged" :key="'u-' + f" class="flex items-center gap-2">
                 <span class="text-rm-accent shrink-0">+</span>
                 <button type="button" class="text-left truncate flex-1 min-w-0 text-rm-muted hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" @click="openFile(f)">{{ f }}</button>
+                <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff" @click="openSideBySideDiff(f)">Diff</button>
                 <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" @click="stageFile(f)">Stage</button>
               </li>
               <li v-for="f in staged" :key="'s-' + f" class="flex items-center gap-2">
                 <span class="text-rm-warning shrink-0">M</span>
                 <span class="truncate flex-1 min-w-0 text-rm-text">{{ f }}</span>
+                <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff" @click="openSideBySideDiff(f)">Diff</button>
                 <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" @click="unstageFile(f)">Unstage</button>
               </li>
             </ul>
@@ -188,6 +190,7 @@
                   <span class="shrink-0" :class="item.staged ? 'text-rm-warning' : 'text-rm-accent'">{{ item.staged ? 'M' : '+' }}</span>
                   <button v-if="!item.staged" type="button" class="text-left truncate flex-1 min-w-0 hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" @click="openFile(item.path)">{{ item.name }}</button>
                   <span v-else class="truncate flex-1 min-w-0 text-rm-text">{{ item.name }}</span>
+                  <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff" @click="openSideBySideDiff(item.path)">Diff</button>
                   <button v-if="!item.staged" type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" @click="stageFile(item.path)">Stage</button>
                   <button v-else type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" @click="unstageFile(item.path)">Unstage</button>
                 </li>
@@ -790,6 +793,11 @@ async function unstageFile(filePath) {
 function openFile(filePath) {
   const path = store.selectedPath;
   if (path) api.openFileInEditor?.(path, filePath);
+}
+
+function openSideBySideDiff(filePath) {
+  const path = store.selectedPath;
+  if (path && filePath) modals.openModal('diffSideBySide', { dirPath: path, filePath });
 }
 
 async function commit() {

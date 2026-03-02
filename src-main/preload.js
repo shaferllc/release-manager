@@ -80,6 +80,8 @@ contextBridge.exposeInMainWorld('releaseManager', {
   gitReset: (dirPath, ref, mode) => ipcRenderer.invoke('rm-git-reset', dirPath, ref, mode),
   getDiffBetween: (dirPath, refA, refB) => ipcRenderer.invoke('rm-get-diff-between', dirPath, refA, refB),
   getDiffBetweenFull: (dirPath, refA, refB) => ipcRenderer.invoke('rm-get-diff-between-full', dirPath, refA, refB),
+  getFileDiffStructured: (dirPath, filePath, options) => ipcRenderer.invoke('rm-get-file-diff-structured', dirPath, filePath, options),
+  revertFileLine: (dirPath, filePath, op, lineNum, content) => ipcRenderer.invoke('rm-revert-file-line', dirPath, filePath, op, lineNum, content),
   gitRevert: (dirPath, sha) => ipcRenderer.invoke('rm-git-revert', dirPath, sha),
   gitPruneRemotes: (dirPath) => ipcRenderer.invoke('rm-git-prune-remotes', dirPath),
   gitAmend: (dirPath, message) => ipcRenderer.invoke('rm-git-amend', dirPath, message),
@@ -126,6 +128,13 @@ contextBridge.exposeInMainWorld('releaseManager', {
   getPhpVersionFromRequire: (phpRequire) => ipcRenderer.invoke('rm-parse-php-require', phpRequire),
   getTheme: () => ipcRenderer.invoke('rm-get-theme'),
   setTheme: (theme) => ipcRenderer.invoke('rm-set-theme', theme),
+  getApiServerStatus: () => ipcRenderer.invoke('rm-get-api-server-status'),
+  setApiServerEnabled: (enabled) => ipcRenderer.invoke('rm-set-api-server-enabled', enabled),
+  setApiServerPort: (port) => ipcRenderer.invoke('rm-set-api-server-port', port),
+  listApiMethods: () => ipcRenderer.invoke('rm-list-api-methods'),
+  getApiDocs: () => ipcRenderer.invoke('rm-get-api-docs'),
+  getApiMethodDoc: (methodName) => ipcRenderer.invoke('rm-get-api-method-doc', methodName),
+  invokeApi: (method, params) => ipcRenderer.invoke('rm-invoke-api', method, params),
   onTheme: (callback) => {
     ipcRenderer.on('rm-theme', (_e, effective) => callback(effective));
   },

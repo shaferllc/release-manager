@@ -84,6 +84,16 @@
           </label>
         </div>
       </section>
+      <section class="card mb-6">
+        <div class="card-section">
+          <span class="card-label">Debug logging</span>
+          <p class="m-0 mb-4 text-sm text-rm-muted">When enabled, app actions are logged: project load/add, IPC calls, preferences, theme, nav, and more. Renderer logs appear in DevTools (View → Toggle Developer Tools). Main process logs appear in the terminal. Turn on to troubleshoot issues.</p>
+          <label class="checkbox-label text-sm text-rm-text cursor-pointer flex items-center gap-2">
+            <input v-model="debugLogging" type="checkbox" class="checkbox-input" @change="saveDebugLogging" />
+            <span>Enable debug logging</span>
+          </label>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -92,6 +102,7 @@
 import { ref, onMounted } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
+import * as debug from '../utils/debug';
 
 const store = useAppStore();
 const api = useApi();
@@ -105,13 +116,14 @@ const claudeModel = ref('');
 const preferredEditor = ref('');
 const phpPath = ref('');
 const useDetailTabs = ref(true);
+const debugLogging = ref(false);
 const ollamaModels = ref([]);
 const ollamaListLoading = ref(false);
 const ollamaListError = ref('');
 
 onMounted(async () => {
   try {
-    const [token, ollama, claude, provider, editor, php, sign, tabs] = await Promise.all([
+    const [token, ollama, claude, provider, editor, php, sign, tabs, debugLoad] = await Promise.all([
       api.getGitHubToken?.() ?? '',
       api.getOllamaSettings?.() ?? {},
       api.getClaudeSettings?.() ?? {},
@@ -120,6 +132,7 @@ onMounted(async () => {
       api.getPreference?.('phpPath').catch(() => ''),
       api.getPreference?.('signCommits').catch(() => false),
       api.getPreference?.('detailUseTabs').catch(() => true),
+      api.getPreference?.('debug').catch(() => undefined),
     ]);
     githubToken.value = token || '';
     ollamaBaseUrl.value = ollama?.baseUrl || '';
@@ -131,26 +144,34 @@ onMounted(async () => {
     phpPath.value = php || '';
     signCommits.value = !!sign;
     useDetailTabs.value = tabs !== false;
+    debugLogging.value = debugLoad !== false;
+    debug.setEnabled(debugLoad !== false);
     store.setUseDetailTabs(tabs !== false);
   } catch (_) {}
 });
 
 function saveToken() {
+  debug.log('settings', 'save GitHub token');
   api.setGitHubToken?.(githubToken.value?.trim() ?? '');
 }
 function saveSignCommits() {
+  debug.log('settings', 'save signCommits', signCommits.value);
   api.setPreference?.('signCommits', signCommits.value);
 }
 function saveOllama() {
+  debug.log('settings', 'save Ollama');
   api.setOllamaSettings?.(ollamaBaseUrl.value?.trim() || 'http://localhost:11434', ollamaModel.value?.trim() || 'llama3.2');
 }
 function saveClaude() {
+  debug.log('settings', 'save Claude');
   api.setClaudeSettings?.(claudeApiKey.value?.trim() ?? '', claudeModel.value?.trim() ?? '');
 }
 function saveAiProvider() {
+  debug.log('settings', 'save aiProvider', aiProvider.value);
   api.setAiProvider?.(aiProvider.value);
 }
 function savePreferredEditor() {
+  debug.log('settings', 'save preferredEditor', preferredEditor.value || '');
   api.setPreference?.('preferredEditor', preferredEditor.value || '');
 }
 
@@ -173,10 +194,17 @@ async function listOllamaModels() {
   }
 }
 function savePhpPath() {
+  debug.log('settings', 'save phpPath');
   api.setPreference?.('phpPath', phpPath.value?.trim() ?? '');
 }
 function saveUseTabs() {
+  debug.log('settings', 'save detailUseTabs', useDetailTabs.value);
   store.setUseDetailTabs(useDetailTabs.value);
   api.setPreference?.('detailUseTabs', useDetailTabs.value);
+}
+function saveDebugLogging() {
+  api.setPreference?.('debug', debugLogging.value);
+  debug.setEnabled(debugLogging.value);
+  debug.log('settings', 'debug logging', debugLogging.value ? 'on' : 'off');
 }
 </script>

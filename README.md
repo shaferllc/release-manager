@@ -1,4 +1,4 @@
-# Release Manager
+# Shipwell
 
 Desktop app to manage releases for all your app projects. Add project folders (npm, Rust, Go, or Python), see version and git status, then bump and push or tag-and-push. Includes a **Documentation** tab in the app with all features and how to use them.
 

@@ -29,8 +29,8 @@ async function main() {
 
     // Smoke: app loaded and shows main UI
     const content = await window.content();
-    if (!content.includes('Add project') && !content.includes('Release Manager') && !content.includes('Settings')) {
-      throw new Error('Expected main UI (Add project / Release Manager / Settings) not found');
+    if (!content.includes('Add project') && !content.includes('Shipwell') && !content.includes('Settings')) {
+      throw new Error('Expected main UI (Add project / Shipwell / Settings) not found');
     }
 
     // Optional: open Documentation via View dropdown

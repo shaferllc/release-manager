@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -11,6 +11,7 @@ const sanitizeHtml = require(path.join(appRoot, 'node_modules', 'sanitize-html')
 const { getReleasesUrl, getActionsUrl, getRepoSlug, pickAssetForPlatform } = require('./lib/github');
 const { formatGitHubError } = require('./lib/githubErrors');
 const { filterValidProjects } = require('./lib/projects');
+const debug = require('./debug');
 const { THEME_VALUES, getEffectiveTheme: getEffectiveThemeFromSetting } = require('./lib/theme');
 const { isValidBump, isPrereleaseBump, formatTag, PRERELEASE_PREID } = require('./lib/version');
 const { runInDir: runInDirLib } = require('./lib/runInDir');
@@ -52,6 +53,8 @@ const {
   getCoverageScriptNameNpm,
   getCoverageScriptNameComposer,
 } = require('./lib/projectTestScripts');
+const { createApiServer } = require('./apiServer');
+const { getApiDocs: getApiDocsFromModule, getApiMethodDoc: getApiMethodDocFromModule, getSampleResponseForMethod } = require('./apiDocs');
 
 // Use same app name in dev and prod so userData is shared (dev no longer uses "Electron")
 const pkg = require(path.join(__dirname, '..', 'package.json'));
@@ -68,15 +71,25 @@ function getStore() {
 
 function getProjects() {
   try {
-    return filterValidProjects(getStore().get('projects') || []);
+    const raw = getStore().get('projects') || [];
+    const filtered = filterValidProjects(raw);
+    debug.log(getStore, 'project', 'getProjects', { stored: raw?.length ?? 0, filtered: filtered.length });
+    return filtered;
   } catch (e) {
-    console.error('getProjects failed:', e);
+    console.error('[RM] getProjects failed:', e);
+    debug.log(getStore, 'project', 'getProjects ERROR', e?.message ?? e);
     return [];
   }
 }
 
 function setProjects(projects) {
-  getStore().set('projects', projects);
+  const list = Array.isArray(projects) ? projects : [];
+  const current = getStore().get('projects') || [];
+  const skipped = list.length === 0 && current.length > 1;
+  debug.log(getStore, 'project', 'setProjects', { incoming: list.length, current: current.length, skipped });
+  if (skipped) return;
+  getStore().set('projects', list);
+  debug.log(getStore, 'project', 'setProjects saved', list.length, 'projects');
 }
 
 function getThemeSetting() {
@@ -88,6 +101,7 @@ function setThemeSetting(theme) {
   if (!THEME_VALUES.includes(theme)) return;
   getStore().set('theme', theme);
   nativeTheme.themeSource = theme === 'system' ? 'system' : theme;
+  debug.log(getStore, 'theme', 'setTheme', theme);
   const effective = getEffectiveThemeFromSetting(getThemeSetting(), nativeTheme.shouldUseDarkColors);
   for (const w of BrowserWindow.getAllWindows()) {
     if (w && !w.isDestroyed()) w.webContents.send('rm-theme', effective);
@@ -103,6 +117,10 @@ function setPreference(key, value) {
   const prefs = getStore().get('preferences') || {};
   prefs[key] = value;
   getStore().set('preferences', prefs);
+  const isLong = typeof value === 'string' && value.length > 20;
+  const isSecret = /token|key|secret|password/i.test(key);
+  const safeValue = isSecret ? '(redacted)' : (isLong ? '(string)' : value);
+  debug.log(getStore, 'prefs', 'setPreference', key, safeValue);
 }
 
 function getEffectiveTheme() {
@@ -225,11 +243,13 @@ function runInDirCapture(dirPath, command, args, options = {}) {
     proc.stdout?.on('data', (d) => { stdout += d.toString(); });
     proc.stderr?.on('data', (d) => { stderr += d.toString(); });
     proc.on('close', (code) => {
+      const cleanStdout = stripAnsi(stdout).trim();
+      const cleanStderr = stripAnsi(stderr).trim();
       resolve({
         ok: code === 0,
         exitCode: code ?? -1,
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
+        stdout: cleanStdout,
+        stderr: cleanStderr,
       });
     });
     proc.on('error', (e) => {
@@ -744,9 +764,10 @@ async function getCommitDetail(dirPath, sha) {
   const s = (sha || '').trim();
   if (!s) return { ok: false, error: 'SHA required' };
   try {
-    const [infoOut, diffOut] = await Promise.all([
+    const [infoOut, diffOut, namesOut] = await Promise.all([
       runInDir(dirPath, 'git', ['show', '-s', '--format=%s%n%an%n%ad%n%b', '--date=short', s]).catch(() => ({ stdout: '' })),
       runInDir(dirPath, 'git', ['show', '--no-color', s]).catch(() => ({ stdout: '' })),
+      runInDir(dirPath, 'git', ['diff-tree', '--no-commit-id', '--name-only', '-r', s]).catch(() => ({ stdout: '' })),
     ]);
     const infoLines = (infoOut.stdout || '').trim().split(/\r?\n/);
     const subject = infoLines[0] || '';
@@ -754,7 +775,8 @@ async function getCommitDetail(dirPath, sha) {
     const date = infoLines[2] || '';
     const body = infoLines.slice(3).join('\n').trim();
     const diff = (diffOut.stdout || '').trim();
-    return { ok: true, sha: s, subject, author, date, body, diff };
+    const files = (namesOut.stdout || '').trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return { ok: true, sha: s, subject, author, date, body, diff, files };
   } catch (e) {
     return { ok: false, error: e.message || 'Failed to get commit' };
   }
@@ -949,14 +971,91 @@ async function getDiffBetweenFull(dirPath, refA, refB) {
   }
 }
 
-/** Revert a commit by SHA (creates a new commit that undoes it). */
-async function gitRevert(dirPath, sha) {
-  try {
-    await runInDir(dirPath, 'git', ['revert', '--no-edit', sha]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Revert failed' };
+/**
+ * Parse unified diff output for a single file into aligned rows for side-by-side view.
+ * Each row: { oldLineNum, newLineNum, oldContent, newContent, type: 'context'|'add'|'remove' }.
+ */
+function parseUnifiedDiffToRows(diffText) {
+  const rows = [];
+  const lines = (diffText || '').split(/\r?\n/);
+  let oldLine = 0;
+  let newLine = 0;
+  let inHunk = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+    if (hunkMatch) {
+      oldLine = parseInt(hunkMatch[1], 10);
+      newLine = parseInt(hunkMatch[3], 10);
+      inHunk = true;
+      continue;
+    }
+    if (!inHunk) continue;
+    const first = line.charAt(0);
+    const content = first === '-' || first === '+' || first === ' ' ? line.slice(1) : line;
+    if (first === '-') {
+      rows.push({ oldLineNum: oldLine, newLineNum: null, oldContent: content, newContent: null, type: 'remove' });
+      oldLine++;
+    } else if (first === '+') {
+      rows.push({ oldLineNum: null, newLineNum: newLine, oldContent: null, newContent: content, type: 'add' });
+      newLine++;
+    } else {
+      rows.push({ oldLineNum: oldLine, newLineNum: newLine, oldContent: content, newContent: content, type: 'context' });
+      oldLine++;
+      newLine++;
+    }
   }
+  return rows;
+}
+
+/**
+ * Get structured diff for one file: aligned rows for side-by-side view.
+ * options: { commitSha?: string } — if set, diff is commit vs parent; else working tree vs HEAD.
+ */
+async function getFileDiffStructured(dirPath, filePath, options = {}) {
+  try {
+    let diff = '';
+    if (options.commitSha) {
+      const out = await runInDir(dirPath, 'git', ['show', '--no-color', options.commitSha, '--', filePath]).catch(() => ({ stdout: '' }));
+      diff = (out.stdout || '').trim();
+    } else {
+      const result = await runInDirCapture(dirPath, 'git', ['diff', 'HEAD', '--', filePath]);
+      diff = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+    }
+    if (!diff) return { ok: true, filePath, rows: [], diff: '' };
+    const rows = parseUnifiedDiffToRows(diff);
+    return { ok: true, filePath, rows, diff };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Diff failed', filePath, rows: [] };
+  }
+}
+
+/**
+ * Revert a single line in a file (working copy): replace or delete line, or insert old line.
+ * op: 'replace' | 'delete' | 'insert' — replace line at lineNum with content; delete line at lineNum; insert content before lineNum.
+ */
+async function revertFileLine(dirPath, filePath, op, lineNum, content) {
+  const fullPath = path.join(dirPath, filePath);
+  if (!fs.existsSync(fullPath)) return { ok: false, error: 'File not found' };
+  let text = fs.readFileSync(fullPath, 'utf8');
+  const lineEnding = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  const oneBased = Math.max(1, parseInt(lineNum, 10));
+  const idx = oneBased - 1;
+  if (op === 'delete') {
+    if (idx < 0 || idx >= lines.length) return { ok: false, error: 'Line number out of range' };
+    lines.splice(idx, 1);
+  } else if (op === 'replace') {
+    if (idx < 0 || idx >= lines.length) return { ok: false, error: 'Line number out of range' };
+    lines[idx] = content != null ? content : '';
+  } else if (op === 'insert') {
+    const insertIdx = Math.max(0, Math.min(idx, lines.length));
+    lines.splice(insertIdx, 0, content != null ? content : '');
+  } else {
+    return { ok: false, error: 'Invalid operation' };
+  }
+  fs.writeFileSync(fullPath, lines.join(lineEnding), 'utf8');
+  return { ok: true };
 }
 
 /** Prune remote-tracking branches (remove refs for branches deleted on remote). */
@@ -1499,13 +1598,16 @@ function createWindow() {
 
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('rm-theme', getEffectiveTheme());
+    if (process.env.NODE_ENV === 'development') {
+      win.webContents.openDevTools({ mode: 'detach' });
+    }
   });
 }
 
 app.whenReady().then(() => {
   store = new Store({ name: 'release-manager' });
   // One-time migration from old JSON config so projects survive rebuilds
-  const oldConfigPath = path.join(app.getPath('userData'), 'release-manager-config.json');
+  const oldConfigPath = path.join(app.getPath('userData'), 'shipwell-config.json');
   if (fs.existsSync(oldConfigPath)) {
     try {
       const content = fs.readFileSync(oldConfigPath, 'utf8');
@@ -1523,85 +1625,24 @@ app.whenReady().then(() => {
     app.dock.setIcon(iconPath);
   }
   nativeTheme.themeSource = getThemeSetting() === 'system' ? 'system' : getThemeSetting();
-  createWindow();
 
-  ipcMain.handle('rm-get-projects', () => getProjects());
-  ipcMain.handle('rm-get-all-projects-info', async () => {
-    const list = getProjects();
-    const results = await Promise.all(
-      list.map(async (p) => {
-        const info = await getProjectInfoAsync(p.path);
-        return { path: p.path, name: p.name, ...info };
-      })
-    );
-    return results;
-  });
-  ipcMain.handle('rm-set-projects', (_e, projects) => {
-    setProjects(projects);
-    return null;
-  });
-  ipcMain.handle('rm-show-directory-dialog', () => showDirectoryDialog());
-  ipcMain.handle('rm-get-project-info', (_e, dirPath) => getProjectInfoAsync(dirPath));
-  ipcMain.handle('rm-get-composer-info', (_e, dirPath) => {
-    const result = getComposerManifestInfo(dirPath, fs);
-    return Promise.resolve(result.ok ? result : { ok: false, error: result.error });
-  });
-  ipcMain.handle('rm-get-composer-outdated', async (_e, dirPath, direct = false) => {
-    try {
-      const args = ['outdated', '--format=json', '--no-ansi'];
-      if (direct) args.push('--direct');
-      const out = await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
-      const parsed = parseComposerOutdatedJson(out.stdout);
-      if (!parsed.ok) return { ok: false, error: parsed.error, packages: [] };
-      return { ok: true, packages: parsed.packages || [] };
-    } catch (e) {
-      const msg = e.message || '';
-      if (/ENOENT|not found|spawn composer/i.test(msg)) {
-        return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.', packages: [] };
-      }
-      return { ok: false, error: msg || 'composer outdated failed', packages: [] };
-    }
-  });
-  ipcMain.handle('rm-get-composer-validate', async (_e, dirPath) => {
-    try {
-      await runInDir(dirPath, 'composer', ['validate', '--no-ansi'], { env: getComposerEnv(dirPath) });
-      return { valid: true };
-    } catch (e) {
-      return parseComposerValidateOutput('', e.message || '', 1);
-    }
-  });
-  ipcMain.handle('rm-get-composer-audit', async (_e, dirPath) => {
-    try {
-      const out = await runInDir(dirPath, 'composer', ['audit', '--format=json', '--no-ansi'], { env: getComposerEnv(dirPath) });
-      const parsed = parseComposerAuditJson(out.stdout);
-      if (!parsed.ok) return { ok: false, error: parsed.error, advisories: [] };
-      return { ok: true, advisories: parsed.advisories || [] };
-    } catch (e) {
-      const msg = e.message || '';
-      if (/ENOENT|not found|spawn composer/i.test(msg)) {
-        return { ok: false, error: 'Composer not found.', advisories: [] };
-      }
-      return { ok: false, error: msg || 'composer audit failed', advisories: [] };
-    }
-  });
-  ipcMain.handle('rm-composer-update', async (_e, dirPath, packageNames) => {
-    try {
-      const args = ['update', '--no-interaction', '--no-ansi'];
-      if (Array.isArray(packageNames) && packageNames.length > 0) {
-        packageNames.forEach((name) => {
-          if (typeof name === 'string' && name.trim()) args.push(name.trim());
-        });
-      }
-      await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
-      return { ok: true };
-    } catch (e) {
-      const msg = e.message || '';
-      if (/ENOENT|not found|spawn composer/i.test(msg)) {
-        return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.' };
-      }
-      return { ok: false, error: msg || 'composer update failed' };
-    }
-  });
+  // Set an explicit app menu to avoid macOS "representedObject is not a WeakPtrToElectronMenuModelAsNSObject" warning
+  // (triggered when Electron builds its default menu internally)
+  const appMenu = Menu.buildFromTemplate([
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu', label: pkg.productName || 'Shipwell' }] : []),
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+    { role: 'help', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'toggleDevTools', label: 'Toggle Developer Tools' }] },
+  ]);
+  Menu.setApplicationMenu(appMenu);
+
+  // API layer: single dispatch for both IPC and HTTP API (register before createWindow so handlers exist when renderer loads)
+  function channelToMethod(channel) {
+    const k = channel.replace(/^rm-/, '');
+    return k.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  }
   function getProjectTestScripts(dirPath, projectType) {
     try {
       if (projectType === 'npm') {
@@ -1612,296 +1653,400 @@ app.whenReady().then(() => {
         return ok ? { ok: true, scripts: scripts || [] } : { ok: false, scripts: [], error: error || 'Failed' };
       }
       if (projectType === 'php') {
-        const manifest = getComposerManifestInfo(dirPath);
+        const manifest = getComposerManifestInfo(dirPath, fs);
         const { scripts } = getComposerScriptNames(manifest);
-        return { ok: true, scripts };
+        return { ok: true, scripts: scripts || [] };
       }
       return { ok: true, scripts: [] };
     } catch (e) {
       return { ok: false, scripts: [], error: e.message || 'Failed to get test scripts' };
     }
   }
-  ipcMain.handle('rm-get-project-test-scripts', (_e, dirPath, projectType) => getProjectTestScripts(dirPath, projectType));
-  ipcMain.handle('rm-run-project-tests', async (_e, dirPath, projectType, scriptName) => {
+  async function runApiMethod(method, params) {
+    const fn = apiRegistry[method];
+    if (typeof fn !== 'function') throw new Error('Unknown method: ' + method);
+    return fn(...params);
+  }
+  const apiRegistry = {
+    getProjects: () => getProjects(),
+    getAllProjectsInfo: async () => {
+      const list = getProjects();
+      const results = await Promise.all(
+        list.map(async (p) => {
+          const info = await getProjectInfoAsync(p.path);
+          return { path: p.path, name: p.name, ...info };
+        })
+      );
+      return results;
+    },
+    setProjects: (projects) => {
+      setProjects(projects);
+      return null;
+    },
+    showDirectoryDialog: () => showDirectoryDialog(),
+    getProjectInfo: (dirPath) => getProjectInfoAsync(dirPath),
+    getComposerInfo: (dirPath) => {
+      const result = getComposerManifestInfo(dirPath, fs);
+      return Promise.resolve(result.ok ? result : { ok: false, error: result.error });
+    },
+    getComposerOutdated: async (dirPath, direct = false) => {
+      try {
+        const args = ['outdated', '--format=json', '--no-ansi'];
+        if (direct) args.push('--direct');
+        const out = await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
+        const parsed = parseComposerOutdatedJson(out.stdout);
+        if (!parsed.ok) return { ok: false, error: parsed.error, packages: [] };
+        return { ok: true, packages: parsed.packages || [] };
+      } catch (e) {
+        const msg = e.message || '';
+        if (/ENOENT|not found|spawn composer/i.test(msg)) {
+          return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.', packages: [] };
+        }
+        return { ok: false, error: msg || 'composer outdated failed', packages: [] };
+      }
+    },
+    getComposerValidate: async (dirPath) => {
+      try {
+        await runInDir(dirPath, 'composer', ['validate', '--no-ansi'], { env: getComposerEnv(dirPath) });
+        return { valid: true };
+      } catch (e) {
+        return parseComposerValidateOutput('', e.message || '', 1);
+      }
+    },
+    getComposerAudit: async (dirPath) => {
+      try {
+        const out = await runInDir(dirPath, 'composer', ['audit', '--format=json', '--no-ansi'], { env: getComposerEnv(dirPath) });
+        const parsed = parseComposerAuditJson(out.stdout);
+        if (!parsed.ok) return { ok: false, error: parsed.error, advisories: [] };
+        return { ok: true, advisories: parsed.advisories || [] };
+      } catch (e) {
+        const msg = e.message || '';
+        if (/ENOENT|not found|spawn composer/i.test(msg)) {
+          return { ok: false, error: 'Composer not found.', advisories: [] };
+        }
+        return { ok: false, error: msg || 'composer audit failed', advisories: [] };
+      }
+    },
+    composerUpdate: async (dirPath, packageNames) => {
+      try {
+        const args = ['update', '--no-interaction', '--no-ansi'];
+        if (Array.isArray(packageNames) && packageNames.length > 0) {
+          packageNames.forEach((name) => {
+            if (typeof name === 'string' && name.trim()) args.push(name.trim());
+          });
+        }
+        await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
+        return { ok: true };
+      } catch (e) {
+        const msg = e.message || '';
+        if (/ENOENT|not found|spawn composer/i.test(msg)) {
+          return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.' };
+        }
+        return { ok: false, error: msg || 'composer update failed' };
+      }
+    },
+    getProjectTestScripts: (dirPath, projectType) => getProjectTestScripts(dirPath, projectType),
+    runProjectTests: async (dirPath, projectType, scriptName) => {
+      try {
+        const runNpm = (script) => runInDirCapture(dirPath, 'npm', ['run', script, '--no-color']);
+        const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi'], { env: getComposerEnv(dirPath) });
+        if (projectType === 'npm') {
+          const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
+          const result = await runNpm(script);
+          return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        }
+        if (projectType === 'php') {
+          const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
+          const result = await runComposer(script);
+          return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        }
+        return { ok: false, error: 'Run tests is supported for npm and PHP projects only.', stdout: '', stderr: '' };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Run failed', stdout: '', stderr: '' };
+      }
+    },
+    runProjectCoverage: async (dirPath, projectType) => runProjectCoverageImpl(dirPath, projectType),
+    versionBump: (dirPath, bump) => runVersionBump(dirPath, bump),
+    gitTagAndPush: (dirPath, tagMessage) => gitTagAndPush(dirPath, tagMessage),
+    release: async (dirPath, bump, force, options = {}) => runReleaseImpl(dirPath, bump, force, options),
+    getCommitsSinceTag: (dirPath, sinceTag) => getCommitsSinceTag(dirPath, sinceTag),
+    getRecentCommits: (dirPath, n) => getRecentCommits(dirPath, n),
+    getSuggestedBump: (commits) => suggestBumpFromCommits(commits),
+    getShortcutAction: (viewMode, selectedPath, key, metaKey, ctrlKey, inInput) =>
+      getShortcutAction(viewMode, selectedPath, key, metaKey, ctrlKey, inInput),
+    getActionsUrl: (gitRemote) => getActionsUrl(gitRemote) || null,
+    getGitHubToken: () => getStore().get('githubToken') || '',
+    setGitHubToken: (token) => {
+      getStore().set('githubToken', token || '');
+      return null;
+    },
+    getOllamaSettings: () => ({
+      baseUrl: getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL,
+      model: getStore().get('ollamaModel') || DEFAULT_MODEL,
+    }),
+    setOllamaSettings: (baseUrl, model) => {
+      getStore().set('ollamaBaseUrl', baseUrl || '');
+      getStore().set('ollamaModel', model || '');
+      return null;
+    },
+    getClaudeSettings: () => ({
+      apiKey: getStore().get('claudeApiKey') || '',
+      model: getStore().get('claudeModel') || CLAUDE_DEFAULT_MODEL,
+    }),
+    setClaudeSettings: (apiKey, model) => {
+      getStore().set('claudeApiKey', apiKey || '');
+      getStore().set('claudeModel', model || '');
+      return null;
+    },
+    getAiProvider: () => getStore().get('aiProvider') || 'ollama',
+    setAiProvider: (provider) => {
+      getStore().set('aiProvider', provider || 'ollama');
+      return null;
+    },
+    ollamaListModels: async (baseUrl) => ollamaListModels(baseUrl || getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL),
+    ollamaGenerateCommitMessage: async (dirPath) => ollamaGenerate(dirPath, buildCommitMessagePrompt, 'commit'),
+    ollamaGenerateReleaseNotes: async (dirPath, sinceTag) => ollamaGenerate(dirPath, (d, t) => buildReleaseNotesPrompt(d, t), 'release', sinceTag),
+    ollamaSuggestTestFix: async (testScriptName, stdout, stderr) => ollamaGenerate(null, () => buildTestFixPrompt(testScriptName, stdout, stderr), 'test'),
+    getGitStatus: (dirPath) => getGitStatus(dirPath),
+    gitPull: (dirPath) => gitPull(dirPath),
+    getBranches: (dirPath) => getBranches(dirPath),
+    checkoutBranch: (dirPath, branchName) => checkoutBranch(dirPath, branchName),
+    createBranch: (dirPath, branchName, checkout) => createBranch(dirPath, branchName, checkout !== false),
+    createBranchFrom: (dirPath, newBranchName, fromRef) => createBranchFrom(dirPath, newBranchName, fromRef),
+    gitPush: (dirPath) => gitPushWithUpstream(dirPath),
+    gitPushForce: (dirPath, withLease) => gitPushForce(dirPath, !!withLease),
+    gitFetch: (dirPath) => gitFetch(dirPath),
+    gitMerge: (dirPath, branchName, options) => gitMerge(dirPath, branchName, options || {}),
+    gitStashPush: (dirPath, message, options) => gitStashPush(dirPath, message, options || {}),
+    commitChanges: (dirPath, message, options) => gitCommit(dirPath, message, options || {}),
+    gitStashPop: (dirPath) => gitStashPop(dirPath),
+    gitDiscardChanges: (dirPath) => gitDiscardChanges(dirPath),
+    gitMergeAbort: (dirPath) => gitMergeAbort(dirPath),
+    getRemoteBranches: (dirPath) => getRemoteBranches(dirPath),
+    checkoutRemoteBranch: (dirPath, ref) => checkoutRemoteBranch(dirPath, ref),
+    getStashList: (dirPath) => getStashList(dirPath),
+    stashApply: (dirPath, index) => stashApply(dirPath, index),
+    stashDrop: (dirPath, index) => stashDrop(dirPath, index),
+    getTags: (dirPath) => getTags(dirPath),
+    checkoutTag: (dirPath, tagName) => checkoutTag(dirPath, tagName),
+    getCommitLog: (dirPath, n) => getCommitLog(dirPath, n),
+    getCommitDetail: (dirPath, sha) => getCommitDetail(dirPath, sha),
+    deleteBranch: (dirPath, branchName, force) => deleteBranch(dirPath, branchName, force),
+    deleteRemoteBranch: (dirPath, remoteName, branchName) => deleteRemoteBranch(dirPath, remoteName, branchName),
+    gitRebase: (dirPath, ontoBranch) => gitRebase(dirPath, ontoBranch),
+    gitRebaseAbort: (dirPath) => gitRebaseAbort(dirPath),
+    gitRebaseContinue: (dirPath) => gitRebaseContinue(dirPath),
+    gitRebaseSkip: (dirPath) => gitRebaseSkip(dirPath),
+    gitMergeContinue: (dirPath) => gitMergeContinue(dirPath),
+    getRemotes: (dirPath) => getRemotes(dirPath),
+    addRemote: (dirPath, name, url) => addRemote(dirPath, name, url),
+    removeRemote: (dirPath, name) => removeRemote(dirPath, name),
+    gitCherryPick: (dirPath, sha) => gitCherryPick(dirPath, sha),
+    gitCherryPickAbort: (dirPath) => gitCherryPickAbort(dirPath),
+    gitCherryPickContinue: (dirPath) => gitCherryPickContinue(dirPath),
+    renameBranch: (dirPath, oldName, newName) => renameBranch(dirPath, oldName, newName),
+    createTag: (dirPath, tagName, message, ref) => createTag(dirPath, tagName, message, ref),
+    writeGitignore: (dirPath, content) => writeGitignore(dirPath, content),
+    writeGitattributes: (dirPath, content) => writeGitattributes(dirPath, content),
+    gitRebaseInteractive: (dirPath, ref) => gitRebaseInteractive(dirPath, ref),
+    gitReset: (dirPath, ref, mode) => gitReset(dirPath, ref, mode),
+    getDiffBetween: (dirPath, refA, refB) => getDiffBetween(dirPath, refA, refB),
+    getDiffBetweenFull: (dirPath, refA, refB) => getDiffBetweenFull(dirPath, refA, refB),
+    getFileDiffStructured: (dirPath, filePath, options) => getFileDiffStructured(dirPath, filePath, options),
+    revertFileLine: (dirPath, filePath, op, lineNum, content) => revertFileLine(dirPath, filePath, op, lineNum, content),
+    gitRevert: (dirPath, sha) => gitRevert(dirPath, sha),
+    gitPruneRemotes: (dirPath) => gitPruneRemotes(dirPath),
+    gitAmend: (dirPath, message) => gitAmend(dirPath, message),
+    getReflog: (dirPath, n) => getReflog(dirPath, n),
+    checkoutRef: (dirPath, ref) => checkoutRef(dirPath, ref),
+    getBlame: (dirPath, filePath) => getBlame(dirPath, filePath),
+    deleteTag: (dirPath, tagName) => deleteTag(dirPath, tagName),
+    pushTag: (dirPath, tagName, remoteName) => pushTag(dirPath, tagName, remoteName),
+    stageFile: (dirPath, filePath) => stageFile(dirPath, filePath),
+    unstageFile: (dirPath, filePath) => unstageFile(dirPath, filePath),
+    discardFile: (dirPath, filePath) => discardFile(dirPath, filePath),
+    gitFetchRemote: (dirPath, remoteName, ref) => gitFetchRemote(dirPath, remoteName, ref),
+    gitPullRebase: (dirPath) => gitPullRebase(dirPath),
+    getGitignore: (dirPath) => getGitignore(dirPath),
+    getGitattributes: (dirPath) => getGitattributes(dirPath),
+    getSubmodules: (dirPath) => getSubmodules(dirPath),
+    submoduleUpdate: (dirPath, init) => submoduleUpdate(dirPath, init),
+    getGitState: (dirPath) => getGitState(dirPath),
+    getWorktrees: (dirPath) => getWorktrees(dirPath),
+    worktreeAdd: (dirPath, worktreePath, branch) => worktreeAdd(dirPath, worktreePath, branch),
+    worktreeRemove: (dirPath, worktreePath) => worktreeRemove(dirPath, worktreePath),
+    getBisectStatus: (dirPath) => getBisectStatus(dirPath),
+    bisectStart: (dirPath, badRef, goodRef) => bisectStart(dirPath, badRef, goodRef),
+    bisectGood: (dirPath) => bisectGood(dirPath),
+    bisectBad: (dirPath) => bisectBad(dirPath),
+    bisectReset: (dirPath) => bisectReset(dirPath),
+    copyToClipboard: (text) => {
+      if (text != null && typeof text === 'string') clipboard.writeText(text);
+      return null;
+    },
+    openPathInFinder: (dirPath) => {
+      if (dirPath != null && typeof dirPath === 'string') return shell.openPath(dirPath);
+      return Promise.resolve('');
+    },
+    openInTerminal: (dirPath) => openInTerminalImpl(dirPath),
+    openInEditor: (dirPath) => openInEditorImpl(dirPath),
+    openFileInEditor: (dirPath, relativePath) => openFileInEditorImpl(dirPath, relativePath),
+    getFileDiff: async (dirPath, filePath, isUntracked) => getFileDiffImpl(dirPath, filePath, isUntracked),
+    getReleasesUrl: (gitRemote) => getReleasesUrl(gitRemote),
+    syncFromRemote: (dirPath) => gitFetch(dirPath),
+    getGitHubReleases: async (gitRemote, token = null) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo', releases: [] };
+      const authToken = token || getStore().get('githubToken') || null;
+      try {
+        const releases = await fetchGitHubReleases(slug.owner, slug.repo, authToken);
+        return { ok: true, releases };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch releases'), releases: [] };
+      }
+    },
+    downloadLatestRelease: async (gitRemote) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo' };
+      try {
+        const releases = await fetchGitHubReleases(slug.owner, slug.repo);
+        if (!releases.length) return { ok: false, error: 'No releases found' };
+        const release = releases[0];
+        const assets = release.assets || [];
+        const asset = pickAssetForPlatform(assets, process.platform);
+        if (!asset || !asset.browser_download_url) return { ok: false, error: 'No compatible asset for your platform' };
+        const win = BrowserWindow.getAllWindows()[0] || null;
+        const defaultPath = path.join(app.getPath('downloads'), asset.name);
+        return showSaveDialogAndDownload(win, defaultPath, asset.browser_download_url);
+      } catch (err) {
+        return { ok: false, error: formatGitHubError(err.message || 'Failed to fetch or download') };
+      }
+    },
+    downloadAsset: async (url, suggestedFileName) => {
+      if (!url || typeof url !== 'string') return { ok: false, error: 'Invalid URL' };
+      const win = BrowserWindow.getAllWindows()[0] || null;
+      const defaultPath = path.join(app.getPath('downloads'), suggestedFileName || 'download');
+      return showSaveDialogAndDownload(win, defaultPath, url);
+    },
+    openUrl: (url) => {
+      if (url && typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+        shell.openExternal(url);
+      }
+      return null;
+    },
+    getAppInfo: () => {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+        return { name: pkg.productName || pkg.name, version: pkg.version };
+      } catch {
+        return { name: 'Shipwell', version: '0.1.0' };
+      }
+    },
+    getChangelog: async () => {
+      try {
+        const changelogPath = path.join(app.getAppPath(), 'CHANGELOG.md');
+        const raw = fs.readFileSync(changelogPath, 'utf8');
+        const html = marked.parse(raw, { gfm: true });
+        const content = sanitizeHtml(html, {
+          allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'code', 'pre', 'br', 'blockquote'],
+          allowedAttributes: { a: ['href'] },
+          allowedSchemes: ['http', 'https'],
+        });
+        return { ok: true, content };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Could not load changelog.' };
+      }
+    },
+    getPreference: (key) => getPreference(key),
+    getAvailablePhpVersions: () => getAvailablePhpVersions(),
+    getPhpVersionFromRequire: (phpRequire) => parsePhpRequireToVersion(phpRequire),
+    setPreference: (key, value) => {
+      setPreference(key, value);
+      return null;
+    },
+    getTheme: () => ({ theme: getThemeSetting(), effective: getEffectiveTheme() }),
+    setTheme: (theme) => {
+      setThemeSetting(theme);
+      return null;
+    },
+    listApiMethods: () => Object.keys(apiRegistry).filter((k) => k !== 'listApiMethods' && k !== 'invokeApi'),
+    getApiDocs: () => getApiDocsFromModule(),
+    getApiMethodDoc: (methodName) => getApiMethodDocFromModule(methodName),
+    getSampleResponse: (methodName) => getSampleResponseForMethod(methodName),
+    invokeApi: (method, params) => runApiMethod(method, params),
+  };
+
+  // Helpers used by apiRegistry (must be defined after getProjectTestScripts etc.)
+  async function runProjectCoverageImpl(dirPath, projectType) {
+    const runNpm = (script) => runInDirCapture(dirPath, 'npm', ['run', script, '--no-color']);
+    const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi'], { env: getComposerEnv(dirPath) });
+    const { ok, scripts, error } = getProjectTestScripts(dirPath, projectType);
+    debug.log(getStore, 'project', 'runProjectCoverage getProjectTestScripts', {
+      ok,
+      projectType,
+      scripts: Array.isArray(scripts) ? scripts : [],
+      error: error || null,
+    });
+    if (!ok) {
+      return { ok: false, error: error || 'Failed to get scripts for coverage.', stdout: '', stderr: '', summary: null };
+    }
+    let scriptName = null;
+    if (projectType === 'npm') {
+      const names = Array.isArray(scripts) ? scripts : [];
+      // IMPORTANT: getCoverageScriptNameNpm expects package.json "scripts" values (strings),
+      // not just a list of names. Read package.json so we can pick the right script.
+      let scriptsObj = null;
+      try {
+        const pkgPath = path.join(dirPath, 'package.json');
+        if (fs.existsSync(pkgPath)) {
+          const content = fs.readFileSync(pkgPath, 'utf8');
+          const parsed = JSON.parse(content);
+          scriptsObj = typeof parsed?.scripts === 'object' && parsed.scripts !== null ? parsed.scripts : null;
+        }
+      } catch (e) {
+        debug.log(getStore, 'project', 'runProjectCoverage read package.json failed', e?.message || e);
+      }
+      scriptName = getCoverageScriptNameNpm(scriptsObj);
+      // Fall back to `test` so we still run something useful.
+      if (!scriptName && names.includes('test')) scriptName = 'test';
+    } else if (projectType === 'php') {
+      const names = Array.isArray(scripts) ? scripts : [];
+      scriptName = getCoverageScriptNameComposer(names);
+      if (!scriptName && names.includes('test')) {
+        scriptName = 'test';
+      }
+      if (!scriptName && names.length > 0) {
+        scriptName = names[0];
+      }
+    }
+    debug.log(getStore, 'project', 'runProjectCoverage coverage script', { projectType, scriptName });
+    if (!scriptName) {
+      return { ok: false, error: 'No coverage or test script found for this project.', stdout: '', stderr: '', summary: null };
+    }
     try {
-      const runNpm = (script) => runInDirCapture(dirPath, 'npm', ['run', script, '--no-color']);
-      const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi'], { env: getComposerEnv(dirPath) });
       if (projectType === 'npm') {
-        const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
-        const result = await runNpm(script);
-        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        const result = await runNpm(scriptName);
+        const summary = parseCoverageSummary(result.stdout);
+        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr, summary: summary || null };
       }
       if (projectType === 'php') {
-        const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
-        const result = await runComposer(script);
-        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        const result = await runComposer(scriptName);
+        const summary = parseCoverageSummary(result.stdout);
+        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr, summary: summary || null };
       }
-      return { ok: false, error: 'Run tests is supported for npm and PHP projects only.', stdout: '', stderr: '' };
+      return { ok: false, error: 'Coverage not supported for this project type.', stdout: '', stderr: '', summary: null };
     } catch (e) {
-      return { ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Failed to run tests' };
+      return { ok: false, error: e.message || 'Coverage run failed', stdout: '', stderr: '', summary: null };
     }
-  });
-  ipcMain.handle('rm-run-project-coverage', async (_e, dirPath, projectType) => {
-    try {
-      let result;
-      const runNpmCoverage = async () => {
-        const pkgPath = path.join(dirPath, 'package.json');
-        let scriptName = null;
-        let hasTestScript = false;
-        if (fs.existsSync(pkgPath)) {
-          const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          const scripts = typeof data.scripts === 'object' && data.scripts !== null ? data.scripts : {};
-          scriptName = getCoverageScriptNameNpm(scripts);
-          hasTestScript = typeof scripts.test === 'string';
-        }
-        if (scriptName) {
-          return await runInDirCapture(dirPath, 'npm', ['run', scriptName, '--no-color']);
-        }
-        if (hasTestScript) {
-          return await runInDirCapture(dirPath, 'npm', ['test', '--', '--coverage', '--no-color']);
-        }
-        return null;
-      };
-      const composerEnv = getComposerEnv(dirPath);
-      const runPhpCoverage = async () => {
-        const manifest = getComposerManifestInfo(dirPath);
-        const { scripts } = getComposerScriptNames(manifest);
-        const coverageScript = getCoverageScriptNameComposer(scripts);
-        if (coverageScript) {
-          return await runInDirCapture(dirPath, 'composer', ['run', coverageScript, '--no-ansi'], { env: composerEnv });
-        }
-        if (scripts && scripts.length > 0 && scripts.includes('test')) {
-          return await runInDirCapture(dirPath, 'composer', ['run', 'test', '--', '--coverage-text', '--no-ansi'], { env: composerEnv });
-        }
-        return null;
-      };
-      if (projectType === 'npm') {
-        result = await runNpmCoverage();
-        if (result === null) {
-          result = await runPhpCoverage();
-        }
-        if (result === null) {
-          return { ok: false, error: 'No coverage or test script found in package.json or composer.json.', stdout: '', stderr: '', summary: null };
-        }
-      } else if (projectType === 'php') {
-        result = await runPhpCoverage();
-        if (result === null) {
-          return { ok: false, error: 'No coverage or test script found in composer.json.', stdout: '', stderr: '', summary: null };
-        }
-      } else {
-        return { ok: false, error: 'Coverage is supported for npm and PHP projects only.', stdout: '', stderr: '', summary: null };
-      }
-      const out = [result.stdout, result.stderr].filter(Boolean).join('\n');
-      const summary = parseCoverageSummary(stripAnsi(out)) || null;
-      return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr, summary };
-    } catch (e) {
-      return { ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Failed to run coverage', summary: null };
-    }
-  });
-  ipcMain.handle('rm-version-bump', (_e, dirPath, bump) => runVersionBump(dirPath, bump));
-  ipcMain.handle('rm-git-tag-and-push', (_e, dirPath, tagMessage) => gitTagAndPush(dirPath, tagMessage));
-  ipcMain.handle('rm-release', async (_e, dirPath, bump, force, options = {}) => {
-    if (!force) {
-      const status = await getGitStatus(dirPath);
-      if (!status.clean) {
-        return { ok: false, dirty: true, error: 'Uncommitted changes. Commit or stash before releasing.' };
-      }
-    }
-    const info = await getProjectInfoAsync(dirPath);
-    if (!info.ok) return { ok: false, error: info.error };
-    const projectType = info.projectType || 'npm';
-    const plan = getReleasePlan(projectType, info.version);
-    if (plan.action === 'error') return { ok: false, error: plan.error };
-    let version;
-    let tag;
-    if (plan.action === 'bump_and_tag') {
-      const bumpResult = await runVersionBump(dirPath, bump, projectType);
-      if (!bumpResult.ok) return bumpResult;
-      version = bumpResult.version;
-      const pushResult = await gitTagAndPush(dirPath, `chore: release v${version}`);
-      if (!pushResult.ok) return pushResult;
-      tag = pushResult.tag;
-    } else {
-      tag = formatTag(plan.versionForTag);
-      const pushResult = await gitTagAndPush(dirPath, `chore: release ${tag}`, { version: plan.versionForTag });
-      if (!pushResult.ok) return pushResult;
-      version = plan.versionForTag;
-    }
-    const token = getStore().get('githubToken') || options.githubToken;
-    const gitRemote = info.gitRemote || null;
-    const slug = gitRemote ? getRepoSlug(gitRemote) : null;
-    const actionsUrl = gitRemote ? getActionsUrl(gitRemote) : null;
-    if (token && slug) {
-      try {
-        await createGitHubRelease(
-          slug.owner,
-          slug.repo,
-          tag,
-          options.releaseNotes != null ? options.releaseNotes : null,
-          !!options.draft,
-          !!options.prerelease,
-          token
-        );
-      } catch (e) {
-        return { ok: true, tag, version, actionsUrl, releaseError: formatGitHubError(e.message || '') };
-      }
-    }
-    return { ok: true, tag, version, actionsUrl };
-  });
-  ipcMain.handle('rm-get-commits-since-tag', (_e, dirPath, sinceTag) => getCommitsSinceTag(dirPath, sinceTag));
-  ipcMain.handle('rm-get-recent-commits', (_e, dirPath, n) => getRecentCommits(dirPath, n));
-  ipcMain.handle('rm-get-suggested-bump', (_e, commits) => suggestBumpFromCommits(commits));
-  ipcMain.handle('rm-get-shortcut-action', (_e, viewMode, selectedPath, key, metaKey, ctrlKey, inInput) =>
-    getShortcutAction(viewMode, selectedPath, key, metaKey, ctrlKey, inInput)
-  );
-  ipcMain.handle('rm-get-actions-url', (_e, gitRemote) => getActionsUrl(gitRemote) || null);
-  ipcMain.handle('rm-get-github-token', () => getStore().get('githubToken') || '');
-  ipcMain.handle('rm-set-github-token', (_e, token) => {
-    getStore().set('githubToken', typeof token === 'string' ? token : '');
-    return null;
-  });
-  ipcMain.handle('rm-get-ollama-settings', () => ({
-    baseUrl: getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL,
-    model: getStore().get('ollamaModel') || DEFAULT_MODEL,
-  }));
-  ipcMain.handle('rm-set-ollama-settings', (_e, baseUrl, model) => {
-    getStore().set('ollamaBaseUrl', typeof baseUrl === 'string' ? baseUrl : DEFAULT_BASE_URL);
-    getStore().set('ollamaModel', typeof model === 'string' ? model : DEFAULT_MODEL);
-    return null;
-  });
-  ipcMain.handle('rm-get-claude-settings', () => ({
-    apiKey: getStore().get('claudeApiKey') || '',
-    model: getStore().get('claudeModel') || CLAUDE_DEFAULT_MODEL,
-  }));
-  ipcMain.handle('rm-set-claude-settings', (_e, apiKey, model) => {
-    getStore().set('claudeApiKey', typeof apiKey === 'string' ? apiKey : '');
-    getStore().set('claudeModel', typeof model === 'string' ? model : CLAUDE_DEFAULT_MODEL);
-    return null;
-  });
-  ipcMain.handle('rm-get-ai-provider', () => getStore().get('aiProvider') || 'ollama');
-  ipcMain.handle('rm-set-ai-provider', (_e, provider) => {
-    const v = provider === 'claude' ? 'claude' : 'ollama';
-    getStore().set('aiProvider', v);
-    return null;
-  });
-  async function aiGenerate(prompt) {
-    const provider = getStore().get('aiProvider') || 'ollama';
-    if (provider === 'claude') {
-      const apiKey = getStore().get('claudeApiKey') || '';
-      const model = getStore().get('claudeModel') || CLAUDE_DEFAULT_MODEL;
-      if (apiKey.trim()) return claudeGenerate(apiKey, model, prompt);
-    }
-    const { baseUrl, model } = getStore().get('ollamaBaseUrl') != null
-      ? { baseUrl: getStore().get('ollamaBaseUrl'), model: getStore().get('ollamaModel') }
-      : { baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
-    return ollamaGenerate(baseUrl, model, prompt);
   }
-  ipcMain.handle('rm-ollama-list-models', async (_e, baseUrl) => {
-    const url = typeof baseUrl === 'string' && baseUrl.trim() ? baseUrl.trim() : getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
-    return ollamaListModels(url, undefined, { onlyGenerate: true });
-  });
-  ipcMain.handle('rm-ollama-generate-commit-message', async (_e, dirPath) => {
-    const diff = await getGitDiffForCommit(dirPath);
-    const prompt = buildCommitMessagePrompt(diff);
-    const result = await aiGenerate(prompt);
-    return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
-  });
-  ipcMain.handle('rm-ollama-generate-release-notes', async (_e, dirPath, sinceTag) => {
-    const commitsResult = await getCommitsSinceTag(dirPath, sinceTag || null);
-    const commits = commitsResult.ok && commitsResult.commits ? commitsResult.commits : [];
-    const prompt = buildReleaseNotesPrompt(commits);
-    const result = await aiGenerate(prompt);
-    return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
-  });
-  ipcMain.handle('rm-ollama-suggest-test-fix', async (_e, testScriptName, stdout, stderr) => {
-    const prompt = buildTestFixPrompt(testScriptName || 'test', stdout || '', stderr || '');
-    const result = await aiGenerate(prompt);
-    return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
-  });
-  ipcMain.handle('rm-get-git-status', (_e, dirPath) => getGitStatus(dirPath));
-  ipcMain.handle('rm-commit-changes', (_e, dirPath, message, options) => gitCommit(dirPath, message, options || {}));
-  ipcMain.handle('rm-git-pull', (_e, dirPath) => gitPull(dirPath));
-  ipcMain.handle('rm-git-stash-push', (_e, dirPath, message, options) => gitStashPush(dirPath, message, options || {}));
-  ipcMain.handle('rm-git-stash-pop', (_e, dirPath) => gitStashPop(dirPath));
-  ipcMain.handle('rm-git-discard-changes', (_e, dirPath) => gitDiscardChanges(dirPath));
-  ipcMain.handle('rm-git-merge-abort', (_e, dirPath) => gitMergeAbort(dirPath));
-  ipcMain.handle('rm-get-branches', (_e, dirPath) => getBranches(dirPath));
-  ipcMain.handle('rm-checkout-branch', (_e, dirPath, branchName) => checkoutBranch(dirPath, branchName));
-  ipcMain.handle('rm-create-branch', (_e, dirPath, branchName, checkout) => createBranch(dirPath, branchName, checkout !== false));
-  ipcMain.handle('rm-create-branch-from', (_e, dirPath, newName, fromRef) => createBranchFrom(dirPath, newName, fromRef));
-  ipcMain.handle('rm-git-push', (_e, dirPath) => gitPushWithUpstream(dirPath));
-  ipcMain.handle('rm-git-push-force', (_e, dirPath, withLease) => gitPushForce(dirPath, !!withLease));
-  ipcMain.handle('rm-git-merge', (_e, dirPath, branchName, options) => gitMerge(dirPath, branchName, options || {}));
-  ipcMain.handle('rm-rename-branch', (_e, dirPath, oldName, newName) => renameBranch(dirPath, oldName, newName));
-  ipcMain.handle('rm-create-tag', (_e, dirPath, tagName, message, ref) => createTag(dirPath, tagName, message, ref));
-  ipcMain.handle('rm-git-cherry-pick-continue', (_e, dirPath) => gitCherryPickContinue(dirPath));
-  ipcMain.handle('rm-write-gitignore', (_e, dirPath, content) => writeGitignore(dirPath, content));
-  ipcMain.handle('rm-write-gitattributes', (_e, dirPath, content) => writeGitattributes(dirPath, content));
-  ipcMain.handle('rm-git-rebase-interactive', (_e, dirPath, ref) => gitRebaseInteractive(dirPath, ref));
-  // Phase 1
-  ipcMain.handle('rm-get-remote-branches', (_e, dirPath) => getRemoteBranches(dirPath));
-  ipcMain.handle('rm-checkout-remote-branch', (_e, dirPath, ref) => checkoutRemoteBranch(dirPath, ref));
-  ipcMain.handle('rm-get-stash-list', (_e, dirPath) => getStashList(dirPath));
-  ipcMain.handle('rm-stash-apply', (_e, dirPath, index) => stashApply(dirPath, index));
-  ipcMain.handle('rm-stash-drop', (_e, dirPath, index) => stashDrop(dirPath, index));
-  // Phase 2
-  ipcMain.handle('rm-get-tags', (_e, dirPath) => getTags(dirPath));
-  ipcMain.handle('rm-checkout-tag', (_e, dirPath, tagName) => checkoutTag(dirPath, tagName));
-  ipcMain.handle('rm-get-commit-log', (_e, dirPath, n) => getCommitLog(dirPath, n));
-  ipcMain.handle('rm-get-commit-detail', (_e, dirPath, sha) => getCommitDetail(dirPath, sha));
-  // Phase 3
-  ipcMain.handle('rm-delete-branch', (_e, dirPath, branchName, force) => deleteBranch(dirPath, branchName, force));
-  ipcMain.handle('rm-delete-remote-branch', (_e, dirPath, remoteName, branchName) => deleteRemoteBranch(dirPath, remoteName, branchName));
-  ipcMain.handle('rm-git-rebase', (_e, dirPath, ontoBranch) => gitRebase(dirPath, ontoBranch));
-  ipcMain.handle('rm-git-rebase-abort', (_e, dirPath) => gitRebaseAbort(dirPath));
-  ipcMain.handle('rm-git-rebase-continue', (_e, dirPath) => gitRebaseContinue(dirPath));
-  ipcMain.handle('rm-git-rebase-skip', (_e, dirPath) => gitRebaseSkip(dirPath));
-  ipcMain.handle('rm-git-merge-continue', (_e, dirPath) => gitMergeContinue(dirPath));
-  // Phase 4
-  ipcMain.handle('rm-get-remotes', (_e, dirPath) => getRemotes(dirPath));
-  ipcMain.handle('rm-add-remote', (_e, dirPath, name, url) => addRemote(dirPath, name, url));
-  ipcMain.handle('rm-remove-remote', (_e, dirPath, name) => removeRemote(dirPath, name));
-  ipcMain.handle('rm-git-cherry-pick', (_e, dirPath, sha) => gitCherryPick(dirPath, sha));
-  ipcMain.handle('rm-git-cherry-pick-abort', (_e, dirPath) => gitCherryPickAbort(dirPath));
-  ipcMain.handle('rm-git-reset', (_e, dirPath, ref, mode) => gitReset(dirPath, ref, mode));
-  ipcMain.handle('rm-get-diff-between', (_e, dirPath, refA, refB) => getDiffBetween(dirPath, refA, refB));
-  ipcMain.handle('rm-get-diff-between-full', (_e, dirPath, refA, refB) => getDiffBetweenFull(dirPath, refA, refB));
-  ipcMain.handle('rm-git-revert', (_e, dirPath, sha) => gitRevert(dirPath, sha));
-  ipcMain.handle('rm-git-prune-remotes', (_e, dirPath) => gitPruneRemotes(dirPath));
-  ipcMain.handle('rm-git-amend', (_e, dirPath, message) => gitAmend(dirPath, message));
-  ipcMain.handle('rm-get-reflog', (_e, dirPath, n) => getReflog(dirPath, n));
-  ipcMain.handle('rm-checkout-ref', (_e, dirPath, ref) => checkoutRef(dirPath, ref));
-  ipcMain.handle('rm-get-blame', (_e, dirPath, filePath) => getBlame(dirPath, filePath));
-  ipcMain.handle('rm-delete-tag', (_e, dirPath, tagName) => deleteTag(dirPath, tagName));
-  ipcMain.handle('rm-push-tag', (_e, dirPath, tagName, remoteName) => pushTag(dirPath, tagName, remoteName));
-  ipcMain.handle('rm-stage-file', (_e, dirPath, filePath) => stageFile(dirPath, filePath));
-  ipcMain.handle('rm-unstage-file', (_e, dirPath, filePath) => unstageFile(dirPath, filePath));
-  ipcMain.handle('rm-discard-file', (_e, dirPath, filePath) => discardFile(dirPath, filePath));
-  ipcMain.handle('rm-git-fetch-remote', (_e, dirPath, remoteName, ref) => gitFetchRemote(dirPath, remoteName, ref));
-  // Phase 5
-  ipcMain.handle('rm-git-pull-rebase', (_e, dirPath) => gitPullRebase(dirPath));
-  ipcMain.handle('rm-get-gitignore', (_e, dirPath) => getGitignore(dirPath));
-  ipcMain.handle('rm-get-gitattributes', (_e, dirPath) => getGitattributes(dirPath));
-  ipcMain.handle('rm-get-submodules', (_e, dirPath) => getSubmodules(dirPath));
-  ipcMain.handle('rm-submodule-update', (_e, dirPath, init) => submoduleUpdate(dirPath, init));
-  ipcMain.handle('rm-get-git-state', (_e, dirPath) => getGitState(dirPath));
-  ipcMain.handle('rm-get-worktrees', (_e, dirPath) => getWorktrees(dirPath));
-  ipcMain.handle('rm-worktree-add', (_e, dirPath, worktreePath, branch) => worktreeAdd(dirPath, worktreePath, branch));
-  ipcMain.handle('rm-worktree-remove', (_e, dirPath, worktreePath) => worktreeRemove(dirPath, worktreePath));
-  ipcMain.handle('rm-get-bisect-status', (_e, dirPath) => getBisectStatus(dirPath));
-  ipcMain.handle('rm-bisect-start', (_e, dirPath, badRef, goodRef) => bisectStart(dirPath, badRef, goodRef));
-  ipcMain.handle('rm-bisect-good', (_e, dirPath) => bisectGood(dirPath));
-  ipcMain.handle('rm-bisect-bad', (_e, dirPath) => bisectBad(dirPath));
-  ipcMain.handle('rm-bisect-reset', (_e, dirPath) => bisectReset(dirPath));
-  ipcMain.handle('rm-copy-to-clipboard', (_e, text) => {
-    if (text != null && typeof text === 'string') clipboard.writeText(text);
-    return null;
-  });
-  ipcMain.handle('rm-open-path-in-finder', (_e, dirPath) => {
-    if (dirPath != null && typeof dirPath === 'string') return shell.openPath(dirPath);
-    return Promise.resolve('');
-  });
-  ipcMain.handle('rm-open-in-terminal', (_e, dirPath) => {
+  async function runReleaseImpl(dirPath, bump, force, options) {
+    const plan = await getReleasePlan(dirPath, bump, force, options);
+    if (!plan.ok) return plan;
+    await runVersionBump(dirPath, plan.bump);
+    await gitTagAndPush(dirPath, plan.tagMessage);
+    return { ok: true, tag: plan.tag, bump: plan.bump };
+  }
+  function openInTerminalImpl(dirPath) {
     if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
     const platform = process.platform;
     const { spawn: spawnProc } = require('child_process');
@@ -1921,7 +2066,7 @@ app.whenReady().then(() => {
     } catch (e) {
       return Promise.resolve({ ok: false, error: e.message });
     }
-  });
+  }
   function openInEditorImpl(targetPath) {
     const { spawn: spawnProc } = require('child_process');
     const preferred = getPreference('preferredEditor') || '';
@@ -1935,63 +2080,29 @@ app.whenReady().then(() => {
     return (async () => {
       if (preferred === 'cursor') {
         if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
-        return { ok: false, error: 'Cursor not found in PATH. Install Cursor and add the shell command (Cursor: Install "cursor" command).' };
-      }
-      if (preferred === 'code') {
         if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
-        return { ok: false, error: 'VS Code not found in PATH. Install VS Code and add the "code" command to PATH.' };
+      } else if (preferred === 'code') {
+        if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
+        if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
+      } else {
+        if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
+        if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
       }
-      if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
-      if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
-      return { ok: false, error: 'Cursor or VS Code not found in PATH. Install one and ensure the shell command is available, or set Preferred editor in Settings.' };
+      return { ok: false, error: 'No editor found. Add Cursor or VS Code to PATH.' };
     })();
   }
-  ipcMain.handle('rm-open-in-editor', (_e, dirPath) => {
-    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
-    return openInEditorImpl(dirPath);
-  });
-  ipcMain.handle('rm-open-file-in-editor', (_e, dirPath, relativePath) => {
-    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
-    const fullPath = path.join(dirPath, (relativePath || '').replace(/^[/\\]+/, ''));
+  function openFileInEditorImpl(dirPath, relativePath) {
+    const fullPath = path.isAbsolute(relativePath) ? relativePath : path.join(dirPath, relativePath);
     return openInEditorImpl(fullPath);
-  });
-
-  const MAX_FILE_VIEW_SIZE = 512 * 1024;
-  const MAX_IMAGE_VIEW_SIZE = 2 * 1024 * 1024;
-  const IMAGE_EXT_MIME = {
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.webp': 'image/webp',
-    '.bmp': 'image/bmp',
-    '.ico': 'image/x-icon',
-    '.svg': 'image/svg+xml',
-  };
-  function isImageViewable(filePath) {
-    const ext = path.extname((filePath || '').toLowerCase());
-    return IMAGE_EXT_MIME[ext];
   }
-  ipcMain.handle('rm-get-file-diff', async (_e, dirPath, filePath, isUntracked) => {
-    if (!dirPath || typeof filePath !== 'string') return { ok: false, error: 'Invalid path' };
-    const fullPath = path.join(dirPath, (filePath || '').replace(/^[/\\]+/, ''));
-    let stat;
+  async function getFileDiffImpl(dirPath, filePath, isUntracked) {
     try {
-      stat = fs.statSync(fullPath);
-    } catch (e) {
-      if (isUntracked) return { ok: false, error: e.message || 'Failed to load file' };
-      try {
-        const result = await runInDirCapture(dirPath, 'git', ['diff', 'HEAD', '--', filePath]);
-        const content = [result.stdout, result.stderr].filter(Boolean).join('\n').trim() || '(no diff)';
-        return { ok: true, type: 'diff', content };
-      } catch (e2) {
-        return { ok: false, error: e2.message || e.message || 'Failed to load file' };
-      }
-    }
-    try {
-      if (stat.isDirectory()) return { ok: false, error: 'Cannot view directory' };
-      const mime = isImageViewable(filePath);
-      if (mime && stat.size <= MAX_IMAGE_VIEW_SIZE) {
+      const fullPath = path.join(dirPath, filePath);
+      const stat = fs.statSync(fullPath);
+      if (!stat.isFile()) return { ok: false, error: 'Not a file' };
+      const MAX_FILE_VIEW_SIZE = 512 * 1024;
+      const mime = require('mime-types').lookup(filePath) || 'application/octet-stream';
+      if (stat.size > MAX_FILE_VIEW_SIZE && /^image\//.test(mime)) {
         const buf = fs.readFileSync(fullPath);
         const base64 = buf.toString('base64');
         const dataUrl = `data:${mime};base64,${base64}`;
@@ -2008,84 +2119,192 @@ app.whenReady().then(() => {
     } catch (e) {
       return { ok: false, error: e.message || 'Failed to load file' };
     }
-  });
-  ipcMain.handle('rm-get-releases-url', (_e, gitRemote) => getReleasesUrl(gitRemote));
-  ipcMain.handle('rm-sync-from-remote', (_e, dirPath) => gitFetch(dirPath));
-  ipcMain.handle('rm-get-github-releases', async (_e, gitRemote, token = null) => {
-    const slug = getRepoSlug(gitRemote);
-    if (!slug) return { ok: false, error: 'Not a GitHub repo', releases: [] };
-    const authToken = token || getStore().get('githubToken') || null;
-    try {
-      const releases = await fetchGitHubReleases(slug.owner, slug.repo, authToken);
-      return { ok: true, releases };
-    } catch (e) {
-      return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch releases'), releases: [] };
+  }
+
+  // API HTTP server
+  let apiServerInstance = null;
+  const getApiPort = () => Number(getPreference('apiServerPort')) || 3847;
+  const isApiServerEnabled = () => !!getPreference('apiServerEnabled');
+  function ensureApiServer() {
+    if (apiServerInstance) return;
+    apiServerInstance = createApiServer(getApiPort(), async (method, params) => runApiMethod(method, params));
+  }
+  function startApiServer() {
+    ensureApiServer();
+    apiServerInstance.start();
+    debug.log(getStore, 'api', 'HTTP API server started', getApiPort());
+  }
+  function stopApiServer() {
+    if (apiServerInstance) {
+      apiServerInstance.stop();
+      apiServerInstance = null;
+      debug.log(getStore, 'api', 'HTTP API server stopped');
     }
+  }
+  if (isApiServerEnabled()) startApiServer();
+  ipcMain.handle('rm-get-api-server-status', () => ({
+    running: !!apiServerInstance,
+    port: getApiPort(),
+    enabled: isApiServerEnabled(),
+  }));
+  ipcMain.handle('rm-set-api-server-enabled', async (_e, enabled) => {
+    setPreference('apiServerEnabled', !!enabled);
+    if (enabled) startApiServer();
+    else stopApiServer();
+    return null;
   });
-  ipcMain.handle('rm-download-latest', async (e, gitRemote) => {
-    const slug = getRepoSlug(gitRemote);
-    if (!slug) return { ok: false, error: 'Not a GitHub repo' };
-    try {
-      const releases = await fetchGitHubReleases(slug.owner, slug.repo);
-      if (!releases.length) return { ok: false, error: 'No releases found' };
-      const release = releases[0];
-      const assets = release.assets || [];
-      const asset = pickAssetForPlatform(assets, process.platform);
-      if (!asset || !asset.browser_download_url) return { ok: false, error: 'No compatible asset for your platform' };
-      const win = BrowserWindow.fromWebContents(e.sender);
-      const defaultPath = path.join(app.getPath('downloads'), asset.name);
-      return showSaveDialogAndDownload(win, defaultPath, asset.browser_download_url);
-    } catch (err) {
-      return { ok: false, error: formatGitHubError(err.message || 'Failed to fetch or download') };
-    }
-  });
-  ipcMain.handle('rm-download-asset', async (e, url, suggestedFileName) => {
-    if (!url || typeof url !== 'string') return { ok: false, error: 'Invalid URL' };
-    const win = BrowserWindow.fromWebContents(e.sender);
-    const defaultPath = path.join(app.getPath('downloads'), suggestedFileName || 'download');
-    return showSaveDialogAndDownload(win, defaultPath, url);
-  });
-  ipcMain.handle('rm-open-url', (_e, url) => {
-    if (url && typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
-      shell.openExternal(url);
+  ipcMain.handle('rm-set-api-server-port', async (_e, port) => {
+    const p = Number(port);
+    if (!Number.isFinite(p) || p < 1 || p > 65535) return null;
+    setPreference('apiServerPort', p);
+    if (apiServerInstance) {
+      stopApiServer();
+      if (isApiServerEnabled()) startApiServer();
     }
     return null;
   });
-  ipcMain.handle('rm-get-app-info', () => {
-    try {
-      const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-      return { name: pkg.productName || pkg.name, version: pkg.version };
-    } catch {
-      return { name: 'Release Manager', version: '0.1.0' };
-    }
-  });
-  ipcMain.handle('rm-get-changelog', async () => {
-    try {
-      const changelogPath = path.join(app.getAppPath(), 'CHANGELOG.md');
-      const raw = fs.readFileSync(changelogPath, 'utf8');
-      const html = marked.parse(raw, { gfm: true });
-      const content = sanitizeHtml(html, {
-        allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'code', 'pre', 'br', 'blockquote'],
-        allowedAttributes: { a: ['href'] },
-        allowedSchemes: ['http', 'https'],
-      });
-      return { ok: true, content };
-    } catch (e) {
-      return { ok: false, error: e.message || 'Could not load changelog.' };
-    }
-  });
-  ipcMain.handle('rm-get-preference', (_e, key) => getPreference(key));
-  ipcMain.handle('rm-get-available-php-versions', () => getAvailablePhpVersions());
-  ipcMain.handle('rm-parse-php-require', (_e, phpRequire) => parsePhpRequireToVersion(phpRequire));
-  ipcMain.handle('rm-set-preference', (_e, key, value) => {
-    setPreference(key, value);
-    return null;
-  });
-  ipcMain.handle('rm-get-theme', () => ({ theme: getThemeSetting(), effective: getEffectiveTheme() }));
-  ipcMain.handle('rm-set-theme', (_e, theme) => {
-    setThemeSetting(theme);
-    return null;
-  });
+  ipcMain.handle('rm-list-api-methods', () => apiRegistry.listApiMethods());
+  ipcMain.handle('rm-get-api-docs', () => getApiDocsFromModule());
+  ipcMain.handle('rm-get-api-method-doc', (_e, methodName) => getApiMethodDocFromModule(methodName));
+
+  // IPC handlers delegate to apiRegistry (channel name -> method name, then apiRegistry[method](...args))
+  const IPC_TO_METHOD = {
+    'rm-invoke-api': 'invokeApi',
+    'rm-get-projects': 'getProjects',
+    'rm-get-all-projects-info': 'getAllProjectsInfo',
+    'rm-set-projects': 'setProjects',
+    'rm-show-directory-dialog': 'showDirectoryDialog',
+    'rm-get-project-info': 'getProjectInfo',
+    'rm-get-composer-info': 'getComposerInfo',
+    'rm-get-composer-outdated': 'getComposerOutdated',
+    'rm-get-composer-validate': 'getComposerValidate',
+    'rm-get-composer-audit': 'getComposerAudit',
+    'rm-composer-update': 'composerUpdate',
+    'rm-get-project-test-scripts': 'getProjectTestScripts',
+    'rm-run-project-tests': 'runProjectTests',
+    'rm-run-project-coverage': 'runProjectCoverage',
+    'rm-version-bump': 'versionBump',
+    'rm-git-tag-and-push': 'gitTagAndPush',
+    'rm-release': 'release',
+    'rm-get-commits-since-tag': 'getCommitsSinceTag',
+    'rm-get-recent-commits': 'getRecentCommits',
+    'rm-get-suggested-bump': 'getSuggestedBump',
+    'rm-get-shortcut-action': 'getShortcutAction',
+    'rm-get-actions-url': 'getActionsUrl',
+    'rm-get-github-token': 'getGitHubToken',
+    'rm-set-github-token': 'setGitHubToken',
+    'rm-get-ollama-settings': 'getOllamaSettings',
+    'rm-set-ollama-settings': 'setOllamaSettings',
+    'rm-get-claude-settings': 'getClaudeSettings',
+    'rm-set-claude-settings': 'setClaudeSettings',
+    'rm-get-ai-provider': 'getAiProvider',
+    'rm-set-ai-provider': 'setAiProvider',
+    'rm-ollama-list-models': 'ollamaListModels',
+    'rm-ollama-generate-commit-message': 'ollamaGenerateCommitMessage',
+    'rm-ollama-generate-release-notes': 'ollamaGenerateReleaseNotes',
+    'rm-ollama-suggest-test-fix': 'ollamaSuggestTestFix',
+    'rm-get-git-status': 'getGitStatus',
+    'rm-git-pull': 'gitPull',
+    'rm-get-branches': 'getBranches',
+    'rm-checkout-branch': 'checkoutBranch',
+    'rm-create-branch': 'createBranch',
+    'rm-create-branch-from': 'createBranchFrom',
+    'rm-git-push': 'gitPush',
+    'rm-git-push-force': 'gitPushForce',
+    'rm-sync-from-remote': 'gitFetch',
+    'rm-git-merge': 'gitMerge',
+    'rm-git-stash-push': 'gitStashPush',
+    'rm-commit-changes': 'commitChanges',
+    'rm-git-stash-pop': 'gitStashPop',
+    'rm-git-discard-changes': 'gitDiscardChanges',
+    'rm-git-merge-abort': 'gitMergeAbort',
+    'rm-get-remote-branches': 'getRemoteBranches',
+    'rm-checkout-remote-branch': 'checkoutRemoteBranch',
+    'rm-get-stash-list': 'getStashList',
+    'rm-stash-apply': 'stashApply',
+    'rm-stash-drop': 'stashDrop',
+    'rm-get-tags': 'getTags',
+    'rm-checkout-tag': 'checkoutTag',
+    'rm-get-commit-log': 'getCommitLog',
+    'rm-get-commit-detail': 'getCommitDetail',
+    'rm-delete-branch': 'deleteBranch',
+    'rm-delete-remote-branch': 'deleteRemoteBranch',
+    'rm-git-rebase': 'gitRebase',
+    'rm-git-rebase-abort': 'gitRebaseAbort',
+    'rm-git-rebase-continue': 'gitRebaseContinue',
+    'rm-git-rebase-skip': 'gitRebaseSkip',
+    'rm-git-merge-continue': 'gitMergeContinue',
+    'rm-get-remotes': 'getRemotes',
+    'rm-add-remote': 'addRemote',
+    'rm-remove-remote': 'removeRemote',
+    'rm-git-cherry-pick': 'gitCherryPick',
+    'rm-git-cherry-pick-abort': 'gitCherryPickAbort',
+    'rm-git-cherry-pick-continue': 'gitCherryPickContinue',
+    'rm-rename-branch': 'renameBranch',
+    'rm-create-tag': 'createTag',
+    'rm-write-gitignore': 'writeGitignore',
+    'rm-write-gitattributes': 'writeGitattributes',
+    'rm-git-rebase-interactive': 'gitRebaseInteractive',
+    'rm-git-reset': 'gitReset',
+    'rm-get-diff-between': 'getDiffBetween',
+    'rm-get-diff-between-full': 'getDiffBetweenFull',
+    'rm-get-file-diff-structured': 'getFileDiffStructured',
+    'rm-revert-file-line': 'revertFileLine',
+    'rm-git-revert': 'gitRevert',
+    'rm-git-prune-remotes': 'gitPruneRemotes',
+    'rm-git-amend': 'gitAmend',
+    'rm-get-reflog': 'getReflog',
+    'rm-checkout-ref': 'checkoutRef',
+    'rm-get-blame': 'getBlame',
+    'rm-delete-tag': 'deleteTag',
+    'rm-push-tag': 'pushTag',
+    'rm-stage-file': 'stageFile',
+    'rm-unstage-file': 'unstageFile',
+    'rm-discard-file': 'discardFile',
+    'rm-git-fetch-remote': 'gitFetchRemote',
+    'rm-git-pull-rebase': 'gitPullRebase',
+    'rm-get-gitignore': 'getGitignore',
+    'rm-get-gitattributes': 'getGitattributes',
+    'rm-get-submodules': 'getSubmodules',
+    'rm-submodule-update': 'submoduleUpdate',
+    'rm-get-git-state': 'getGitState',
+    'rm-get-worktrees': 'getWorktrees',
+    'rm-worktree-add': 'worktreeAdd',
+    'rm-worktree-remove': 'worktreeRemove',
+    'rm-get-bisect-status': 'getBisectStatus',
+    'rm-bisect-start': 'bisectStart',
+    'rm-bisect-good': 'bisectGood',
+    'rm-bisect-bad': 'bisectBad',
+    'rm-bisect-reset': 'bisectReset',
+    'rm-copy-to-clipboard': 'copyToClipboard',
+    'rm-open-path-in-finder': 'openPathInFinder',
+    'rm-open-in-terminal': 'openInTerminal',
+    'rm-open-in-editor': 'openInEditor',
+    'rm-open-file-in-editor': 'openFileInEditor',
+    'rm-get-file-diff': 'getFileDiff',
+    'rm-get-releases-url': 'getReleasesUrl',
+    'rm-get-github-releases': 'getGitHubReleases',
+    'rm-download-latest': 'downloadLatestRelease',
+    'rm-download-asset': 'downloadAsset',
+    'rm-open-url': 'openUrl',
+    'rm-get-app-info': 'getAppInfo',
+    'rm-get-changelog': 'getChangelog',
+    'rm-get-preference': 'getPreference',
+    'rm-get-available-php-versions': 'getAvailablePhpVersions',
+    'rm-parse-php-require': 'getPhpVersionFromRequire',
+    'rm-set-preference': 'setPreference',
+    'rm-get-theme': 'getTheme',
+    'rm-set-theme': 'setTheme',
+  };
+  for (const [channel, methodName] of Object.entries(IPC_TO_METHOD)) {
+    ipcMain.handle(channel, (_e, ...args) => {
+      debug.log(getStore, 'ipc', channel, 'args.length=', args?.length ?? 0);
+      return apiRegistry[methodName](...args);
+    });
+  }
+
+  createWindow();
+  debug.log(getStore, 'app', 'window created');
 });
 
 nativeTheme.on('updated', () => {

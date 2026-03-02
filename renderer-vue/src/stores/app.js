@@ -7,14 +7,14 @@ export const useAppStore = defineStore('app', () => {
   const filterByType = ref('');
   const filterByTag = ref('');
   const currentInfo = ref(null);
-  const viewMode = ref('detail'); // 'detail' | 'dashboard' | 'settings' | 'docs' | 'changelog'
+  const viewMode = ref('detail'); // 'detail' | 'dashboard' | 'settings' | 'docs' | 'changelog' | 'api'
   const dashboardData = ref([]);
   const selectedPaths = ref(new Set());
   const currentGitSubtab = ref('main');
   const gitSectionsMovedToRightPanel = ref(false);
   const isRefreshingAfterCheckout = ref(false);
   const theme = ref('dark');
-  const detailTab = ref('dashboard'); // 'dashboard' | 'git' | 'version' | 'sync' | 'composer' | 'tests' | 'coverage'
+  const detailTab = ref('dashboard'); // 'dashboard' | 'git' | 'version' | 'sync' | 'composer' | 'tests' | 'coverage' | 'api'
   const useDetailTabs = ref(true);
   const loadingOverlayVisible = ref(false);
   const loadingBarVisible = ref(false);

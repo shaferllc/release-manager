@@ -27,7 +27,10 @@
     <div class="project-list">
       <p v-if="store.filteredProjects.length === 0" id="empty-projects-hint" class="p-4 text-sm text-rm-muted">
         <template v-if="store.projects.length === 0">Click “Add project” to add a folder (npm, Rust, Go, Python, or PHP: <code class="bg-rm-surface px-1 rounded text-xs">package.json</code>, <code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code>, <code class="bg-rm-surface px-1 rounded text-xs">go.mod</code>, <code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code>, or <code class="bg-rm-surface px-1 rounded text-xs">composer.json</code>).</template>
-        <template v-else>{{ emptyHint }}</template>
+        <template v-else>
+          {{ emptyHint }}
+          <button type="button" class="block mt-2 text-xs font-medium text-rm-accent hover:underline" @click="clearFilters">Clear filters</button>
+        </template>
       </p>
       <ul v-else class="space-y-0.5 list-none m-0 p-0" role="list">
         <li
@@ -74,6 +77,7 @@
 import { computed } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
+import * as debug from '../utils/debug';
 
 const store = useAppStore();
 const api = useApi();
@@ -107,6 +111,12 @@ const filterTag = computed({
 
 const emptyHint = computed(() => 'No projects match the current filters.');
 
+function clearFilters() {
+  debug.log('store', 'clearFilters');
+  store.setFilterByType('');
+  store.setFilterByTag('');
+}
+
 function projectLabel(p) {
   const name = p.name || p.path?.split(/[/\\]/).pop() || p.path || 'Project';
   return name;
@@ -118,10 +128,12 @@ function onRowClick(e, path) {
 }
 
 function selectProject(path) {
+  debug.log('store', 'selectedPath', path);
   store.setSelectedPath(path);
 }
 
 async function toggleStar(p) {
+  debug.log('project', 'toggleStar', p.path);
   store.toggleStar(p.path);
   await api.setProjects?.(store.projects);
 }
@@ -129,6 +141,7 @@ async function toggleStar(p) {
 async function removeProject(p) {
   const name = p.name || p.path?.split(/[/\\]/).filter(Boolean).pop() || 'this project';
   if (!window.confirm(`Remove "${name}" from the list?`)) return;
+  debug.log('project', 'removeProject', p.path);
   store.removeProject(p.path);
   await api.setProjects?.(store.projects);
 }
