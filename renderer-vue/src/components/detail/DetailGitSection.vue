@@ -21,22 +21,65 @@
         <span class="truncate max-w-[7rem]">{{ opt.label }}</span>
       </button>
     </nav>
-    <div class="detail-git-toolbar flex flex-wrap items-center gap-2 py-2 px-3 border-b border-rm-border bg-rm-surface/50 shrink-0">
-      <span class="text-xs font-medium text-rm-muted shrink-0">repository:</span>
-      <span class="text-sm text-rm-text truncate max-w-[8rem]" :title="repoName">{{ repoName }}</span>
-      <span class="text-rm-border mx-1">|</span>
-      <span class="text-xs font-medium text-rm-muted shrink-0">branch:</span>
-      <select v-model="selectedBranch" class="detail-git-toolbar-select text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]" @change="onBranchChangeSelect">
-        <option value="">—</option>
-        <option value="__new__">+ New branch…</option>
-        <option v-for="b in filteredBranches" :key="b" :value="b">{{ b }}</option>
-      </select>
-      <span v-if="aheadBehind" class="text-xs text-rm-muted">{{ aheadBehind }}</span>
-      <button type="button" class="icon-btn icon-btn-sm p-1.5" title="Pull" @click="pull"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
-      <button type="button" class="icon-btn icon-btn-sm p-1.5" title="Push" @click="push"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
-      <button type="button" class="icon-btn icon-btn-sm p-1.5" title="Create branch" @click="createBranch"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 15a3 3 0 0 0 6 0"/></svg></button>
-      <button type="button" class="icon-btn icon-btn-sm p-1.5" title="Stash" @click="stashPush"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h14v8h-4l-4 4-4-4H5z"/></svg></button>
-      <button type="button" class="icon-btn icon-btn-sm p-1.5" title="Open in Terminal" @click="openTerminal"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
+    <div class="detail-git-toolbar flex flex-wrap items-end gap-1 sm:gap-3 py-3 px-3 border-b border-rm-border bg-rm-surface/50 shrink-0">
+      <div class="detail-git-toolbar-meta flex items-center gap-2 shrink-0 mr-2">
+        <span class="text-xs font-medium text-rm-muted">repository:</span>
+        <span class="text-sm text-rm-text truncate max-w-[8rem]" :title="repoName">{{ repoName }}</span>
+        <span class="text-rm-border mx-1">|</span>
+        <span class="text-xs font-medium text-rm-muted">branch:</span>
+        <select ref="branchSelectRef" v-model="selectedBranch" class="detail-git-toolbar-select text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]" @change="onBranchChangeSelect">
+          <option value="">—</option>
+          <option value="__new__">+ New branch…</option>
+          <option v-for="b in filteredBranches" :key="b" :value="b">{{ b }}</option>
+        </select>
+        <span v-if="aheadBehind" class="text-xs text-rm-muted">{{ aheadBehind }}</span>
+      </div>
+      <div class="detail-git-toolbar-actions flex flex-wrap items-end gap-1 sm:gap-2">
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Discard all uncommitted changes" @click="undoDiscard">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h10a5 5 0 0 1 5 5v2"/><path d="M3 10 7 6 3 2"/></svg>
+          <span class="text-[10px] font-medium">Undo</span>
+        </button>
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-not-allowed opacity-50" title="Redo (not available)" disabled>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10H11a5 5 0 0 0-5 5v2"/><path d="m21 10-4 4 4 4"/></svg>
+          <span class="text-[10px] font-medium">Redo</span>
+        </button>
+        <div class="detail-git-toolbar-dropdown relative flex flex-col items-center gap-0.5">
+          <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover min-w-[2.5rem]" title="Pull" @click="pullDropdownOpen = !pullDropdownOpen">
+            <span class="flex items-center gap-0.5">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+              <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+            <span class="text-[10px] font-medium">Pull</span>
+          </button>
+          <div v-if="pullDropdownOpen" class="detail-git-toolbar-dropdown-menu absolute left-0 top-full mt-0.5 z-30 py-1 rounded-rm border border-rm-border bg-rm-bg shadow-lg min-w-[8rem]">
+            <button type="button" class="w-full text-left text-xs px-2 py-1.5 hover:bg-rm-surface-hover" @click="pull('merge'); pullDropdownOpen = false">Pull (merge)</button>
+            <button type="button" class="w-full text-left text-xs px-2 py-1.5 hover:bg-rm-surface-hover" @click="pull('rebase'); pullDropdownOpen = false">Pull (rebase)</button>
+          </div>
+        </div>
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Push" @click="push">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+          <span class="text-[10px] font-medium">Push</span>
+        </button>
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Branch" @click="focusBranchSelect">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 15a3 3 0 0 0 6 0"/></svg>
+          <span class="text-[10px] font-medium">Branch</span>
+        </button>
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Stash changes" @click="stashPush">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h14v8h-4l-4 4-4-4H5z"/></svg>
+          <span class="text-[10px] font-medium">Stash</span>
+        </button>
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Pop stash" @click="stashPop">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="12" width="14" height="8" rx="1"/><path d="M12 12V6M9 9l3-3 3 3"/></svg>
+          <span class="text-[10px] font-medium">Pop</span>
+        </button>
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" :class="{ 'bg-rm-accent/15 text-rm-accent': inlineTerminalOpen }" :title="inlineTerminalOpen ? 'Close inline terminal' : 'Open inline terminal'" @click="toggleInlineTerminal">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          <span class="text-[10px] font-medium">Terminal</span>
+        </button>
+      </div>
+    </div>
+    <div v-if="inlineTerminalOpen && store.selectedPath" class="detail-git-inline-terminal shrink-0 border-t border-rm-border p-2">
+      <InlineTerminal :dir-path="store.selectedPath" :min-height="220" @close="inlineTerminalOpen = false" />
     </div>
     <div class="detail-git-three-panels flex-1 min-h-[380px] min-w-0 border-t border-rm-border overflow-auto">
       <div class="detail-git-three-panels-row flex min-h-[380px] min-w-[33rem]">
@@ -218,6 +261,7 @@
           </div>
           <div class="flex flex-wrap gap-2 mt-2">
             <button type="button" class="btn-primary btn-compact text-xs" :disabled="!canCommit" @click="commit">Commit</button>
+            <button type="button" class="btn-secondary btn-compact text-xs" title="Push current branch to remote" @click="pushFromFooter">Push</button>
             <button type="button" class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10" :disabled="!hasChanges" @click="discardAll">Discard all</button>
           </div>
           <p v-if="gitActionStatus" class="m-0 mt-2 text-xs text-rm-muted">{{ gitActionStatus }}</p>
@@ -304,6 +348,7 @@ import GitTagsCard from './git/GitTagsCard.vue';
 import GitReflogCard from './git/GitReflogCard.vue';
 import GitDeleteBranchCard from './git/GitDeleteBranchCard.vue';
 import GitRemotesCard from './git/GitRemotesCard.vue';
+import InlineTerminal from './InlineTerminal.vue';
 import GitCompareResetCard from './git/GitCompareResetCard.vue';
 import GitGitignoreCard from './git/GitGitignoreCard.vue';
 import GitGitattributesCard from './git/GitGitattributesCard.vue';
@@ -323,6 +368,9 @@ const tags = ref([]);
 const remoteBranches = ref([]);
 const remoteBranchesLoaded = ref(false);
 const remoteBranchesLoading = ref(false);
+const pullDropdownOpen = ref(false);
+const branchSelectRef = ref(null);
+const inlineTerminalOpen = ref(false);
 const worktrees = ref([]);
 const selectedBranch = ref('');
 const commitSummary = ref('');
@@ -441,6 +489,15 @@ const workingTreeByDir = computed(() => {
   return Object.entries(map)
     .sort((a, b) => a[0].localeCompare(b[0], undefined, { sensitivity: 'base' }))
     .map(([dir, items]) => ({ dir, items }));
+});
+
+watch(pullDropdownOpen, (open) => {
+  if (open) {
+    const close = () => { pullDropdownOpen.value = false; };
+    nextTick(() => {
+      document.addEventListener('click', close, { once: true });
+    });
+  }
 });
 
 watch(() => props.info?.path, async (path) => {
@@ -627,15 +684,41 @@ async function checkoutRemoteBranch(ref) {
   }
 }
 
-async function pull() {
+async function pull(mode = 'merge') {
   if (!window.confirm(GIT_ACTION_CONFIRMS.pull)) return;
   const path = store.selectedPath;
   try {
-    await api.gitPull?.(path);
-    gitActionStatus.value = GIT_ACTION_SUCCESS.pull;
+    if (mode === 'rebase' && api.gitPullRebase) {
+      await api.gitPullRebase(path);
+      gitActionStatus.value = 'Pulled (rebase).';
+    } else {
+      await api.gitPull?.(path);
+      gitActionStatus.value = GIT_ACTION_SUCCESS.pull;
+    }
     emit('refresh');
   } catch (e) {
     gitActionStatus.value = e?.message || 'Pull failed.';
+  }
+}
+
+function focusBranchSelect() {
+  branchSelectRef.value?.focus();
+}
+
+function undoDiscard() {
+  discardAll();
+}
+
+async function stashPop() {
+  const path = store.selectedPath;
+  if (!path || !api.gitStashPop) return;
+  if (!window.confirm('Pop the most recent stash? It will be applied and removed from the stash list.')) return;
+  try {
+    await api.gitStashPop(path);
+    gitActionStatus.value = 'Stash popped.';
+    emit('refresh');
+  } catch (e) {
+    gitActionStatus.value = e?.message || 'Pop failed.';
   }
 }
 
@@ -651,9 +734,16 @@ async function push() {
   }
 }
 
-function openTerminal() {
-  const path = store.selectedPath;
-  if (path) api.openInTerminal?.(path);
+function pushFromFooter() {
+  push();
+}
+
+function toggleInlineTerminal() {
+  if (store.selectedPath) {
+    inlineTerminalOpen.value = !inlineTerminalOpen.value;
+  } else {
+    api.openInTerminal?.(store.selectedPath);
+  }
 }
 
 async function createBranch() {

@@ -8,9 +8,15 @@
     </div>
     <ul v-if="remotes.length" class="list-none m-0 p-0 space-y-1 text-sm">
       <li v-for="r in remotes" :key="r.name" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border/50">
-        <span class="font-medium text-rm-text">{{ r.name }}</span>
-        <span class="truncate text-rm-muted text-xs" :title="r.url">{{ r.url }}</span>
-        <button type="button" class="text-xs text-rm-warning hover:underline border-none bg-transparent cursor-pointer p-0 shrink-0" @click="remove(r.name)">Remove</button>
+        <span class="font-medium text-rm-text shrink-0">{{ r.name }}</span>
+        <span class="truncate text-rm-muted text-xs min-w-0" :title="r.url">{{ r.url }}</span>
+        <span class="flex items-center gap-1 shrink-0">
+          <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0" title="Rename this remote" @click="rename(r)">Rename</button>
+          <span class="text-rm-border">|</span>
+          <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0" title="Change remote URL" @click="changeUrl(r)">Change URL</button>
+          <span class="text-rm-border">|</span>
+          <button type="button" class="text-xs text-rm-warning hover:underline border-none bg-transparent cursor-pointer p-0" title="Remove this remote" @click="remove(r.name)">Remove</button>
+        </span>
       </li>
     </ul>
     <p v-else class="m-0 text-xs text-rm-muted">No remotes.</p>
@@ -73,6 +79,44 @@ async function remove(name) {
     emit('refresh');
   } catch (e) {
     error.value = e?.message || 'Remove failed.';
+  }
+}
+
+async function rename(remote) {
+  const path = store.selectedPath;
+  if (!path || !api.renameRemote) return;
+  const newName = window.prompt(`Rename remote "${remote.name}" to:`, remote.name);
+  if (newName == null || newName.trim() === '' || newName.trim() === remote.name) return;
+  error.value = '';
+  try {
+    const result = await api.renameRemote(path, remote.name, newName.trim());
+    if (result?.error) {
+      error.value = result.error;
+      return;
+    }
+    load();
+    emit('refresh');
+  } catch (e) {
+    error.value = e?.message || 'Rename failed.';
+  }
+}
+
+async function changeUrl(remote) {
+  const path = store.selectedPath;
+  if (!path || !api.setRemoteUrl) return;
+  const newUrl = window.prompt(`New URL for remote "${remote.name}":`, remote.url);
+  if (newUrl == null || newUrl.trim() === '') return;
+  error.value = '';
+  try {
+    const result = await api.setRemoteUrl(path, remote.name, newUrl.trim());
+    if (result?.error) {
+      error.value = result.error;
+      return;
+    }
+    load();
+    emit('refresh');
+  } catch (e) {
+    error.value = e?.message || 'Change URL failed.';
   }
 }
 </script>

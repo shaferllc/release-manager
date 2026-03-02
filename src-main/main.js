@@ -17,7 +17,7 @@ const { isValidBump, isPrereleaseBump, formatTag, PRERELEASE_PREID } = require('
 const { runInDir: runInDirLib } = require('./lib/runInDir');
 const { parseOldConfig } = require('./lib/migration');
 const { getProjectNameVersionAndType } = require('./lib/projectDetection');
-const { getReleasePlan } = require('./lib/releaseStrategy');
+const { getReleasePlan: getReleasePlanFromStrategy } = require('./lib/releaseStrategy');
 const { getRecentCommits: getRecentCommitsLib } = require('./lib/gitLog');
 const { suggestBumpFromCommits } = require('./lib/conventionalCommits');
 const { getShortcutAction } = require('./lib/shortcuts');
@@ -250,6 +250,34 @@ function runInDirCapture(dirPath, command, args, options = {}) {
         exitCode: code ?? -1,
         stdout: cleanStdout,
         stderr: cleanStderr,
+      });
+    });
+    proc.on('error', (e) => {
+      resolve({ ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Spawn failed' });
+    });
+  });
+}
+
+/** Run a shell command string in dirPath (for inline terminal). Returns { ok, exitCode, stdout, stderr }. */
+function runShellCommand(dirPath, command) {
+  const cmd = (command || '').trim();
+  if (!cmd) return Promise.resolve({ ok: true, exitCode: 0, stdout: '', stderr: '' });
+  const isWin = process.platform === 'win32';
+  const proc = spawn(isWin ? 'cmd.exe' : process.env.SHELL || '/bin/sh', isWin ? ['/c', command] : ['-c', command], {
+    cwd: dirPath || process.cwd(),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  proc.stdout?.on('data', (d) => { stdout += d.toString(); });
+  proc.stderr?.on('data', (d) => { stderr += d.toString(); });
+  return new Promise((resolve) => {
+    proc.on('close', (code) => {
+      resolve({
+        ok: code === 0,
+        exitCode: code ?? -1,
+        stdout: stripAnsi(stdout),
+        stderr: stripAnsi(stderr),
       });
     });
     proc.on('error', (e) => {
@@ -905,6 +933,33 @@ async function removeRemote(dirPath, name) {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Remove remote failed' };
+  }
+}
+
+/** Rename a remote (e.g. origin → upstream). */
+async function renameRemote(dirPath, oldName, newName) {
+  const oldN = (oldName || '').trim();
+  const newN = (newName || '').trim();
+  if (!oldN || !newN) return { ok: false, error: 'Current name and new name required' };
+  if (oldN === newN) return { ok: true };
+  try {
+    await runInDir(dirPath, 'git', ['remote', 'rename', oldN, newN]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rename remote failed' };
+  }
+}
+
+/** Change a remote's URL (e.g. point origin to a different repo). */
+async function setRemoteUrl(dirPath, name, url) {
+  const n = (name || '').trim();
+  const u = (url || '').trim();
+  if (!n || !u) return { ok: false, error: 'Remote name and URL required' };
+  try {
+    await runInDir(dirPath, 'git', ['remote', 'set-url', n, u]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Set URL failed' };
   }
 }
 
@@ -1841,6 +1896,8 @@ app.whenReady().then(() => {
     getRemotes: (dirPath) => getRemotes(dirPath),
     addRemote: (dirPath, name, url) => addRemote(dirPath, name, url),
     removeRemote: (dirPath, name) => removeRemote(dirPath, name),
+    renameRemote: (dirPath, oldName, newName) => renameRemote(dirPath, oldName, newName),
+    setRemoteUrl: (dirPath, name, url) => setRemoteUrl(dirPath, name, url),
     gitCherryPick: (dirPath, sha) => gitCherryPick(dirPath, sha),
     gitCherryPickAbort: (dirPath) => gitCherryPickAbort(dirPath),
     gitCherryPickContinue: (dirPath) => gitCherryPickContinue(dirPath),
@@ -1889,6 +1946,7 @@ app.whenReady().then(() => {
       return Promise.resolve('');
     },
     openInTerminal: (dirPath) => openInTerminalImpl(dirPath),
+    runShellCommand: (dirPath, command) => runShellCommand(dirPath, command),
     openInEditor: (dirPath) => openInEditorImpl(dirPath),
     openFileInEditor: (dirPath, relativePath) => openFileInEditorImpl(dirPath, relativePath),
     getFileDiff: async (dirPath, filePath, isUntracked) => getFileDiffImpl(dirPath, filePath, isUntracked),
@@ -2039,12 +2097,35 @@ app.whenReady().then(() => {
       return { ok: false, error: e.message || 'Coverage run failed', stdout: '', stderr: '', summary: null };
     }
   }
+  async function getReleasePlanForRelease(dirPath, bump, force, options) {
+    const resolved = getProjectNameVersionAndType(dirPath, path, fs);
+    if (!resolved.ok) return { ok: false, error: resolved.error };
+    const strategyPlan = getReleasePlanFromStrategy(resolved.projectType, resolved.version);
+    if (strategyPlan.action === 'error') return { ok: false, error: strategyPlan.error };
+    if (strategyPlan.action === 'bump_and_tag') {
+      const res = await getCommitsSinceTag(dirPath, null);
+const suggested = (res && res.ok && res.commits) ? suggestBumpFromCommits(res.commits) : null;
+const effectiveBump = (force ? bump : (suggested || bump)) || bump;
+      const tagMessage = (options && options.tagMessage) || 'chore: release';
+      return { ok: true, action: 'bump_and_tag', bump: effectiveBump, tagMessage };
+    }
+    const tag = formatTag(strategyPlan.versionForTag);
+    const tagMessage = (options && options.tagMessage) || `chore: release ${tag}`;
+    return { ok: true, action: 'tag_only', tag, versionForTag: strategyPlan.versionForTag, tagMessage };
+  }
   async function runReleaseImpl(dirPath, bump, force, options) {
-    const plan = await getReleasePlan(dirPath, bump, force, options);
+    const plan = await getReleasePlanForRelease(dirPath, bump, force, options);
     if (!plan.ok) return plan;
-    await runVersionBump(dirPath, plan.bump);
-    await gitTagAndPush(dirPath, plan.tagMessage);
-    return { ok: true, tag: plan.tag, bump: plan.bump };
+    if (plan.action === 'bump_and_tag') {
+      const bumpResult = await runVersionBump(dirPath, plan.bump, 'npm');
+      if (!bumpResult.ok) return { ok: false, error: bumpResult.error };
+      const pushResult = await gitTagAndPush(dirPath, plan.tagMessage);
+      if (!pushResult.ok) return { ok: false, error: pushResult.error };
+      return { ok: true, tag: pushResult.tag, bump: plan.bump };
+    }
+    const pushResult = await gitTagAndPush(dirPath, plan.tagMessage, { version: plan.versionForTag });
+    if (!pushResult.ok) return { ok: false, error: pushResult.error };
+    return { ok: true, tag: pushResult.tag, bump: null };
   }
   function openInTerminalImpl(dirPath) {
     if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
@@ -2167,6 +2248,9 @@ app.whenReady().then(() => {
   ipcMain.handle('rm-get-api-docs', () => getApiDocsFromModule());
   ipcMain.handle('rm-get-api-method-doc', (_e, methodName) => getApiMethodDocFromModule(methodName));
 
+  // Explicit handler for inline terminal (ensure it is always registered)
+  ipcMain.handle('rm-run-shell-command', (_e, dirPath, command) => runShellCommand(dirPath, command));
+
   // IPC handlers delegate to apiRegistry (channel name -> method name, then apiRegistry[method](...args))
   const IPC_TO_METHOD = {
     'rm-invoke-api': 'invokeApi',
@@ -2237,6 +2321,8 @@ app.whenReady().then(() => {
     'rm-get-remotes': 'getRemotes',
     'rm-add-remote': 'addRemote',
     'rm-remove-remote': 'removeRemote',
+    'rm-rename-remote': 'renameRemote',
+    'rm-set-remote-url': 'setRemoteUrl',
     'rm-git-cherry-pick': 'gitCherryPick',
     'rm-git-cherry-pick-abort': 'gitCherryPickAbort',
     'rm-git-cherry-pick-continue': 'gitCherryPickContinue',

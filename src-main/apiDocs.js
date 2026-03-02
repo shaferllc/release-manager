@@ -131,6 +131,8 @@ const API_DOCS = [
   { name: 'getRemotes', category: 'Git', description: 'List remotes (name and URL).', params: [{ name: 'dirPath', type: 'string' }], returns: 'Array of { name, url }' },
   { name: 'addRemote', category: 'Git', description: 'Add a remote.', params: [{ name: 'dirPath', type: 'string' }, { name: 'name', type: 'string' }, { name: 'url', type: 'string' }], returns: 'void' },
   { name: 'removeRemote', category: 'Git', description: 'Remove a remote.', params: [{ name: 'dirPath', type: 'string' }, { name: 'name', type: 'string' }], returns: 'void' },
+  { name: 'renameRemote', category: 'Git', description: 'Rename a remote (e.g. origin → upstream).', params: [{ name: 'dirPath', type: 'string' }, { name: 'oldName', type: 'string' }, { name: 'newName', type: 'string' }], returns: '{ ok } | { ok: false, error }' },
+  { name: 'setRemoteUrl', category: 'Git', description: "Change a remote's URL.", params: [{ name: 'dirPath', type: 'string' }, { name: 'name', type: 'string' }, { name: 'url', type: 'string' }], returns: '{ ok } | { ok: false, error }' },
   { name: 'gitCherryPick', category: 'Git', description: 'Cherry-pick a commit by SHA.', params: [{ name: 'dirPath', type: 'string' }, { name: 'sha', type: 'string' }], returns: 'void' },
   { name: 'gitCherryPickAbort', category: 'Git', description: 'Abort cherry-pick.', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
   { name: 'gitCherryPickContinue', category: 'Git', description: 'Continue after resolving cherry-pick conflicts.', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
