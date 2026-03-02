@@ -51,22 +51,31 @@
                     <span class="diff-line-content flex-1 min-w-0">{{ row.newContent ?? '' }}</span>
                     <span class="diff-actions shrink-0">
                       <button
-                        v-if="row.newContent != null"
+                        v-if="row.newContent != null || row.oldContent != null"
                         type="button"
                         class="diff-copy-btn"
-                        title="Copy new line"
-                        @click="copyLine(row.newContent)"
+                        :title="'Copy ' + (row.newContent != null ? 'new' : 'old') + ' line'"
+                        @click="copyLine(row.newContent != null ? row.newContent : row.oldContent)"
                       >
                         Copy
                       </button>
                       <button
-                        v-if="canRevertRow(row)"
+                        v-if="canUseOld(row)"
                         type="button"
-                        class="diff-revert-btn"
-                        title="Revert this line to old (or remove added line)"
-                        @click="revertRow(row)"
+                        class="diff-use-old-btn"
+                        title="Use old (left) — set this line to the old version"
+                        @click="useOld(row)"
                       >
-                        Revert
+                        Use old
+                      </button>
+                      <button
+                        v-if="canUseNew(row)"
+                        type="button"
+                        class="diff-use-new-btn"
+                        title="Use new (right) — set this line back to the new version"
+                        @click="useNew(row)"
+                      >
+                        Use new
                       </button>
                     </span>
                   </div>
@@ -78,6 +87,15 @@
       </div>
       <div class="modal-footer flex-shrink-0 flex flex-wrap items-center gap-2 p-3 border-t border-rm-border">
         <button type="button" class="btn-secondary btn-compact text-xs" @click="close">Close</button>
+        <button
+          v-if="!props.commitSha && props.dirPath && props.filePath"
+          type="button"
+          class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10"
+          title="Discard all changes in this file"
+          @click="discardEntireFile"
+        >
+          Discard entire file
+        </button>
         <span v-if="revertStatus" class="text-xs" :class="revertStatus.ok ? 'text-rm-success' : 'text-rm-warning'">{{ revertStatus.ok ? 'Reverted. Refresh to see changes.' : revertStatus.error }}</span>
       </div>
     </div>
@@ -164,6 +182,19 @@ async function revertRow(row) {
 
 async function copyLine(text) {
   if (text != null && api.copyToClipboard) await api.copyToClipboard(text);
+}
+
+async function discardEntireFile() {
+  if (!props.dirPath || !props.filePath || !api.discardFile) return;
+  if (!window.confirm(`Discard all changes in "${props.filePath}"? This cannot be undone.`)) return;
+  revertStatus.value = null;
+  try {
+    await api.discardFile(props.dirPath, props.filePath);
+    emit('refresh');
+    close();
+  } catch (e) {
+    revertStatus.value = { ok: false, error: e?.message || String(e) };
+  }
 }
 
 async function load() {

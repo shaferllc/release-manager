@@ -68,11 +68,7 @@ release-manager/
 │   │   └── __tests__/
 │   ├── main.js
 │   └── preload.js
-├── src-renderer/
-│   ├── index.html
-│   ├── renderer.js
-│   ├── input.css
-│   └── styles.css
+├── renderer-vue/          # Vue app (builds to dist-renderer/)
 ├── package.json
 └── README.md
 ```
@@ -85,7 +81,6 @@ release-manager/
 | `npm run dev` | Build Vue renderer and run with Electron logging |
 | `npm run build:renderer-vue` | Build the Vue UI into `dist-renderer/` (run from repo root) |
 | `npm run dev:vue` | Build Vue, then watch for changes and run Electron (auto-rebuild on save) |
-| `npm run build:css` | Build Tailwind CSS (legacy renderer) |
 | `npm run build` | Package with electron-builder |
 | `npm test` | Run test suite (Jest + Vue) |
 | `npm run test:watch` | Run tests in watch mode |
@@ -100,7 +95,7 @@ release-manager/
 
 ## Tests
 
-Logic in `src-main/lib/` is unit-tested (Jest). Run `npm run test:coverage` for coverage. `npm run test:e2e` runs a Playwright smoke test that launches the app and checks the main UI (requires `npm run build:css` first).
+Logic in `src-main/lib/` is unit-tested (Jest). Run `npm run test:coverage` for coverage. `npm run test:e2e` runs a Playwright smoke test that launches the app and checks the main UI (builds the Vue renderer first).
 
 ## Releasing this app
 

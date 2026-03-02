@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
@@ -1708,6 +1709,39 @@ function createWindow() {
   });
 }
 
+/** State for terminal popout windows: webContentsId -> { dirPath } */
+const terminalPopoutStateByWebContentsId = new Map();
+
+function createTerminalPopoutWindow(dirPath) {
+  const win = new BrowserWindow({
+    width: 900,
+    height: 560,
+    minWidth: 400,
+    minHeight: 300,
+    icon: fs.existsSync(iconPath) ? iconPath : undefined,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+    title: 'Terminal',
+  });
+  const state = { dirPath: dirPath || '' };
+  win.webContents.once('did-start-loading', () => {
+    terminalPopoutStateByWebContentsId.set(win.webContents.id, state);
+  });
+  win.on('closed', () => {
+    terminalPopoutStateByWebContentsId.delete(win.webContents.id);
+  });
+  const indexPath = path.join(__dirname, '..', 'dist-renderer', 'index.html');
+  const fileUrl = pathToFileURL(indexPath).href + '#terminal-popout';
+  win.loadURL(fileUrl);
+  win.once('ready-to-show', () => win.show());
+  win.webContents.on('did-finish-load', () => {
+    win.webContents.send('rm-theme', getEffectiveTheme());
+  });
+}
+
 app.whenReady().then(() => {
   store = new Store({ name: 'release-manager' });
   // One-time migration from old JSON config so projects survive rebuilds
@@ -2405,6 +2439,19 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
 
   // Explicit handler for inline terminal (ensure it is always registered)
   ipcMain.handle('rm-run-shell-command', (_e, dirPath, command) => runShellCommand(dirPath, command));
+  ipcMain.handle('rm-open-terminal-popout', (_e, dirPath) => {
+    createTerminalPopoutWindow(dirPath);
+    return Promise.resolve();
+  });
+  ipcMain.handle('rm-get-terminal-popout-state', (e) => {
+    const state = terminalPopoutStateByWebContentsId.get(e.sender.id);
+    return Promise.resolve(state || { dirPath: '' });
+  });
+  ipcMain.handle('rm-close-terminal-popout-window', (e) => {
+    const win = e.sender.getOwnerBrowserWindow();
+    if (win && !win.isDestroyed()) win.close();
+    return Promise.resolve();
+  });
 
   // IPC handlers delegate to apiRegistry (channel name -> method name, then apiRegistry[method](...args))
   const IPC_TO_METHOD = {

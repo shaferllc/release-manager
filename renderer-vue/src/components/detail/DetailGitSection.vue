@@ -79,7 +79,7 @@
       </div>
     </div>
     <div v-if="inlineTerminalOpen && store.selectedPath" class="detail-git-inline-terminal shrink-0 border-t border-rm-border p-2">
-      <InlineTerminal :dir-path="store.selectedPath" :min-height="220" @close="inlineTerminalOpen = false" />
+      <TerminalPanel :min-height="280" :initial-dir-path="store.selectedPath" @close="inlineTerminalOpen = false" />
     </div>
     <div class="detail-git-three-panels flex-1 min-h-[380px] min-w-0 border-t border-rm-border overflow-auto">
       <div class="detail-git-three-panels-row flex min-h-[380px] min-w-[33rem]">
@@ -87,56 +87,65 @@
         <div class="p-2 border-b border-rm-border shrink-0">
           <input v-model="gitFilter" type="text" class="detail-git-filter-input w-full text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5" placeholder="Filter (⌘⌥F)" />
         </div>
-        <div class="detail-git-sidebar-scroll flex-1 overflow-y-auto py-2 min-h-0 flex flex-col">
-          <div class="detail-git-sidebar-group px-2">
-            <p class="text-xs font-semibold text-rm-muted uppercase tracking-wide m-0 py-1">Local branches</p>
-            <ul class="py-0.5 px-0 pl-0 pr-2 list-none m-0 text-sm text-rm-text space-y-0.5">
-              <li
-                class="cursor-pointer hover:text-rm-accent truncate py-0.5 flex items-center gap-1 text-rm-accent font-medium"
-                @click="createBranch"
-              >
-                <span class="shrink-0" aria-hidden="true">+</span>
-                New branch
-              </li>
-              <li
-                v-for="b in filteredBranches"
-                :key="b"
-                class="cursor-pointer hover:text-rm-accent truncate py-0.5"
-                :class="{ 'font-medium text-rm-accent': b === currentBranch }"
-                @click="checkoutBranch(b)"
-                @contextmenu.prevent="openBranchContextMenu($event, b, false)"
-              >
-                {{ b }}
-              </li>
-            </ul>
-          </div>
-          <div class="detail-git-sidebar-group px-2">
-            <div class="flex items-center justify-between gap-1 py-1">
-              <p class="text-xs font-semibold text-rm-muted uppercase tracking-wide m-0">Remote</p>
-              <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" :disabled="remoteBranchesLoading" @click="loadRemoteBranches">{{ remoteBranchesLoading ? '…' : (remoteBranchesLoaded ? 'Refresh' : 'Load') }}</button>
+        <div class="detail-git-sidebar-scroll flex-1 overflow-y-auto py-2 min-h-0 flex flex-col gap-2">
+          <div class="detail-git-sidebar-group rounded-rm border border-rm-border bg-rm-surface/40 overflow-hidden">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarLocalOpen" @click="sidebarLocalOpen = !sidebarLocalOpen">
+              <span class="text-xs font-semibold text-rm-muted uppercase tracking-wide">Local branches</span>
+              <svg class="w-3.5 h-3.5 shrink-0 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarLocalOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div v-show="sidebarLocalOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+              <ul class="py-1 px-0 list-none m-0 text-sm text-rm-text space-y-0.5">
+                <li class="cursor-pointer hover:text-rm-accent truncate py-0.5 flex items-center gap-1 text-rm-accent font-medium" @click="createBranch">
+                  <span class="shrink-0" aria-hidden="true">+</span>
+                  New branch
+                </li>
+                <li
+                  v-for="b in filteredBranches"
+                  :key="b"
+                  class="cursor-pointer hover:text-rm-accent truncate py-0.5"
+                  :class="{ 'font-medium text-rm-accent': b === currentBranch }"
+                  @click="checkoutBranch(b)"
+                  @contextmenu.prevent="openBranchContextMenu($event, b, false)"
+                >
+                  {{ b }}
+                </li>
+              </ul>
             </div>
-            <ul class="max-h-28 overflow-y-auto py-0.5 px-0 list-none m-0 text-sm text-rm-text space-y-0.5">
-              <li
-                v-for="r in filteredRemoteBranches"
-                :key="r"
-                class="cursor-pointer hover:text-rm-accent truncate py-0.5"
-                @click="checkoutRemoteBranch(r)"
-                @contextmenu.prevent="openBranchContextMenu($event, r, true)"
-              >
-                {{ r }}
-              </li>
-              <li v-if="!remoteBranchesLoading && remoteBranches.length === 0 && remoteBranchesLoaded" class="text-xs text-rm-muted py-0.5">None</li>
-            </ul>
           </div>
-          <div class="detail-git-sidebar-group px-2">
-            <p class="text-xs font-semibold text-rm-muted uppercase tracking-wide m-0 py-1">Worktrees</p>
-            <p class="m-0 pl-0 text-xs text-rm-muted py-0.5">{{ worktreesSummary }}</p>
+          <div class="detail-git-sidebar-group rounded-rm border border-rm-border bg-rm-surface/40 overflow-hidden">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarRemoteOpen" @click="sidebarRemoteOpen = !sidebarRemoteOpen">
+              <span class="text-xs font-semibold text-rm-muted uppercase tracking-wide">Remote</span>
+              <span class="flex items-center gap-1 shrink-0">
+                <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer" :disabled="remoteBranchesLoading" @click.stop="loadRemoteBranches">{{ remoteBranchesLoading ? '…' : (remoteBranchesLoaded ? 'Refresh' : 'Load') }}</button>
+                <svg class="w-3.5 h-3.5 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarRemoteOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+            </button>
+            <div v-show="sidebarRemoteOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+              <ul class="max-h-28 overflow-y-auto py-1 px-0 list-none m-0 text-sm text-rm-text space-y-0.5">
+                <li v-for="r in filteredRemoteBranches" :key="r" class="cursor-pointer hover:text-rm-accent truncate py-0.5" @click="checkoutRemoteBranch(r)" @contextmenu.prevent="openBranchContextMenu($event, r, true)">{{ r }}</li>
+                <li v-if="!remoteBranchesLoading && remoteBranches.length === 0 && remoteBranchesLoaded" class="text-xs text-rm-muted py-0.5">None</li>
+              </ul>
+            </div>
           </div>
-          <div class="detail-git-sidebar-group px-2">
-            <p class="text-xs font-semibold text-rm-muted uppercase tracking-wide m-0 py-1">Tags</p>
-            <ul class="max-h-32 overflow-y-auto py-0.5 px-0 list-none m-0 text-xs text-rm-muted space-y-0.5">
-              <li v-for="t in filteredTags" :key="t" class="cursor-pointer hover:text-rm-accent truncate py-0.5" @click="checkoutTag(t)">{{ t }}</li>
-            </ul>
+          <div class="detail-git-sidebar-group rounded-rm border border-rm-border bg-rm-surface/40 overflow-hidden">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarWorktreesOpen" @click="sidebarWorktreesOpen = !sidebarWorktreesOpen">
+              <span class="text-xs font-semibold text-rm-muted uppercase tracking-wide">Worktrees</span>
+              <svg class="w-3.5 h-3.5 shrink-0 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarWorktreesOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div v-show="sidebarWorktreesOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+              <p class="m-0 text-xs text-rm-muted py-0.5">{{ worktreesSummary }}</p>
+            </div>
+          </div>
+          <div class="detail-git-sidebar-group rounded-rm border border-rm-border bg-rm-surface/40 overflow-hidden">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarTagsOpen" @click="sidebarTagsOpen = !sidebarTagsOpen">
+              <span class="text-xs font-semibold text-rm-muted uppercase tracking-wide">Tags</span>
+              <svg class="w-3.5 h-3.5 shrink-0 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarTagsOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+            </button>
+            <div v-show="sidebarTagsOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+              <ul class="max-h-32 overflow-y-auto py-1 px-0 list-none m-0 text-xs text-rm-muted space-y-0.5">
+                <li v-for="t in filteredTags" :key="t" class="cursor-pointer hover:text-rm-accent truncate py-0.5" @click="checkoutTag(t)">{{ t }}</li>
+              </ul>
+            </div>
           </div>
         </div>
       </aside>
@@ -168,7 +177,7 @@
           <p v-if="commitLog.length === 0 && !commitLogLoading" class="m-0 p-4 text-xs text-rm-muted">No commits.</p>
         </div>
       </div>
-      <div class="detail-git-right-panel w-80 shrink-0 flex flex-col overflow-hidden bg-rm-bg-elevated/30 p-4">
+      <div class="detail-git-right-panel w-80 shrink-0 flex flex-col overflow-hidden bg-rm-bg-elevated/30 p-4 border-l border-rm-border">
         <div class="mb-3 flex items-center gap-2 relative">
           <div class="detail-git-section-dropdown flex-1 min-w-0 relative">
             <button
@@ -200,7 +209,7 @@
           <button v-if="gitSectionDocKey" type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal shrink-0" title="Documentation" aria-label="Documentation" @click="openGitSectionDocs">(i)</button>
         </div>
         <template v-if="gitRightSection === 'working-tree'">
-        <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
+        <div class="flex-1 min-h-0 overflow-y-auto flex flex-col rounded-rm border border-rm-border bg-rm-surface/20 p-3">
           <div class="mb-3 flex items-center justify-between gap-2 flex-wrap">
             <p class="m-0 text-xs font-medium text-rm-muted">{{ uncommittedLabel }}</p>
             <div class="flex items-center gap-1">
@@ -212,16 +221,19 @@
           <div v-if="workingTreeView === 'path'" class="mb-4">
             <ul v-if="unstaged.length || staged.length" class="m-0 mt-1.5 pl-0 list-none text-xs text-rm-muted space-y-1">
               <li v-for="f in unstaged" :key="'u-' + f" class="flex items-center gap-2">
-                <span class="text-rm-accent shrink-0">+</span>
-                <button type="button" class="text-left truncate flex-1 min-w-0 text-rm-muted hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" @click="openFile(f)">{{ f }}</button>
-                <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff" @click="openSideBySideDiff(f)">Diff</button>
+                <span class="shrink-0" :class="workingTreeBadge(f, false).className" :title="workingTreeBadge(f, false).title">{{ workingTreeBadge(f, false).label }}</span>
+                <button v-if="!workingTreeBadge(f, false).isDeleted" type="button" class="text-left truncate flex-1 min-w-0 text-rm-muted hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" @click="openFile(f)">{{ f }}</button>
+                <span v-else class="truncate flex-1 min-w-0 text-rm-muted">{{ f }}</span>
+                <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff (discard line by line)" @click="openSideBySideDiff(f)">Diff</button>
                 <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" @click="stageFile(f)">Stage</button>
+                <button type="button" class="text-xs text-rm-warning hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="Discard all changes in this file" @click="discardFile(f)">Discard</button>
               </li>
               <li v-for="f in staged" :key="'s-' + f" class="flex items-center gap-2">
-                <span class="text-rm-warning shrink-0">M</span>
+                <span class="shrink-0" :class="workingTreeBadge(f, true).className" :title="workingTreeBadge(f, true).title">{{ workingTreeBadge(f, true).label }}</span>
                 <span class="truncate flex-1 min-w-0 text-rm-text">{{ f }}</span>
-                <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff" @click="openSideBySideDiff(f)">Diff</button>
+                <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff (discard line by line)" @click="openSideBySideDiff(f)">Diff</button>
                 <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" @click="unstageFile(f)">Unstage</button>
+                <button type="button" class="text-xs text-rm-warning hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="Discard all changes in this file" @click="discardFile(f)">Discard</button>
               </li>
             </ul>
           </div>
@@ -230,12 +242,14 @@
               <template v-for="group in workingTreeByDir" :key="group.dir">
                 <li class="font-medium text-rm-muted/90 py-0.5">{{ group.dir || '.' }}</li>
                 <li v-for="item in group.items" :key="item.path" class="flex items-center gap-2 pl-3">
-                  <span class="shrink-0" :class="item.staged ? 'text-rm-warning' : 'text-rm-accent'">{{ item.staged ? 'M' : '+' }}</span>
-                  <button v-if="!item.staged" type="button" class="text-left truncate flex-1 min-w-0 hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" @click="openFile(item.path)">{{ item.name }}</button>
+                  <span class="shrink-0" :class="workingTreeBadge(item.path, item.staged).className" :title="workingTreeBadge(item.path, item.staged).title">{{ workingTreeBadge(item.path, item.staged).label }}</span>
+                  <button v-if="!item.staged && !workingTreeBadge(item.path, false).isDeleted" type="button" class="text-left truncate flex-1 min-w-0 hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" @click="openFile(item.path)">{{ item.name }}</button>
+                  <span v-else-if="!item.staged" class="truncate flex-1 min-w-0 text-rm-muted">{{ item.name }}</span>
                   <span v-else class="truncate flex-1 min-w-0 text-rm-text">{{ item.name }}</span>
-                  <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff" @click="openSideBySideDiff(item.path)">Diff</button>
+                  <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="View side-by-side diff (discard line by line)" @click="openSideBySideDiff(item.path)">Diff</button>
                   <button v-if="!item.staged" type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" @click="stageFile(item.path)">Stage</button>
                   <button v-else type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" @click="unstageFile(item.path)">Unstage</button>
+                  <button type="button" class="text-xs text-rm-warning hover:underline border-none bg-transparent p-0 cursor-pointer shrink-0" title="Discard all changes in this file" @click="discardFile(item.path)">Discard</button>
                 </li>
               </template>
             </ul>
@@ -267,7 +281,7 @@
           <p v-if="gitActionStatus" class="m-0 mt-2 text-xs text-rm-muted">{{ gitActionStatus }}</p>
         </div>
         </template>
-        <div v-else class="overflow-y-auto flex-1 min-h-0">
+        <div v-else class="overflow-y-auto flex-1 min-h-0 rounded-rm border border-rm-border bg-rm-surface/20 p-3">
           <GitBranchSyncCard v-if="gitRightSection === 'branch-sync'" @refresh="$emit('refresh')" />
           <GitMergeRebaseCard v-else-if="gitRightSection === 'merge-rebase'" :current-branch="currentBranch" @refresh="$emit('refresh')" />
           <GitStashCard v-else-if="gitRightSection === 'stash'" @refresh="$emit('refresh')" />
@@ -348,7 +362,7 @@ import GitTagsCard from './git/GitTagsCard.vue';
 import GitReflogCard from './git/GitReflogCard.vue';
 import GitDeleteBranchCard from './git/GitDeleteBranchCard.vue';
 import GitRemotesCard from './git/GitRemotesCard.vue';
-import InlineTerminal from './InlineTerminal.vue';
+import TerminalPanel from './TerminalPanel.vue';
 import GitCompareResetCard from './git/GitCompareResetCard.vue';
 import GitGitignoreCard from './git/GitGitignoreCard.vue';
 import GitGitattributesCard from './git/GitGitattributesCard.vue';
@@ -385,6 +399,10 @@ const gitRightSection = ref('working-tree');
 const gitSectionDropdownOpen = ref(false);
 const branchContextMenu = ref(null);
 const workingTreeView = ref('path');
+const sidebarLocalOpen = ref(true);
+const sidebarRemoteOpen = ref(true);
+const sidebarWorktreesOpen = ref(true);
+const sidebarTagsOpen = ref(true);
 const currentSectionOption = computed(() => gitSectionOptions.find((o) => o.value === gitRightSection.value) || null);
 
 const gitSectionIcon = (name) => {
@@ -439,6 +457,45 @@ const unstaged = computed(() => (isParsed.value ? lines.value.filter((l) => l.ha
 const staged = computed(() => (isParsed.value ? lines.value.filter((l) => l.isStaged) : []).map((l) => l.filePath));
 const hasChanges = computed(() => unstaged.value.length > 0 || staged.value.length > 0);
 const canCommit = computed(() => (commitSummary.value.trim().length > 0 && staged.value.length > 0) || (commitSummary.value.trim().length > 0 && unstaged.value.length > 0));
+const porcelainByPath = computed(() => {
+  const map = new Map();
+  if (!isParsed.value) return map;
+  for (const l of lines.value) {
+    if (l && typeof l.filePath === 'string') map.set(l.filePath, l);
+  }
+  return map;
+});
+
+function getPorcelainCodeForPath(filePath, isStaged) {
+  const line = porcelainByPath.value.get(filePath);
+  if (!line || typeof line.status !== 'string') return isStaged ? 'M' : '+';
+  if (line.isUntracked) return '?';
+  const status = (line.status || '').padEnd(2, ' ');
+  return isStaged ? status[0] : status[1];
+}
+
+function workingTreeBadge(filePath, isStaged) {
+  const code = getPorcelainCodeForPath(filePath, isStaged);
+  // Deleted – red
+  if (code === 'D') return { label: 'D', className: 'text-rm-danger', title: 'Deleted', isDeleted: true };
+  // Modified – amber
+  if (code === 'M') return { label: 'M', className: 'text-rm-warning', title: 'Modified', isDeleted: false };
+  // Added (staged new file) – green
+  if (code === 'A') return { label: '+', className: 'text-rm-success', title: 'Added', isDeleted: false };
+  // Untracked – blue/gray
+  if (code === '?') return { label: '?', className: 'text-rm-info', title: 'Untracked', isDeleted: false };
+  // Renamed – green
+  if (code === 'R') return { label: 'R', className: 'text-rm-success', title: 'Renamed', isDeleted: false };
+  // Copied – green
+  if (code === 'C') return { label: 'C', className: 'text-rm-success', title: 'Copied', isDeleted: false };
+  // Unmerged / conflict – red
+  if (code === 'U') return { label: 'U', className: 'text-rm-danger', title: 'Unmerged (conflict)', isDeleted: false };
+  // Type changed – amber
+  if (code === 'T') return { label: 'T', className: 'text-rm-warning', title: 'Type changed', isDeleted: false };
+  // Ignored – muted
+  if (code === '!') return { label: '!', className: 'text-rm-muted', title: 'Ignored', isDeleted: false };
+  return { label: isStaged ? 'M' : '+', className: isStaged ? 'text-rm-warning' : 'text-rm-success', title: 'Changed', isDeleted: false };
+}
 const uncommittedLabel = computed(() => {
   const u = unstaged.value.length;
   const s = staged.value.length;
@@ -594,7 +651,7 @@ async function onBranchChange() {
   if (!path || !target || target === '__new__' || target === currentBranch.value) return;
   if (hasUncommitted.value) {
     runCheckoutWithStashOption(
-      () => api.checkoutBranch?.(path, target).then(() => { store.setCurrentInfo({ ...props.info, branch: target }); }),
+      () => api.checkoutBranch?.(path, target).then(() => { store.setCurrentInfo({ ...props.info, branch: target }); emit('refresh'); }),
       () => { selectedBranch.value = currentBranch.value; }
     );
     return;
@@ -604,6 +661,7 @@ async function onBranchChange() {
     await api.checkoutBranch?.(path, target);
     gitActionStatus.value = GIT_ACTION_SUCCESS.checkout;
     store.setCurrentInfo({ ...props.info, branch: target });
+    emit('refresh');
   } catch (e) {
     gitActionStatus.value = e?.message || 'Checkout failed.';
     selectedBranch.value = currentBranch.value;
@@ -616,7 +674,7 @@ async function checkoutBranch(b) {
   if (!path) return;
   if (hasUncommitted.value) {
     runCheckoutWithStashOption(
-      () => api.checkoutBranch?.(path, b),
+      () => api.checkoutBranch?.(path, b).then(() => { emit('refresh'); }),
       () => {}
     );
     return;
@@ -626,6 +684,7 @@ async function checkoutBranch(b) {
     await api.checkoutBranch?.(path, b);
     selectedBranch.value = b;
     gitActionStatus.value = GIT_ACTION_SUCCESS.checkout;
+    emit('refresh');
   } catch (e) {
     gitActionStatus.value = e?.message || 'Checkout failed.';
   }
@@ -878,6 +937,19 @@ async function unstageFile(filePath) {
   if (!path || !api.unstageFile) return;
   await api.unstageFile(path, filePath);
   emit('refresh');
+}
+
+async function discardFile(filePath) {
+  const path = store.selectedPath;
+  if (!path || !api.discardFile) return;
+  if (!window.confirm(`Discard all changes in "${filePath}"? This cannot be undone.`)) return;
+  try {
+    await api.discardFile(path, filePath);
+    gitActionStatus.value = 'File discarded.';
+    emit('refresh');
+  } catch (e) {
+    gitActionStatus.value = e?.message || 'Discard failed.';
+  }
 }
 
 function openFile(filePath) {

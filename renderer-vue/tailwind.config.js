@@ -17,6 +17,8 @@ export default {
           'border-focus': 'rgb(var(--rm-border-focus) / <alpha-value>)',
           success: 'rgb(var(--rm-success) / <alpha-value>)',
           warning: 'rgb(var(--rm-warning) / <alpha-value>)',
+          danger: 'rgb(var(--rm-danger) / <alpha-value>)',
+          info: 'rgb(var(--rm-info) / <alpha-value>)',
         },
       },
       fontFamily: {

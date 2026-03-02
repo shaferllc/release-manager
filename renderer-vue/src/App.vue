@@ -1,5 +1,6 @@
 <template>
-  <div class="flex flex-col h-full min-h-0 bg-rm-bg text-rm-text">
+  <TerminalPopoutView v-if="isTerminalPopout" />
+  <div v-else class="flex flex-col h-full min-h-0 bg-rm-bg text-rm-text">
     <NavBar @refresh="onRefresh" @add-project="addProject" />
     <main class="flex-1 flex min-h-0 min-w-0 overflow-hidden">
       <Sidebar />
@@ -23,7 +24,7 @@
 </template>
 
 <script setup>
-import { onMounted, watch, onUnmounted } from 'vue';
+import { ref, onMounted, watch, onUnmounted } from 'vue';
 import { useAppStore } from './stores/app';
 import { useApi } from './composables/useApi';
 import NavBar from './components/NavBar.vue';
@@ -35,6 +36,7 @@ import SettingsView from './views/SettingsView.vue';
 import DocsView from './views/DocsView.vue';
 import ChangelogView from './views/ChangelogView.vue';
 import ApiView from './views/ApiView.vue';
+import TerminalPopoutView from './views/TerminalPopoutView.vue';
 import ModalHost from './components/ModalHost.vue';
 import LoadingOverlay from './components/LoadingOverlay.vue';
 import LoadingBar from './components/LoadingBar.vue';
@@ -43,6 +45,7 @@ import * as debug from './utils/debug';
 
 const store = useAppStore();
 const api = useApi();
+const isTerminalPopout = ref(typeof window !== 'undefined' && window.location.hash === '#terminal-popout');
 const { runWithOverlay } = useLongActionOverlay();
 
 let loadProjectsRetryCount = 0;
@@ -235,12 +238,13 @@ async function handleShortcut(e) {
 }
 
 onMounted(async () => {
+  isTerminalPopout.value = window.location.hash === '#terminal-popout';
   try {
     const debugPref = await api.getPreference?.('debug').catch(() => undefined);
     debug.setEnabled(debugPref !== false);
     debug.log('app', 'mounted', { debug: debugPref !== false, apiReady: !!(window.releaseManager?.showDirectoryDialog) });
   } catch (_) {}
-  loadProjects();
+  if (!isTerminalPopout.value) loadProjects();
   try {
     const useTabs = await api.getPreference?.('detailUseTabs');
     if (useTabs !== undefined) store.setUseDetailTabs(useTabs !== false);

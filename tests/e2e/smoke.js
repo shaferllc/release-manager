@@ -1,6 +1,6 @@
 /**
  * E2E smoke test: launches the app, checks main UI, then closes.
- * Run: npm run test:e2e (requires Playwright and built app: npm run build:css first).
+ * Run: npm run test:e2e (builds Vue renderer and requires Playwright).
  */
 const path = require('path');
 const { _electron: electron } = require('playwright');
