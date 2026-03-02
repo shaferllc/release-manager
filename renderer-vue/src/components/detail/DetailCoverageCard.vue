@@ -11,12 +11,14 @@
       <span class="card-label shrink-0">Coverage</span>
       <p class="m-0 mb-4 text-sm text-rm-muted shrink-0">Run coverage for this project (npm: typically <code class="bg-rm-surface px-1 rounded text-xs">test:coverage</code> or similar; PHP: Pest/PHPUnit).</p>
 
-      <!-- Last / previous run -->
+      <!-- Last / previous run + trend + goal -->
       <div v-if="history.length" class="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 shrink-0 text-sm">
         <span class="inline-flex items-center gap-1.5">
           <strong class="text-rm-muted font-medium">Last run:</strong>
           <span class="font-mono font-semibold text-rm-accent">{{ lastSummary }}</span>
+          <span v-if="trendDelta != null" class="font-mono text-xs" :class="trendDelta > 0 ? 'text-rm-success' : trendDelta < 0 ? 'text-rm-warning' : 'text-rm-muted'" :title="trendDelta > 0 ? 'Up from previous' : trendDelta < 0 ? 'Down from previous' : 'No change'">{{ trendDelta > 0 ? '↑' : trendDelta < 0 ? '↓' : '' }}{{ trendDelta !== 0 ? (trendDelta > 0 ? '+' : '') + trendDelta.toFixed(1) + '%' : '' }}</span>
           <span v-if="lastEntry?.date" class="text-rm-muted text-xs">({{ formatDate(lastEntry.date) }})</span>
+          <span v-if="goalPercent != null && lastPercent != null" class="text-xs" :class="lastPercent >= goalPercent ? 'text-rm-success' : 'text-rm-warning'">{{ lastPercent >= goalPercent ? 'Above goal' : 'Below goal' }}</span>
         </span>
         <span v-if="previousEntry" class="inline-flex items-center gap-1.5 text-rm-muted">
           <strong class="font-medium">Previous:</strong>
@@ -25,15 +27,48 @@
         </span>
       </div>
 
-      <div class="flex items-center gap-2 mb-4 shrink-0">
+      <!-- Coverage goal -->
+      <div class="flex flex-wrap items-center gap-3 mb-4 shrink-0 text-sm">
+        <label class="inline-flex items-center gap-2 text-rm-muted">
+          <span class="font-medium">Goal:</span>
+          <input v-model.number="goalPercent" type="number" min="0" max="100" step="1" class="w-16 text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1" placeholder="—" @change="saveGoal" />
+          <span class="text-xs">%</span>
+        </label>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 mb-4 shrink-0">
         <button type="button" class="btn-primary btn-compact text-xs" :disabled="running" @click="run">{{ running ? 'Running…' : 'Run coverage' }}</button>
+        <span class="inline-flex items-center gap-2">
+          <button type="button" class="btn-secondary btn-compact text-xs" :disabled="!(output || lastOutput)" title="Copy full output" @click="copyOutput">Copy output</button>
+          <span v-if="copyOutputStatus" class="text-xs" :class="copyOutputStatus === 'Copied!' ? 'text-rm-success' : 'text-rm-warning'">{{ copyOutputStatus }}</span>
+        </span>
+        <span class="inline-flex items-center gap-2">
+          <button type="button" class="btn-secondary btn-compact text-xs" :disabled="!lastEntry" title="Copy one-line summary" @click="copySummary">Copy summary</button>
+          <span v-if="copySummaryStatus" class="text-xs" :class="copySummaryStatus === 'Copied!' ? 'text-rm-success' : 'text-rm-warning'">{{ copySummaryStatus }}</span>
+        </span>
+        <span class="inline-flex items-center gap-2">
+          <button type="button" class="btn-secondary btn-compact text-xs" :disabled="history.length === 0" title="Download history as CSV" @click="exportHistoryCsv">Export CSV</button>
+          <span v-if="exportStatus" class="text-xs" :class="exportStatus === 'Exported!' ? 'text-rm-success' : 'text-rm-warning'">{{ exportStatus }}</span>
+        </span>
         <span v-if="running" class="detail-coverage-progress inline-flex items-center gap-1.5 text-sm text-rm-muted" aria-live="polite">
           <span class="detail-coverage-spinner w-4 h-4 border-2 border-rm-border border-t-rm-accent rounded-full animate-spin shrink-0" aria-hidden="true"></span>
           Running coverage…
         </span>
       </div>
 
-      <!-- Display range + retention -->
+      <!-- Compare with previous -->
+      <div v-if="lastEntry && previousEntry && lastEntry.percent != null && previousEntry.percent != null" class="mb-4 shrink-0 p-3 rounded-rm border border-rm-border bg-rm-surface/50 text-sm">
+        <span class="font-medium text-rm-muted">Compare with previous:</span>
+        <span class="font-mono ml-2">{{ previousEntry.percent }}% → {{ lastEntry.percent }}%</span>
+        <span class="font-mono ml-2" :class="compareDelta > 0 ? 'text-rm-success' : compareDelta < 0 ? 'text-rm-warning' : 'text-rm-muted'">({{ compareDelta > 0 ? '+' : '' }}{{ compareDelta.toFixed(1) }}%)</span>
+        <span class="ml-2 text-rm-muted text-xs">{{ formatDateShort(previousEntry.date) }} → {{ formatDateShort(lastEntry.date) }}</span>
+        <div class="mt-2 flex flex-wrap gap-2">
+          <button v-if="previousEntry.commitSha" type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0" @click="openCommit(previousEntry.commitSha)">View previous commit</button>
+          <button v-if="lastEntry.commitSha" type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0" @click="openCommit(lastEntry.commitSha)">View last commit</button>
+        </div>
+      </div>
+
+      <!-- Display range + retention + branch -->
       <div class="flex flex-wrap items-center gap-3 mb-4 shrink-0 text-sm">
         <label class="inline-flex items-center gap-2 text-rm-muted">
           <span class="font-medium">Show:</span>
@@ -43,6 +78,13 @@
             <option :value="90">Last 90 days</option>
             <option :value="365">Last year</option>
             <option :value="0">All time</option>
+          </select>
+        </label>
+        <label class="inline-flex items-center gap-2 text-rm-muted">
+          <span class="font-medium">Branch:</span>
+          <select v-model="branchFilter" class="text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[8rem]">
+            <option value="">All branches</option>
+            <option v-for="b in branchOptions" :key="b" :value="b">{{ b }}</option>
           </select>
         </label>
         <label class="inline-flex items-center gap-2 text-rm-muted">
@@ -103,6 +145,7 @@
           >
             <div class="font-mono font-semibold text-rm-accent">{{ hoveredPoint.percent }}%</div>
             <div class="text-rm-muted mt-0.5">{{ formatDate(hoveredPoint.date) }}</div>
+            <div v-if="hoveredPoint.branch" class="text-rm-muted text-[11px]">{{ hoveredPoint.branch }}</div>
             <div v-if="hoveredPoint.commitSubject" class="mt-1 max-w-[16rem] truncate text-rm-muted" :title="hoveredPoint.commitSubject">{{ hoveredPoint.commitSubject }}</div>
             <div v-if="hoveredPoint.commitSha" class="mt-1.5 text-rm-accent">Click to view commit</div>
           </div>
@@ -115,6 +158,7 @@
           <li v-for="(entry, i) in historyNewestFirst" :key="i" class="flex items-center gap-2 truncate">
             <span class="font-mono shrink-0 w-12">{{ entry.percent }}%</span>
             <span class="shrink-0 min-w-[10rem]" :title="formatDate(entry.date)">{{ formatDate(entry.date) }}</span>
+            <span v-if="entry.branch" class="shrink-0 text-rm-muted/80 w-20 truncate" :title="entry.branch">{{ entry.branch }}</span>
             <span v-if="entry.commitSubject" class="truncate min-w-0 text-rm-text/80" :title="entry.commitSubject">— {{ entry.commitSubject }}</span>
           </li>
         </ul>
@@ -138,6 +182,7 @@ const COVERAGE_HISTORY_KEY = 'coverageHistory';
 const COVERAGE_LAST_OUTPUT_KEY = 'coverageLastOutput';
 const COVERAGE_DISPLAY_RANGE_KEY = 'coverageDisplayRangeDays';
 const COVERAGE_RETENTION_KEY = 'coverageHistoryRetention';
+const COVERAGE_GOAL_KEY = 'coverageGoal';
 const MAX_HISTORY = 500;
 const CHART_HEIGHT = 120;
 const DEFAULT_DISPLAY_RANGE_DAYS = 30;
@@ -159,8 +204,40 @@ const chartEl = ref(null);
 const hoveredPoint = ref(null);
 const tooltipX = ref(0);
 const tooltipY = ref(0);
+const goalPercent = ref(null); // number | null
+const branchFilter = ref(''); // '' = all, or branch name
+const branchesFromGit = ref([]); // list of branch names from getBranches
+const copyOutputStatus = ref('');
+const copySummaryStatus = ref('');
+const exportStatus = ref('');
 
 const chartHeight = CHART_HEIGHT;
+
+const STATUS_RESET_MS = 2500;
+
+function clearStatusAfter(ref) {
+  setTimeout(() => { ref.value = ''; }, STATUS_RESET_MS);
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+    return navigator.clipboard.writeText(text);
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  ta.style.top = '0';
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch (_) {}
+  document.body.removeChild(ta);
+  return ok ? Promise.resolve() : Promise.reject(new Error('execCommand copy failed'));
+}
 
 function parsePercentFromSummary(summary) {
   if (!summary || typeof summary !== 'string') return null;
@@ -189,6 +266,31 @@ function formatDateShort(isoDate) {
 const lastEntry = computed(() => history.value[history.value.length - 1] ?? null);
 const previousEntry = computed(() => (history.value.length >= 2 ? history.value[history.value.length - 2] : null));
 const lastSummary = computed(() => lastEntry.value?.summary ?? (lastEntry.value?.percent != null ? lastEntry.value.percent + '%' : '—'));
+const lastPercent = computed(() => (lastEntry.value?.percent != null ? lastEntry.value.percent : null));
+
+/** Trend: delta from previous run (positive = improved). */
+const trendDelta = computed(() => {
+  const last = lastEntry.value?.percent;
+  const prev = previousEntry.value?.percent;
+  if (last == null || prev == null) return null;
+  const delta = last - prev;
+  return Math.abs(delta) < 0.01 ? 0 : delta;
+});
+
+/** Same as trendDelta for compare block. */
+const compareDelta = computed(() => {
+  const last = lastEntry.value?.percent;
+  const prev = previousEntry.value?.percent;
+  if (last == null || prev == null) return 0;
+  return last - prev;
+});
+
+/** Branch options: from Git (getBranches) plus any in history not in the list. */
+const branchOptions = computed(() => {
+  const set = new Set(branchesFromGit.value);
+  history.value.forEach((e) => { if (e.branch) set.add(e.branch); });
+  return [...set].sort();
+});
 
 /** days: number (7,30,90,365) or 0 / null / undefined for no limit */
 function isDateWithinDays(isoDate, days) {
@@ -199,10 +301,15 @@ function isDateWithinDays(isoDate, days) {
   return d >= cutoff;
 }
 
-/** History filtered by display range (default last 30 days). */
+/** History filtered by display range and branch. */
 const filteredHistory = computed(() => {
   const range = displayRangeDays.value;
-  return history.value.filter((e) => isDateWithinDays(e.date, range));
+  const branch = branchFilter.value;
+  return history.value.filter((e) => {
+    if (!isDateWithinDays(e.date, range)) return false;
+    if (branch && e.branch !== branch) return false;
+    return true;
+  });
 });
 
 /** Filtered entries for chart, oldest first (last 30 of filtered). */
@@ -233,6 +340,7 @@ const chartPoints = computed(() => {
     summary: e.summary,
     commitSha: e.commitSha,
     commitSubject: e.commitSubject,
+    branch: e.branch,
     x: padding + i * xStep,
     y: yScale(e.percent ?? 0),
   }));
@@ -270,19 +378,127 @@ function openCommitForPoint(pt) {
   });
 }
 
+function openCommit(sha) {
+  const path = store.selectedPath;
+  if (!path || !sha) return;
+  modals.openModal('commitDetail', {
+    dirPath: path,
+    sha,
+    isHead: false,
+    onRefresh: () => {},
+  });
+}
+
+async function saveGoal() {
+  const path = store.selectedPath;
+  if (!path || !api.setPreference || !api.getPreference) return;
+  const val = goalPercent.value;
+  if (val != null && (Number.isNaN(val) || val < 0 || val > 100)) {
+    goalPercent.value = null;
+  }
+  try {
+    const raw = await api.getPreference(COVERAGE_GOAL_KEY);
+    const map = typeof raw === 'object' && raw !== null ? { ...raw } : {};
+    if (val != null && !Number.isNaN(val) && val >= 0 && val <= 100) {
+      map[path] = val;
+    } else {
+      delete map[path];
+    }
+    await api.setPreference(COVERAGE_GOAL_KEY, map);
+  } catch (_) {}
+}
+
+async function copyOutput() {
+  const text = output.value || lastOutput.value;
+  if (!text) return;
+  copyOutputStatus.value = '';
+  try {
+    await copyToClipboard(text);
+    copyOutputStatus.value = 'Copied!';
+    clearStatusAfter(copyOutputStatus);
+  } catch (_) {
+    copyOutputStatus.value = 'Failed';
+    clearStatusAfter(copyOutputStatus);
+  }
+}
+
+async function copySummary() {
+  const e = lastEntry.value;
+  if (!e) return;
+  copySummaryStatus.value = '';
+  const line = `${e.percent}% – ${formatDate(e.date)}${e.branch ? ' – ' + e.branch : ''}${e.commitSubject ? ' – ' + e.commitSubject : ''}`;
+  try {
+    await copyToClipboard(line);
+    copySummaryStatus.value = 'Copied!';
+    clearStatusAfter(copySummaryStatus);
+  } catch (_) {
+    copySummaryStatus.value = 'Failed';
+    clearStatusAfter(copySummaryStatus);
+  }
+}
+
+function exportHistoryCsv() {
+  const list = history.value;
+  if (!list.length) return;
+  exportStatus.value = '';
+  try {
+    const headers = ['date', 'percent', 'branch', 'commitSha', 'commitSubject'];
+    const rows = list.map((e) => [
+      String(e.date ?? ''),
+      String(e.percent ?? ''),
+      String(e.branch ?? ''),
+      String(e.commitSha ?? ''),
+      String(e.commitSubject ?? '').replace(/"/g, '""'),
+    ]);
+    const csvContent = [headers.join(','), ...rows.map((r) => r.map((c) => (c.includes(',') || c.includes('"') || c.includes('\n') ? `"${c}"` : c)).join(','))].join('\n');
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `coverage-history-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    exportStatus.value = 'Exported!';
+    clearStatusAfter(exportStatus);
+  } catch (_) {
+    exportStatus.value = 'Failed';
+    clearStatusAfter(exportStatus);
+  }
+}
+
+async function loadBranches() {
+  const path = store.selectedPath;
+  if (!path || !api.getBranches || !props.info?.hasGit) {
+    branchesFromGit.value = [];
+    return;
+  }
+  try {
+    const r = await api.getBranches(path);
+    branchesFromGit.value = r?.ok && Array.isArray(r.branches) ? r.branches : [];
+  } catch {
+    branchesFromGit.value = [];
+  }
+}
+
 async function loadHistory() {
   const path = store.selectedPath;
   if (!path || !api.getPreference) {
     history.value = [];
     lastOutput.value = '';
+    branchesFromGit.value = [];
     return;
   }
   try {
-    const [raw, outMap, range, retention] = await Promise.all([
+    const [raw, outMap, range, retention, goalMap] = await Promise.all([
       api.getPreference(COVERAGE_HISTORY_KEY),
       api.getPreference(COVERAGE_LAST_OUTPUT_KEY),
       api.getPreference(COVERAGE_DISPLAY_RANGE_KEY),
       api.getPreference(COVERAGE_RETENTION_KEY),
+      api.getPreference(COVERAGE_GOAL_KEY),
     ]);
     const map = typeof raw === 'object' && raw !== null ? raw : {};
     const list = Array.isArray(map[path]) ? map[path] : [];
@@ -291,9 +507,14 @@ async function loadHistory() {
     lastOutput.value = typeof outByPath[path] === 'string' ? outByPath[path] : '';
     displayRangeDays.value = range === 7 || range === 30 || range === 90 || range === 365 ? range : (range === 0 || range === null ? 0 : DEFAULT_DISPLAY_RANGE_DAYS);
     retentionDays.value = retention === 30 || retention === 90 || retention === 365 ? retention : (retention === 0 || retention === null ? 0 : DEFAULT_RETENTION_DAYS);
+    const goals = typeof goalMap === 'object' && goalMap !== null ? goalMap : {};
+    const g = goals[path];
+    goalPercent.value = typeof g === 'number' && g >= 0 && g <= 100 ? g : null;
+    await loadBranches();
   } catch {
     history.value = [];
     lastOutput.value = '';
+    branchesFromGit.value = [];
   }
 }
 
@@ -349,6 +570,10 @@ watch(displayRangeDays, (val) => {
 
 watch(() => store.selectedPath, loadHistory, { immediate: true });
 
+watch(() => [props.info?.path, props.info?.hasGit], () => {
+  if (store.selectedPath && props.info?.hasGit) loadBranches();
+}, { immediate: true });
+
 async function run() {
   const path = store.selectedPath;
   const type = (props.info?.projectType || '').toLowerCase();
@@ -371,12 +596,14 @@ async function run() {
         }
       } catch (_) {}
     }
+    const branch = props.info?.branch ?? null;
     const entry = {
       date: new Date().toISOString(),
       percent: percent ?? 0,
       summary: summary ?? (percent != null ? percent + '%' : null),
       commitSha: commitSha ?? null,
       commitSubject: commitSubject ?? null,
+      branch: branch || null,
     };
     await saveHistoryEntry(entry, output.value);
   } catch (e) {
