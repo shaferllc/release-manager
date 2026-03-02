@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -8,15 +8,16 @@ const Store = require('electron-store');
 const appRoot = path.join(__dirname, '..');
 const { marked } = require(path.join(appRoot, 'node_modules', 'marked'));
 const sanitizeHtml = require(path.join(appRoot, 'node_modules', 'sanitize-html'));
-const { getReleasesUrl, getActionsUrl, getRepoSlug, pickAssetForPlatform } = require('./lib/github');
+const { getReleasesUrl, getActionsUrl, getPullRequestsUrl, getRepoSlug, pickAssetForPlatform } = require('./lib/github');
 const { formatGitHubError } = require('./lib/githubErrors');
 const { filterValidProjects } = require('./lib/projects');
+const debug = require('./debug');
 const { THEME_VALUES, getEffectiveTheme: getEffectiveThemeFromSetting } = require('./lib/theme');
 const { isValidBump, isPrereleaseBump, formatTag, PRERELEASE_PREID } = require('./lib/version');
 const { runInDir: runInDirLib } = require('./lib/runInDir');
 const { parseOldConfig } = require('./lib/migration');
 const { getProjectNameVersionAndType } = require('./lib/projectDetection');
-const { getReleasePlan } = require('./lib/releaseStrategy');
+const { getReleasePlan: getReleasePlanFromStrategy } = require('./lib/releaseStrategy');
 const { getRecentCommits: getRecentCommitsLib } = require('./lib/gitLog');
 const { suggestBumpFromCommits } = require('./lib/conventionalCommits');
 const { getShortcutAction } = require('./lib/shortcuts');
@@ -26,10 +27,19 @@ const {
   listModels: ollamaListModels,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTestFixPrompt,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
 } = require('./lib/ollama');
+const { generate: claudeGenerate, DEFAULT_MODEL: CLAUDE_DEFAULT_MODEL } = require('./lib/claude');
 const { getGitDiffForCommit: getGitDiffForCommitLib } = require('./lib/gitDiff');
+const {
+  parseStashList: parseStashListLib,
+  parseRemoteBranches: parseRemoteBranchesLib,
+  parseCommitLog: parseCommitLogLib,
+  parseRemotes: parseRemotesLib,
+  parseLocalBranches: parseLocalBranchesLib,
+} = require('./lib/gitOutputParsers');
 const {
   getComposerManifestInfo,
   parseComposerOutdatedJson,
@@ -43,6 +53,8 @@ const {
   getCoverageScriptNameNpm,
   getCoverageScriptNameComposer,
 } = require('./lib/projectTestScripts');
+const { createApiServer } = require('./apiServer');
+const { getApiDocs: getApiDocsFromModule, getApiMethodDoc: getApiMethodDocFromModule, getSampleResponseForMethod } = require('./apiDocs');
 
 // Use same app name in dev and prod so userData is shared (dev no longer uses "Electron")
 const pkg = require(path.join(__dirname, '..', 'package.json'));
@@ -58,11 +70,26 @@ function getStore() {
 }
 
 function getProjects() {
-  return filterValidProjects(getStore().get('projects') || []);
+  try {
+    const raw = getStore().get('projects') || [];
+    const filtered = filterValidProjects(raw);
+    debug.log(getStore, 'project', 'getProjects', { stored: raw?.length ?? 0, filtered: filtered.length });
+    return filtered;
+  } catch (e) {
+    console.error('[RM] getProjects failed:', e);
+    debug.log(getStore, 'project', 'getProjects ERROR', e?.message ?? e);
+    return [];
+  }
 }
 
 function setProjects(projects) {
-  getStore().set('projects', projects);
+  const list = Array.isArray(projects) ? projects : [];
+  const current = getStore().get('projects') || [];
+  const skipped = list.length === 0 && current.length > 1;
+  debug.log(getStore, 'project', 'setProjects', { incoming: list.length, current: current.length, skipped });
+  if (skipped) return;
+  getStore().set('projects', list);
+  debug.log(getStore, 'project', 'setProjects saved', list.length, 'projects');
 }
 
 function getThemeSetting() {
@@ -74,6 +101,7 @@ function setThemeSetting(theme) {
   if (!THEME_VALUES.includes(theme)) return;
   getStore().set('theme', theme);
   nativeTheme.themeSource = theme === 'system' ? 'system' : theme;
+  debug.log(getStore, 'theme', 'setTheme', theme);
   const effective = getEffectiveThemeFromSetting(getThemeSetting(), nativeTheme.shouldUseDarkColors);
   for (const w of BrowserWindow.getAllWindows()) {
     if (w && !w.isDestroyed()) w.webContents.send('rm-theme', effective);
@@ -89,6 +117,10 @@ function setPreference(key, value) {
   const prefs = getStore().get('preferences') || {};
   prefs[key] = value;
   getStore().set('preferences', prefs);
+  const isLong = typeof value === 'string' && value.length > 20;
+  const isSecret = /token|key|secret|password/i.test(key);
+  const safeValue = isSecret ? '(redacted)' : (isLong ? '(string)' : value);
+  debug.log(getStore, 'prefs', 'setPreference', key, safeValue);
 }
 
 function getEffectiveTheme() {
@@ -211,11 +243,41 @@ function runInDirCapture(dirPath, command, args, options = {}) {
     proc.stdout?.on('data', (d) => { stdout += d.toString(); });
     proc.stderr?.on('data', (d) => { stderr += d.toString(); });
     proc.on('close', (code) => {
+      const cleanStdout = stripAnsi(stdout).trim();
+      const cleanStderr = stripAnsi(stderr).trim();
       resolve({
         ok: code === 0,
         exitCode: code ?? -1,
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
+        stdout: cleanStdout,
+        stderr: cleanStderr,
+      });
+    });
+    proc.on('error', (e) => {
+      resolve({ ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Spawn failed' });
+    });
+  });
+}
+
+/** Run a shell command string in dirPath (for inline terminal). Returns { ok, exitCode, stdout, stderr }. */
+function runShellCommand(dirPath, command) {
+  const cmd = (command || '').trim();
+  if (!cmd) return Promise.resolve({ ok: true, exitCode: 0, stdout: '', stderr: '' });
+  const isWin = process.platform === 'win32';
+  const proc = spawn(isWin ? 'cmd.exe' : process.env.SHELL || '/bin/sh', isWin ? ['/c', command] : ['-c', command], {
+    cwd: dirPath || process.cwd(),
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let stdout = '';
+  let stderr = '';
+  proc.stdout?.on('data', (d) => { stdout += d.toString(); });
+  proc.stderr?.on('data', (d) => { stderr += d.toString(); });
+  return new Promise((resolve) => {
+    proc.on('close', (code) => {
+      resolve({
+        ok: code === 0,
+        exitCode: code ?? -1,
+        stdout: stripAnsi(stdout),
+        stderr: stripAnsi(stderr),
       });
     });
     proc.on('error', (e) => {
@@ -391,14 +453,18 @@ async function getGitStatus(dirPath) {
   }
 }
 
-async function gitCommit(dirPath, message) {
+/** options: { sign?: boolean } — if sign true, use -S (uses commit.gpgsign or default key) */
+async function gitCommit(dirPath, message, options = {}) {
   if (!message || typeof message !== 'string' || !message.trim()) {
     return { ok: false, error: 'Commit message is required' };
   }
   const msg = message.trim();
+  const sign = options.sign !== undefined ? options.sign : getPreference('signCommits');
   try {
     await runInDir(dirPath, 'git', ['add', '-A']);
-    await runInDir(dirPath, 'git', ['commit', '-m', msg]);
+    const commitArgs = ['commit', '-m', msg];
+    if (sign) commitArgs.push('-S');
+    await runInDir(dirPath, 'git', commitArgs);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Commit failed' };
@@ -432,9 +498,13 @@ async function gitMergeAbort(dirPath) {
   }
 }
 
-async function gitStashPush(dirPath, message) {
+/** options: { includeUntracked?: boolean, keepIndex?: boolean } */
+async function gitStashPush(dirPath, message, options = {}) {
   try {
-    const args = message && message.trim() ? ['stash', 'push', '-m', message.trim()] : ['stash', 'push'];
+    const args = ['stash', 'push'];
+    if (options.includeUntracked) args.push('--include-untracked');
+    if (options.keepIndex) args.push('--keep-index');
+    if (message && message.trim()) args.push('-m', message.trim());
     await runInDir(dirPath, 'git', args);
     return { ok: true };
   } catch (e) {
@@ -458,6 +528,948 @@ async function gitDiscardChanges(dirPath) {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Discard failed' };
+  }
+}
+
+/** Get local branch names and current branch. */
+async function getBranches(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['branch', '--no-color']);
+    const branches = parseLocalBranchesLib(out.stdout || '');
+    const currentOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
+    const current = (currentOut.stdout || '').trim() || null;
+    return { ok: true, branches, current };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list branches', branches: [], current: null };
+  }
+}
+
+/** Checkout an existing branch. */
+async function checkoutBranch(dirPath, branchName) {
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', name]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Checkout failed' };
+  }
+}
+
+/** Create a new branch; if checkout is true, check it out. */
+async function createBranch(dirPath, branchName, checkout = true) {
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    if (checkout) {
+      await runInDir(dirPath, 'git', ['checkout', '-b', name]);
+    } else {
+      await runInDir(dirPath, 'git', ['branch', name]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Create branch failed' };
+  }
+}
+
+/** Create a new branch starting from an existing ref (branch or commit) and check it out. */
+async function createBranchFrom(dirPath, newBranchName, fromRef) {
+  const name = (newBranchName || '').trim();
+  const ref = (fromRef || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  if (!ref) return { ok: false, error: 'Source branch or ref is required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', '-b', name, ref]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Create branch failed' };
+  }
+}
+
+/** Rename a branch. If newName only, renames current branch. */
+async function renameBranch(dirPath, oldName, newName) {
+  const n = (newName || '').trim();
+  if (!n) return { ok: false, error: 'New branch name is required' };
+  try {
+    if (oldName && oldName.trim()) {
+      await runInDir(dirPath, 'git', ['branch', '-m', oldName.trim(), n]);
+    } else {
+      await runInDir(dirPath, 'git', ['branch', '-m', n]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rename branch failed' };
+  }
+}
+
+/** Push current branch to its upstream (or origin if none). */
+async function gitPush(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['push']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Push failed' };
+  }
+}
+
+/** Force-push current branch (overwrites remote). Use with care. */
+async function gitPushForce(dirPath, withLease = false) {
+  try {
+    const branchOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
+    const branch = (branchOut.stdout || '').trim();
+    if (!branch) return { ok: false, error: 'Not on a branch' };
+    const upstreamOut = await runInDir(dirPath, 'git', ['rev-parse', '--abbrev-ref', '@{u}']).catch(() => ({ stdout: '' }));
+    const hasUpstream = (upstreamOut.stdout || '').trim().length > 0;
+    const args = ['push'];
+    if (withLease) args.push('--force-with-lease');
+    else args.push('--force');
+    if (hasUpstream) {
+      await runInDir(dirPath, 'git', args);
+    } else {
+      args.push('-u', 'origin', branch);
+      await runInDir(dirPath, 'git', args);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Force push failed' };
+  }
+}
+
+/** Merge another branch into the current branch. strategy: 'ours'|'theirs'|null, strategyOption: 'ours'|'theirs'|null for -X */
+async function gitMerge(dirPath, branchName, options = {}) {
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    const args = ['merge'];
+    if (options.strategy === 'ours') args.push('-s', 'ours');
+    else if (options.strategy === 'theirs') args.push('-s', 'theirs');
+    if (options.strategyOption === 'ours') args.push('-X', 'ours');
+    else if (options.strategyOption === 'theirs') args.push('-X', 'theirs');
+    args.push(name);
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Merge failed' };
+  }
+}
+
+// ---------- Phase 1: Remote branches, push -u, stash list ----------
+/** Get remote-tracking branch refs (e.g. origin/main). Call after fetch. */
+async function getRemoteBranches(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['fetch', '--prune']);
+    const out = await runInDir(dirPath, 'git', ['branch', '-r', '--no-color']);
+    const branches = parseRemoteBranchesLib(out.stdout || '');
+    return { ok: true, branches };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list remote branches', branches: [] };
+  }
+}
+
+/** Checkout a remote branch (create local tracking branch). ref e.g. origin/feature. */
+async function checkoutRemoteBranch(dirPath, ref) {
+  const r = (ref || '').trim();
+  if (!r || r.indexOf('/') === -1) return { ok: false, error: 'Remote branch ref required (e.g. origin/feature)' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', '--track', r]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Checkout failed' };
+  }
+}
+
+/** Push with -u origin <current> when branch has no upstream. */
+async function gitPushWithUpstream(dirPath) {
+  try {
+    const branchOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
+    const branch = (branchOut.stdout || '').trim();
+    if (!branch) return { ok: false, error: 'Not on a branch' };
+    const upstreamOut = await runInDir(dirPath, 'git', ['rev-parse', '--abbrev-ref', '@{u}']).catch(() => ({ stdout: '' }));
+    const hasUpstream = (upstreamOut.stdout || '').trim().length > 0;
+    if (hasUpstream) {
+      await runInDir(dirPath, 'git', ['push']);
+    } else {
+      await runInDir(dirPath, 'git', ['push', '-u', 'origin', branch]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Push failed' };
+  }
+}
+
+/** List stash entries: [{ index, message }]. */
+async function getStashList(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['stash', 'list', '--pretty=format:%gd %s']);
+    const entries = parseStashListLib(out.stdout || '');
+    return { ok: true, entries };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list stash', entries: [] };
+  }
+}
+
+async function stashApply(dirPath, index) {
+  try {
+    const args = index ? ['stash', 'apply', index] : ['stash', 'apply'];
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Stash apply failed' };
+  }
+}
+
+async function stashDrop(dirPath, index) {
+  try {
+    const args = index ? ['stash', 'drop', index] : ['stash', 'drop'];
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Stash drop failed' };
+  }
+}
+
+// ---------- Phase 2: Tags, commit log ----------
+/** Get tag names (sorted by version). */
+async function getTags(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['tag', '-l', '--sort=-version:refname']);
+    const tags = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    return { ok: true, tags };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list tags', tags: [] };
+  }
+}
+
+async function checkoutTag(dirPath, tagName) {
+  const name = (tagName || '').trim();
+  if (!name) return { ok: false, error: 'Tag name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', name]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Checkout failed' };
+  }
+}
+
+/** Create a tag. ref defaults to HEAD. If message is set, creates an annotated tag. */
+async function createTag(dirPath, tagName, message, ref) {
+  const name = (tagName || '').trim();
+  if (!name) return { ok: false, error: 'Tag name is required' };
+  const r = (ref || 'HEAD').trim();
+  try {
+    if (message != null && String(message).trim()) {
+      await runInDir(dirPath, 'git', ['tag', '-a', name, '-m', String(message).trim(), r]);
+    } else {
+      await runInDir(dirPath, 'git', ['tag', name, r]);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Create tag failed' };
+  }
+}
+
+/** Commit log entries: { sha, subject, author, date }. */
+async function getCommitLog(dirPath, n = 30) {
+  const limit = Math.max(1, Math.min(100, n));
+  try {
+    const out = await runInDir(dirPath, 'git', [
+      'log',
+      '-n',
+      String(limit),
+      '--pretty=format:%h%x00%s%x00%an%x00%ad',
+      '--date=short',
+      '--no-merges',
+    ]);
+    const commits = parseCommitLogLib(out.stdout || '');
+    return { ok: true, commits };
+  } catch (e) {
+    return { ok: false, error: e.message || 'git log failed', commits: [] };
+  }
+}
+
+/** Get one commit detail and diff (for modal). */
+async function getCommitDetail(dirPath, sha) {
+  const s = (sha || '').trim();
+  if (!s) return { ok: false, error: 'SHA required' };
+  try {
+    const [infoOut, diffOut, namesOut] = await Promise.all([
+      runInDir(dirPath, 'git', ['show', '-s', '--format=%s%n%an%n%ad%n%b', '--date=short', s]).catch(() => ({ stdout: '' })),
+      runInDir(dirPath, 'git', ['show', '--no-color', s]).catch(() => ({ stdout: '' })),
+      runInDir(dirPath, 'git', ['diff-tree', '--no-commit-id', '--name-only', '-r', s]).catch(() => ({ stdout: '' })),
+    ]);
+    const infoLines = (infoOut.stdout || '').trim().split(/\r?\n/);
+    const subject = infoLines[0] || '';
+    const author = infoLines[1] || '';
+    const date = infoLines[2] || '';
+    const body = infoLines.slice(3).join('\n').trim();
+    const diff = (diffOut.stdout || '').trim();
+    const files = (namesOut.stdout || '').trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+    return { ok: true, sha: s, subject, author, date, body, diff, files };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to get commit' };
+  }
+}
+
+// ---------- Phase 3: Branch delete, rebase ----------
+async function deleteBranch(dirPath, branchName, force = false) {
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['branch', force ? '-D' : '-d', name]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Delete branch failed' };
+  }
+}
+
+async function deleteRemoteBranch(dirPath, remoteName, branchName) {
+  const remote = (remoteName || 'origin').trim();
+  const name = (branchName || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['push', remote, '--delete', name]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Delete remote branch failed' };
+  }
+}
+
+async function gitRebase(dirPath, ontoBranch) {
+  const onto = (ontoBranch || '').trim();
+  if (!onto) return { ok: false, error: 'Branch name is required' };
+  try {
+    await runInDir(dirPath, 'git', ['rebase', onto]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rebase failed' };
+  }
+}
+
+async function gitRebaseAbort(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['rebase', '--abort']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rebase abort failed' };
+  }
+}
+
+/** Start interactive rebase onto ref. Opens the rebase-todo in Cursor or VS Code (--wait). */
+async function gitRebaseInteractive(dirPath, ref) {
+  const r = (ref || '').trim();
+  if (!r) return { ok: false, error: 'Ref is required (e.g. branch name or HEAD~5)' };
+  const editors = ['cursor --wait', 'code --wait'];
+  for (const editor of editors) {
+    try {
+      await runInDir(dirPath, 'git', ['rebase', '-i', r], { env: { ...process.env, GIT_EDITOR: editor } });
+      return { ok: true };
+    } catch (e) {
+      try {
+        await runInDir(dirPath, 'git', ['rebase', '--abort']).catch(() => {});
+      } catch (_) {}
+      if (editor === editors[editors.length - 1]) {
+        return { ok: false, error: (e.message || 'Interactive rebase failed') + '. Ensure Cursor or VS Code is in PATH with --wait support.' };
+      }
+    }
+  }
+  return { ok: false, error: 'Interactive rebase failed. Ensure Cursor or VS Code is in PATH.' };
+}
+
+async function gitRebaseContinue(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['rebase', '--continue']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rebase continue failed' };
+  }
+}
+
+async function gitRebaseSkip(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['rebase', '--skip']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rebase skip failed' };
+  }
+}
+
+async function gitMergeContinue(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['merge', '--continue']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Merge continue failed' };
+  }
+}
+
+// ---------- Phase 4: Remotes, cherry-pick, reset, compare ----------
+async function getRemotes(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['remote', '-v']);
+    const remotes = parseRemotesLib(out.stdout || '');
+    return { ok: true, remotes };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list remotes', remotes: [] };
+  }
+}
+
+async function addRemote(dirPath, name, url) {
+  const n = (name || '').trim();
+  const u = (url || '').trim();
+  if (!n || !u) return { ok: false, error: 'Name and URL required' };
+  try {
+    await runInDir(dirPath, 'git', ['remote', 'add', n, u]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Add remote failed' };
+  }
+}
+
+async function removeRemote(dirPath, name) {
+  const n = (name || '').trim();
+  if (!n) return { ok: false, error: 'Remote name required' };
+  try {
+    await runInDir(dirPath, 'git', ['remote', 'remove', n]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Remove remote failed' };
+  }
+}
+
+/** Rename a remote (e.g. origin → upstream). */
+async function renameRemote(dirPath, oldName, newName) {
+  const oldN = (oldName || '').trim();
+  const newN = (newName || '').trim();
+  if (!oldN || !newN) return { ok: false, error: 'Current name and new name required' };
+  if (oldN === newN) return { ok: true };
+  try {
+    await runInDir(dirPath, 'git', ['remote', 'rename', oldN, newN]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rename remote failed' };
+  }
+}
+
+/** Change a remote's URL (e.g. point origin to a different repo). */
+async function setRemoteUrl(dirPath, name, url) {
+  const n = (name || '').trim();
+  const u = (url || '').trim();
+  if (!n || !u) return { ok: false, error: 'Remote name and URL required' };
+  try {
+    await runInDir(dirPath, 'git', ['remote', 'set-url', n, u]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Set URL failed' };
+  }
+}
+
+async function gitCherryPick(dirPath, sha) {
+  const s = (sha || '').trim();
+  if (!s) return { ok: false, error: 'Commit SHA required' };
+  try {
+    await runInDir(dirPath, 'git', ['cherry-pick', s]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Cherry-pick failed' };
+  }
+}
+
+async function gitCherryPickAbort(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['cherry-pick', '--abort']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Cherry-pick abort failed' };
+  }
+}
+
+async function gitCherryPickContinue(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['cherry-pick', '--continue']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Cherry-pick continue failed' };
+  }
+}
+
+async function gitReset(dirPath, ref, mode) {
+  const r = (ref || 'HEAD').trim();
+  const m = mode === 'soft' || mode === 'mixed' || mode === 'hard' ? mode : 'mixed';
+  try {
+    await runInDir(dirPath, 'git', ['reset', `--${m}`, r]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Reset failed' };
+  }
+}
+
+/** Diff summary between two refs: { files: string[], stats: string }. */
+async function getDiffBetween(dirPath, refA, refB) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['diff', '--stat', refA, refB]);
+    const stats = (out.stdout || '').trim();
+    const nameOut = await runInDir(dirPath, 'git', ['diff', '--name-only', refA, refB]);
+    const files = (nameOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    return { ok: true, files, stats };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Diff failed', files: [], stats: '' };
+  }
+}
+
+/** Full diff text between two refs (for modal). */
+async function getDiffBetweenFull(dirPath, refA, refB) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['diff', '--no-color', refA, refB]);
+    return { ok: true, diff: (out.stdout || '').trim() };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Diff failed', diff: '' };
+  }
+}
+
+/**
+ * Parse unified diff output for a single file into aligned rows for side-by-side view.
+ * Each row: { oldLineNum, newLineNum, oldContent, newContent, type: 'context'|'add'|'remove' }.
+ */
+function parseUnifiedDiffToRows(diffText) {
+  const rows = [];
+  const lines = (diffText || '').split(/\r?\n/);
+  let oldLine = 0;
+  let newLine = 0;
+  let inHunk = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+    if (hunkMatch) {
+      oldLine = parseInt(hunkMatch[1], 10);
+      newLine = parseInt(hunkMatch[3], 10);
+      inHunk = true;
+      continue;
+    }
+    if (!inHunk) continue;
+    const first = line.charAt(0);
+    const content = first === '-' || first === '+' || first === ' ' ? line.slice(1) : line;
+    if (first === '-') {
+      rows.push({ oldLineNum: oldLine, newLineNum: null, oldContent: content, newContent: null, type: 'remove' });
+      oldLine++;
+    } else if (first === '+') {
+      rows.push({ oldLineNum: null, newLineNum: newLine, oldContent: null, newContent: content, type: 'add' });
+      newLine++;
+    } else {
+      rows.push({ oldLineNum: oldLine, newLineNum: newLine, oldContent: content, newContent: content, type: 'context' });
+      oldLine++;
+      newLine++;
+    }
+  }
+  return rows;
+}
+
+/**
+ * Get structured diff for one file: aligned rows for side-by-side view.
+ * options: { commitSha?: string } — if set, diff is commit vs parent; else working tree vs HEAD.
+ */
+async function getFileDiffStructured(dirPath, filePath, options = {}) {
+  try {
+    let diff = '';
+    if (options.commitSha) {
+      const out = await runInDir(dirPath, 'git', ['show', '--no-color', options.commitSha, '--', filePath]).catch(() => ({ stdout: '' }));
+      diff = (out.stdout || '').trim();
+    } else {
+      const result = await runInDirCapture(dirPath, 'git', ['diff', 'HEAD', '--', filePath]);
+      diff = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+    }
+    if (!diff) return { ok: true, filePath, rows: [], diff: '' };
+    const rows = parseUnifiedDiffToRows(diff);
+    return { ok: true, filePath, rows, diff };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Diff failed', filePath, rows: [] };
+  }
+}
+
+/**
+ * Revert a single line in a file (working copy): replace or delete line, or insert old line.
+ * op: 'replace' | 'delete' | 'insert' — replace line at lineNum with content; delete line at lineNum; insert content before lineNum.
+ */
+async function revertFileLine(dirPath, filePath, op, lineNum, content) {
+  const fullPath = path.join(dirPath, filePath);
+  if (!fs.existsSync(fullPath)) return { ok: false, error: 'File not found' };
+  let text = fs.readFileSync(fullPath, 'utf8');
+  const lineEnding = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  const oneBased = Math.max(1, parseInt(lineNum, 10));
+  const idx = oneBased - 1;
+  if (op === 'delete') {
+    if (idx < 0 || idx >= lines.length) return { ok: false, error: 'Line number out of range' };
+    lines.splice(idx, 1);
+  } else if (op === 'replace') {
+    if (idx < 0 || idx >= lines.length) return { ok: false, error: 'Line number out of range' };
+    lines[idx] = content != null ? content : '';
+  } else if (op === 'insert') {
+    const insertIdx = Math.max(0, Math.min(idx, lines.length));
+    lines.splice(insertIdx, 0, content != null ? content : '');
+  } else {
+    return { ok: false, error: 'Invalid operation' };
+  }
+  fs.writeFileSync(fullPath, lines.join(lineEnding), 'utf8');
+  return { ok: true };
+}
+
+/** Prune remote-tracking branches (remove refs for branches deleted on remote). */
+async function gitPruneRemotes(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['fetch', '--prune']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Prune failed' };
+  }
+}
+
+/** Amend the last commit (optionally with new message). Uses -S if signCommits preference is set. */
+async function gitAmend(dirPath, message) {
+  const sign = getPreference('signCommits');
+  try {
+    const args = ['commit', '--amend'];
+    if (sign) args.push('-S');
+    if (message != null && String(message).trim()) {
+      args.push('-m', String(message).trim());
+      await runInDir(dirPath, 'git', args);
+    } else {
+      args.push('--no-edit');
+      await runInDir(dirPath, 'git', args);
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Amend failed' };
+  }
+}
+
+/** Get reflog entries (e.g. last 50). */
+async function getReflog(dirPath, n = 50) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['reflog', '-n', String(n), '--format=%h %gD %s']);
+    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    const entries = lines.map((line) => {
+      const match = line.match(/^(\S+)\s+(\S+)\s+(.*)$/);
+      return match ? { sha: match[1], ref: match[2], message: match[3] } : { sha: line.split(/\s/)[0] || '', ref: '', message: line };
+    });
+    return { ok: true, entries };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Reflog failed', entries: [] };
+  }
+}
+
+/** Checkout any ref (SHA, branch, reflog ref like HEAD@{1}). */
+async function checkoutRef(dirPath, ref) {
+  const r = (ref || '').trim();
+  if (!r) return { ok: false, error: 'Ref required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', r]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Checkout failed' };
+  }
+}
+
+/** Get blame for a file (first 500 lines of output). */
+async function getBlame(dirPath, filePath) {
+  const f = (filePath || '').trim();
+  if (!f) return { ok: false, error: 'File path required', text: '' };
+  try {
+    const out = await runInDir(dirPath, 'git', ['blame', '-w', '--no-color', '-L', '1,500', '--', f]);
+    return { ok: true, text: (out.stdout || '').trim() };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Blame failed', text: '' };
+  }
+}
+
+/** Delete a tag locally. */
+async function deleteTag(dirPath, tagName) {
+  const t = (tagName || '').trim();
+  if (!t) return { ok: false, error: 'Tag name required' };
+  try {
+    await runInDir(dirPath, 'git', ['tag', '-d', t]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Delete tag failed' };
+  }
+}
+
+/** Push a single tag to remote (default origin). */
+async function pushTag(dirPath, tagName, remoteName = 'origin') {
+  const t = (tagName || '').trim();
+  const r = (remoteName || 'origin').trim();
+  if (!t) return { ok: false, error: 'Tag name required' };
+  try {
+    await runInDir(dirPath, 'git', ['push', r, 'refs/tags/' + t]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Push tag failed' };
+  }
+}
+
+/** Stage a single file (or pathspec). */
+async function stageFile(dirPath, filePath) {
+  const f = (filePath || '').trim();
+  if (!f) return { ok: false, error: 'File path required' };
+  try {
+    await runInDir(dirPath, 'git', ['add', f]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Stage failed' };
+  }
+}
+
+/** Unstage a single file (reset from index). */
+async function unstageFile(dirPath, filePath) {
+  const f = (filePath || '').trim();
+  if (!f) return { ok: false, error: 'File path required' };
+  try {
+    await runInDir(dirPath, 'git', ['reset', 'HEAD', '--', f]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Unstage failed' };
+  }
+}
+
+/** Discard changes in one file (working tree only; not delete). */
+async function discardFile(dirPath, filePath) {
+  const f = (filePath || '').trim();
+  if (!f) return { ok: false, error: 'File path required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', '--', f]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Discard file failed' };
+  }
+}
+
+/** Fetch from a specific remote (optional ref). */
+async function gitFetchRemote(dirPath, remoteName, ref) {
+  const remote = (remoteName || 'origin').trim();
+  if (!remote) return { ok: false, error: 'Remote name required' };
+  try {
+    const args = ['fetch', remote];
+    if (ref && String(ref).trim()) args.push(String(ref).trim());
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Fetch failed' };
+  }
+}
+
+// ---------- Phase 5: Pull rebase, gitignore, submodules ----------
+async function gitPullRebase(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['pull', '--rebase']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Pull (rebase) failed' };
+  }
+}
+
+/** Read .gitignore (first 8KB). */
+async function getGitignore(dirPath) {
+  const p = path.join(dirPath, '.gitignore');
+  try {
+    if (!fs.existsSync(p)) return { ok: true, content: null, path: p };
+    const content = fs.readFileSync(p, 'utf8').slice(0, 8192);
+    return { ok: true, content, path: p };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to read .gitignore', content: null, path: p };
+  }
+}
+
+/** Read .gitattributes (first 8KB). */
+async function getGitattributes(dirPath) {
+  const p = path.join(dirPath, '.gitattributes');
+  try {
+    if (!fs.existsSync(p)) return { ok: true, content: null, path: p };
+    const content = fs.readFileSync(p, 'utf8').slice(0, 8192);
+    return { ok: true, content, path: p };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to read .gitattributes', content: null, path: p };
+  }
+}
+
+/** Write .gitignore content. Creates file if missing. */
+async function writeGitignore(dirPath, content) {
+  const p = path.join(dirPath, '.gitignore');
+  try {
+    fs.writeFileSync(p, typeof content === 'string' ? content : '', 'utf8');
+    return { ok: true, path: p };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to write .gitignore', path: p };
+  }
+}
+
+/** Write .gitattributes content. Creates file if missing. */
+async function writeGitattributes(dirPath, content) {
+  const p = path.join(dirPath, '.gitattributes');
+  try {
+    fs.writeFileSync(p, typeof content === 'string' ? content : '', 'utf8');
+    return { ok: true, path: p };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to write .gitattributes', path: p };
+  }
+}
+
+/** List submodules: [{ path, url, sha }]. */
+async function getSubmodules(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['submodule', 'status']);
+    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    const subs = [];
+    for (const line of lines) {
+      const match = line.match(/^[\s\-+]?([a-f0-9]+)\s+(\S+)(?:\s+\([^)]*\))?$/);
+      if (match) {
+        const sha = match[1];
+        const subPath = match[2];
+        let url = '';
+        try {
+          const cfg = await runInDir(dirPath, 'git', ['config', '--get', `submodule.${subPath}.url`]);
+          url = (cfg.stdout || '').trim();
+        } catch (_) {}
+        subs.push({ path: subPath, url, sha });
+      }
+    }
+    return { ok: true, submodules: subs };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list submodules', submodules: [] };
+  }
+}
+
+async function submoduleUpdate(dirPath, init = true) {
+  try {
+    const args = init ? ['submodule', 'update', '--init', '--recursive'] : ['submodule', 'update', '--recursive'];
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Submodule update failed' };
+  }
+}
+
+/** Detect rebase/cherry-pick/merge state for showing Abort buttons. */
+async function getGitState(dirPath) {
+  const gitDir = path.join(dirPath, '.git');
+  const rebasing = fs.existsSync(path.join(gitDir, 'rebase-merge')) || fs.existsSync(path.join(gitDir, 'rebase-apply'));
+  const cherryPicking = fs.existsSync(path.join(gitDir, 'sequencer'));
+  const merging = fs.existsSync(path.join(gitDir, 'MERGE_HEAD'));
+  return { ok: true, rebasing, cherryPicking, merging };
+}
+
+/** List worktrees: [{ path, head, branch }]. */
+async function getWorktrees(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['worktree', 'list', '--porcelain']);
+    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    const worktrees = [];
+    let current = {};
+    for (const line of lines) {
+      if (line.startsWith('worktree ')) {
+        if (current.worktree) worktrees.push(current);
+        current = { path: line.slice(9).trim(), head: '', branch: '' };
+      } else if (line.startsWith('HEAD ')) current.head = line.slice(5).trim();
+      else if (line.startsWith('branch ')) current.branch = line.slice(7).trim().replace(/^refs\/heads\//, '');
+    }
+    if (current.path) worktrees.push(current);
+    return { ok: true, worktrees };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Worktree list failed', worktrees: [] };
+  }
+}
+
+/** Add a linked worktree. */
+async function worktreeAdd(dirPath, worktreePath, branch) {
+  const wt = (worktreePath || '').trim();
+  if (!wt) return { ok: false, error: 'Worktree path required' };
+  try {
+    const args = ['worktree', 'add', path.isAbsolute(wt) ? wt : path.join(path.dirname(dirPath), wt)];
+    if (branch && String(branch).trim()) args.push('-b', String(branch).trim());
+    await runInDir(dirPath, 'git', args);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Worktree add failed' };
+  }
+}
+
+/** Remove a worktree (must be clean and not current). */
+async function worktreeRemove(dirPath, worktreePath) {
+  const wt = (worktreePath || '').trim();
+  if (!wt) return { ok: false, error: 'Worktree path required' };
+  try {
+    await runInDir(dirPath, 'git', ['worktree', 'remove', wt]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Worktree remove failed' };
+  }
+}
+
+/** Get bisect status: { active, current, currentSha, good, bad, remaining, raw }. */
+async function getBisectStatus(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['bisect', 'status']);
+    const text = (out.stdout || '').trim();
+    const active = text.includes('bisecting');
+    let current = '';
+    let currentSha = '';
+    let good = '';
+    let bad = '';
+    let remaining = '';
+    const currentMatch = text.match(/Currently at: ([^\n]+)/);
+    if (currentMatch) {
+      current = currentMatch[1].trim();
+      const shaMatch = current.match(/^([0-9a-f]{7,40})/i);
+      if (shaMatch) currentSha = shaMatch[1];
+    }
+    const goodMatch = text.match(/between ([^\n]+) and/);
+    if (goodMatch) good = goodMatch[1].trim();
+    const badMatch = text.match(/and ([^\n\s]+)/);
+    if (badMatch) bad = badMatch[1].trim();
+    const remMatch = text.match(/(\d+) revisions left/);
+    if (remMatch) remaining = remMatch[1];
+    return { ok: true, active, current, currentSha, good, bad, remaining, raw: text };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect status failed', active: false, raw: '' };
+  }
+}
+
+async function bisectStart(dirPath, badRef, goodRef) {
+  const bad = (badRef || 'HEAD').trim();
+  const good = (goodRef || '').trim();
+  try {
+    const args = ['bisect', 'start'];
+    await runInDir(dirPath, 'git', args);
+    await runInDir(dirPath, 'git', ['bisect', 'bad', bad]);
+    if (good) await runInDir(dirPath, 'git', ['bisect', 'good', good]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect start failed' };
+  }
+}
+
+async function bisectGood(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['bisect', 'good']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect good failed' };
+  }
+}
+
+async function bisectBad(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['bisect', 'bad']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect bad failed' };
+  }
+}
+
+async function bisectReset(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['bisect', 'reset']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect reset failed' };
   }
 }
 
@@ -524,6 +1536,54 @@ async function fetchGitHubReleases(owner, repo, token = null) {
   return Array.isArray(data) ? data : [];
 }
 
+/** state: 'open' | 'closed' | 'all'. Returns list of PRs from GitHub API. */
+async function fetchGitHubPullRequests(owner, repo, token, state = 'open') {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=${encodeURIComponent(state)}&per_page=50`;
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28' };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, { headers, redirect: 'follow' });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(res.status === 404 ? 'Repo not found' : text || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+/** head and base are branch names (same repo). Returns created PR or throws. */
+async function createGitHubPullRequest(owner, repo, head, base, title, body, token) {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls`;
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ title, head, base, body: body || undefined }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+/** mergeMethod: 'merge' | 'squash' | 'rebase'. */
+async function mergeGitHubPullRequest(owner, repo, prNumber, mergeMethod, token) {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls/${encodeURIComponent(prNumber)}/merge`;
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json' };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers,
+    body: JSON.stringify({ merge_method: mergeMethod }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
 
 async function downloadToFile(url, savePath) {
   const res = await fetch(url, {
@@ -552,8 +1612,8 @@ async function showSaveDialogAndDownload(win, defaultPath, url) {
 
 const iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon.png');
 
-const DEFAULT_WINDOW_WIDTH = 1200;
-const DEFAULT_WINDOW_HEIGHT = 800;
+const DEFAULT_WINDOW_WIDTH = 1600;
+const DEFAULT_WINDOW_HEIGHT = 900;
 
 /** Ensure saved bounds are on a visible display (handles disconnected monitors). */
 function clampBoundsToDisplay(saved) {
@@ -620,7 +1680,8 @@ function createWindow() {
     win.maximize();
   }
 
-  win.loadFile(path.join(__dirname, '..', 'src-renderer', 'index.html'));
+  // Vue + Vite renderer is the default (built to dist-renderer)
+  win.loadFile(path.join(__dirname, '..', 'dist-renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
 
   let saveBoundsTimeout;
@@ -640,33 +1701,16 @@ function createWindow() {
 
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('rm-theme', getEffectiveTheme());
-  });
-}
-
-// Only enable file watcher + hard reset when explicitly in dev (npm run dev).
-// Enabling reload for all unpackaged runs (npm start) can cause SIGABRT on macOS when the watcher restarts the process.
-const devReloadEnabled =
-  process.env.NODE_ENV === 'development' &&
-  process.env.DISABLE_ELECTRON_RELOAD !== '1';
-if (devReloadEnabled) {
-  try {
-    const electronReload = require('electron-reload');
-    const root = path.join(__dirname, '..');
-    const electronPath = path.join(root, 'node_modules', 'electron', 'cli.js');
-    if (fs.existsSync(electronPath)) {
-      electronReload([path.join(root, 'src-main'), path.join(root, 'src-renderer')], {
-        electron: electronPath,
-        hardResetMethod: 'exit',
-        forceHardReset: true,
-      });
+    if (process.env.NODE_ENV === 'development') {
+      win.webContents.openDevTools({ mode: 'detach' });
     }
-  } catch (_) {}
+  });
 }
 
 app.whenReady().then(() => {
   store = new Store({ name: 'release-manager' });
   // One-time migration from old JSON config so projects survive rebuilds
-  const oldConfigPath = path.join(app.getPath('userData'), 'release-manager-config.json');
+  const oldConfigPath = path.join(app.getPath('userData'), 'shipwell-config.json');
   if (fs.existsSync(oldConfigPath)) {
     try {
       const content = fs.readFileSync(oldConfigPath, 'utf8');
@@ -684,85 +1728,24 @@ app.whenReady().then(() => {
     app.dock.setIcon(iconPath);
   }
   nativeTheme.themeSource = getThemeSetting() === 'system' ? 'system' : getThemeSetting();
-  createWindow();
 
-  ipcMain.handle('rm-get-projects', () => getProjects());
-  ipcMain.handle('rm-get-all-projects-info', async () => {
-    const list = getProjects();
-    const results = await Promise.all(
-      list.map(async (p) => {
-        const info = await getProjectInfoAsync(p.path);
-        return { path: p.path, name: p.name, ...info };
-      })
-    );
-    return results;
-  });
-  ipcMain.handle('rm-set-projects', (_e, projects) => {
-    setProjects(projects);
-    return null;
-  });
-  ipcMain.handle('rm-show-directory-dialog', () => showDirectoryDialog());
-  ipcMain.handle('rm-get-project-info', (_e, dirPath) => getProjectInfoAsync(dirPath));
-  ipcMain.handle('rm-get-composer-info', (_e, dirPath) => {
-    const result = getComposerManifestInfo(dirPath, fs);
-    return Promise.resolve(result.ok ? result : { ok: false, error: result.error });
-  });
-  ipcMain.handle('rm-get-composer-outdated', async (_e, dirPath, direct = false) => {
-    try {
-      const args = ['outdated', '--format=json', '--no-ansi'];
-      if (direct) args.push('--direct');
-      const out = await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
-      const parsed = parseComposerOutdatedJson(out.stdout);
-      if (!parsed.ok) return { ok: false, error: parsed.error, packages: [] };
-      return { ok: true, packages: parsed.packages || [] };
-    } catch (e) {
-      const msg = e.message || '';
-      if (/ENOENT|not found|spawn composer/i.test(msg)) {
-        return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.', packages: [] };
-      }
-      return { ok: false, error: msg || 'composer outdated failed', packages: [] };
-    }
-  });
-  ipcMain.handle('rm-get-composer-validate', async (_e, dirPath) => {
-    try {
-      await runInDir(dirPath, 'composer', ['validate', '--no-ansi'], { env: getComposerEnv(dirPath) });
-      return { valid: true };
-    } catch (e) {
-      return parseComposerValidateOutput('', e.message || '', 1);
-    }
-  });
-  ipcMain.handle('rm-get-composer-audit', async (_e, dirPath) => {
-    try {
-      const out = await runInDir(dirPath, 'composer', ['audit', '--format=json', '--no-ansi'], { env: getComposerEnv(dirPath) });
-      const parsed = parseComposerAuditJson(out.stdout);
-      if (!parsed.ok) return { ok: false, error: parsed.error, advisories: [] };
-      return { ok: true, advisories: parsed.advisories || [] };
-    } catch (e) {
-      const msg = e.message || '';
-      if (/ENOENT|not found|spawn composer/i.test(msg)) {
-        return { ok: false, error: 'Composer not found.', advisories: [] };
-      }
-      return { ok: false, error: msg || 'composer audit failed', advisories: [] };
-    }
-  });
-  ipcMain.handle('rm-composer-update', async (_e, dirPath, packageNames) => {
-    try {
-      const args = ['update', '--no-interaction', '--no-ansi'];
-      if (Array.isArray(packageNames) && packageNames.length > 0) {
-        packageNames.forEach((name) => {
-          if (typeof name === 'string' && name.trim()) args.push(name.trim());
-        });
-      }
-      await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
-      return { ok: true };
-    } catch (e) {
-      const msg = e.message || '';
-      if (/ENOENT|not found|spawn composer/i.test(msg)) {
-        return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.' };
-      }
-      return { ok: false, error: msg || 'composer update failed' };
-    }
-  });
+  // Set an explicit app menu to avoid macOS "representedObject is not a WeakPtrToElectronMenuModelAsNSObject" warning
+  // (triggered when Electron builds its default menu internally)
+  const appMenu = Menu.buildFromTemplate([
+    ...(process.platform === 'darwin' ? [{ role: 'appMenu', label: pkg.productName || 'Shipwell' }] : []),
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    { role: 'viewMenu' },
+    { role: 'windowMenu' },
+    { role: 'help', submenu: [{ role: 'about' }, { type: 'separator' }, { role: 'toggleDevTools', label: 'Toggle Developer Tools' }] },
+  ]);
+  Menu.setApplicationMenu(appMenu);
+
+  // API layer: single dispatch for both IPC and HTTP API (register before createWindow so handlers exist when renderer loads)
+  function channelToMethod(channel) {
+    const k = channel.replace(/^rm-/, '');
+    return k.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+  }
   function getProjectTestScripts(dirPath, projectType) {
     try {
       if (projectType === 'npm') {
@@ -773,202 +1756,480 @@ app.whenReady().then(() => {
         return ok ? { ok: true, scripts: scripts || [] } : { ok: false, scripts: [], error: error || 'Failed' };
       }
       if (projectType === 'php') {
-        const manifest = getComposerManifestInfo(dirPath);
+        const manifest = getComposerManifestInfo(dirPath, fs);
         const { scripts } = getComposerScriptNames(manifest);
-        return { ok: true, scripts };
+        return { ok: true, scripts: scripts || [] };
       }
       return { ok: true, scripts: [] };
     } catch (e) {
       return { ok: false, scripts: [], error: e.message || 'Failed to get test scripts' };
     }
   }
-  ipcMain.handle('rm-get-project-test-scripts', (_e, dirPath, projectType) => getProjectTestScripts(dirPath, projectType));
-  ipcMain.handle('rm-run-project-tests', async (_e, dirPath, projectType, scriptName) => {
+  async function runApiMethod(method, params) {
+    const fn = apiRegistry[method];
+    if (typeof fn !== 'function') throw new Error('Unknown method: ' + method);
+    return fn(...params);
+  }
+  const apiRegistry = {
+    getProjects: () => getProjects(),
+    getAllProjectsInfo: async () => {
+      const list = getProjects();
+      const results = await Promise.all(
+        list.map(async (p) => {
+          const info = await getProjectInfoAsync(p.path);
+          return { path: p.path, name: p.name, ...info };
+        })
+      );
+      return results;
+    },
+    setProjects: (projects) => {
+      setProjects(projects);
+      return null;
+    },
+    showDirectoryDialog: () => showDirectoryDialog(),
+    getProjectInfo: (dirPath) => getProjectInfoAsync(dirPath),
+    getComposerInfo: (dirPath) => {
+      const result = getComposerManifestInfo(dirPath, fs);
+      return Promise.resolve(result.ok ? result : { ok: false, error: result.error });
+    },
+    getComposerOutdated: async (dirPath, direct = false) => {
+      try {
+        const args = ['outdated', '--format=json', '--no-ansi'];
+        if (direct) args.push('--direct');
+        const out = await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
+        const parsed = parseComposerOutdatedJson(out.stdout);
+        if (!parsed.ok) return { ok: false, error: parsed.error, packages: [] };
+        return { ok: true, packages: parsed.packages || [] };
+      } catch (e) {
+        const msg = e.message || '';
+        if (/ENOENT|not found|spawn composer/i.test(msg)) {
+          return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.', packages: [] };
+        }
+        return { ok: false, error: msg || 'composer outdated failed', packages: [] };
+      }
+    },
+    getComposerValidate: async (dirPath) => {
+      try {
+        await runInDir(dirPath, 'composer', ['validate', '--no-ansi'], { env: getComposerEnv(dirPath) });
+        return { valid: true };
+      } catch (e) {
+        return parseComposerValidateOutput('', e.message || '', 1);
+      }
+    },
+    getComposerAudit: async (dirPath) => {
+      try {
+        const out = await runInDir(dirPath, 'composer', ['audit', '--format=json', '--no-ansi'], { env: getComposerEnv(dirPath) });
+        const parsed = parseComposerAuditJson(out.stdout);
+        if (!parsed.ok) return { ok: false, error: parsed.error, advisories: [] };
+        return { ok: true, advisories: parsed.advisories || [] };
+      } catch (e) {
+        const msg = e.message || '';
+        if (/ENOENT|not found|spawn composer/i.test(msg)) {
+          return { ok: false, error: 'Composer not found.', advisories: [] };
+        }
+        return { ok: false, error: msg || 'composer audit failed', advisories: [] };
+      }
+    },
+    composerUpdate: async (dirPath, packageNames) => {
+      try {
+        const args = ['update', '--no-interaction', '--no-ansi'];
+        if (Array.isArray(packageNames) && packageNames.length > 0) {
+          packageNames.forEach((name) => {
+            if (typeof name === 'string' && name.trim()) args.push(name.trim());
+          });
+        }
+        await runInDir(dirPath, 'composer', args, { env: getComposerEnv(dirPath) });
+        return { ok: true };
+      } catch (e) {
+        const msg = e.message || '';
+        if (/ENOENT|not found|spawn composer/i.test(msg)) {
+          return { ok: false, error: 'Composer not found. Install Composer and ensure it is in PATH.' };
+        }
+        return { ok: false, error: msg || 'composer update failed' };
+      }
+    },
+    getProjectTestScripts: (dirPath, projectType) => getProjectTestScripts(dirPath, projectType),
+    runProjectTests: async (dirPath, projectType, scriptName) => {
+      try {
+        const runNpm = (script) => runInDirCapture(dirPath, 'npm', ['run', script, '--no-color']);
+        const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi'], { env: getComposerEnv(dirPath) });
+        if (projectType === 'npm') {
+          const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
+          const result = await runNpm(script);
+          return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        }
+        if (projectType === 'php') {
+          const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
+          const result = await runComposer(script);
+          return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        }
+        return { ok: false, error: 'Run tests is supported for npm and PHP projects only.', stdout: '', stderr: '' };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Run failed', stdout: '', stderr: '' };
+      }
+    },
+    runProjectCoverage: async (dirPath, projectType) => runProjectCoverageImpl(dirPath, projectType),
+    versionBump: (dirPath, bump) => runVersionBump(dirPath, bump),
+    gitTagAndPush: (dirPath, tagMessage) => gitTagAndPush(dirPath, tagMessage),
+    release: async (dirPath, bump, force, options = {}) => runReleaseImpl(dirPath, bump, force, options),
+    getCommitsSinceTag: (dirPath, sinceTag) => getCommitsSinceTag(dirPath, sinceTag),
+    getRecentCommits: (dirPath, n) => getRecentCommits(dirPath, n),
+    getSuggestedBump: (commits) => suggestBumpFromCommits(commits),
+    getShortcutAction: (viewMode, selectedPath, key, metaKey, ctrlKey, inInput) =>
+      getShortcutAction(viewMode, selectedPath, key, metaKey, ctrlKey, inInput),
+    getActionsUrl: (gitRemote) => getActionsUrl(gitRemote) || null,
+    getGitHubToken: () => getStore().get('githubToken') || '',
+    setGitHubToken: (token) => {
+      getStore().set('githubToken', token || '');
+      return null;
+    },
+    getOllamaSettings: () => ({
+      baseUrl: getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL,
+      model: getStore().get('ollamaModel') || DEFAULT_MODEL,
+    }),
+    setOllamaSettings: (baseUrl, model) => {
+      getStore().set('ollamaBaseUrl', baseUrl || '');
+      getStore().set('ollamaModel', model || '');
+      return null;
+    },
+    getClaudeSettings: () => ({
+      apiKey: getStore().get('claudeApiKey') || '',
+      model: getStore().get('claudeModel') || CLAUDE_DEFAULT_MODEL,
+    }),
+    setClaudeSettings: (apiKey, model) => {
+      getStore().set('claudeApiKey', apiKey || '');
+      getStore().set('claudeModel', model || '');
+      return null;
+    },
+    getAiProvider: () => getStore().get('aiProvider') || 'ollama',
+    setAiProvider: (provider) => {
+      getStore().set('aiProvider', provider || 'ollama');
+      return null;
+    },
+    ollamaListModels: async (baseUrl) => ollamaListModels(baseUrl || getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL),
+    ollamaGenerateCommitMessage: async (dirPath) => ollamaGenerate(dirPath, buildCommitMessagePrompt, 'commit'),
+    ollamaGenerateReleaseNotes: async (dirPath, sinceTag) => ollamaGenerate(dirPath, (d, t) => buildReleaseNotesPrompt(d, t), 'release', sinceTag),
+    ollamaSuggestTestFix: async (testScriptName, stdout, stderr) => ollamaGenerate(null, () => buildTestFixPrompt(testScriptName, stdout, stderr), 'test'),
+    getGitStatus: (dirPath) => getGitStatus(dirPath),
+    gitPull: (dirPath) => gitPull(dirPath),
+    getBranches: (dirPath) => getBranches(dirPath),
+    checkoutBranch: (dirPath, branchName) => checkoutBranch(dirPath, branchName),
+    createBranch: (dirPath, branchName, checkout) => createBranch(dirPath, branchName, checkout !== false),
+    createBranchFrom: (dirPath, newBranchName, fromRef) => createBranchFrom(dirPath, newBranchName, fromRef),
+    gitPush: (dirPath) => gitPushWithUpstream(dirPath),
+    gitPushForce: (dirPath, withLease) => gitPushForce(dirPath, !!withLease),
+    gitFetch: (dirPath) => gitFetch(dirPath),
+    gitMerge: (dirPath, branchName, options) => gitMerge(dirPath, branchName, options || {}),
+    gitStashPush: (dirPath, message, options) => gitStashPush(dirPath, message, options || {}),
+    commitChanges: (dirPath, message, options) => gitCommit(dirPath, message, options || {}),
+    gitStashPop: (dirPath) => gitStashPop(dirPath),
+    gitDiscardChanges: (dirPath) => gitDiscardChanges(dirPath),
+    gitMergeAbort: (dirPath) => gitMergeAbort(dirPath),
+    getRemoteBranches: (dirPath) => getRemoteBranches(dirPath),
+    checkoutRemoteBranch: (dirPath, ref) => checkoutRemoteBranch(dirPath, ref),
+    getStashList: (dirPath) => getStashList(dirPath),
+    stashApply: (dirPath, index) => stashApply(dirPath, index),
+    stashDrop: (dirPath, index) => stashDrop(dirPath, index),
+    getTags: (dirPath) => getTags(dirPath),
+    checkoutTag: (dirPath, tagName) => checkoutTag(dirPath, tagName),
+    getCommitLog: (dirPath, n) => getCommitLog(dirPath, n),
+    getCommitDetail: (dirPath, sha) => getCommitDetail(dirPath, sha),
+    deleteBranch: (dirPath, branchName, force) => deleteBranch(dirPath, branchName, force),
+    deleteRemoteBranch: (dirPath, remoteName, branchName) => deleteRemoteBranch(dirPath, remoteName, branchName),
+    gitRebase: (dirPath, ontoBranch) => gitRebase(dirPath, ontoBranch),
+    gitRebaseAbort: (dirPath) => gitRebaseAbort(dirPath),
+    gitRebaseContinue: (dirPath) => gitRebaseContinue(dirPath),
+    gitRebaseSkip: (dirPath) => gitRebaseSkip(dirPath),
+    gitMergeContinue: (dirPath) => gitMergeContinue(dirPath),
+    getRemotes: (dirPath) => getRemotes(dirPath),
+    addRemote: (dirPath, name, url) => addRemote(dirPath, name, url),
+    removeRemote: (dirPath, name) => removeRemote(dirPath, name),
+    renameRemote: (dirPath, oldName, newName) => renameRemote(dirPath, oldName, newName),
+    setRemoteUrl: (dirPath, name, url) => setRemoteUrl(dirPath, name, url),
+    gitCherryPick: (dirPath, sha) => gitCherryPick(dirPath, sha),
+    gitCherryPickAbort: (dirPath) => gitCherryPickAbort(dirPath),
+    gitCherryPickContinue: (dirPath) => gitCherryPickContinue(dirPath),
+    renameBranch: (dirPath, oldName, newName) => renameBranch(dirPath, oldName, newName),
+    createTag: (dirPath, tagName, message, ref) => createTag(dirPath, tagName, message, ref),
+    writeGitignore: (dirPath, content) => writeGitignore(dirPath, content),
+    writeGitattributes: (dirPath, content) => writeGitattributes(dirPath, content),
+    gitRebaseInteractive: (dirPath, ref) => gitRebaseInteractive(dirPath, ref),
+    gitReset: (dirPath, ref, mode) => gitReset(dirPath, ref, mode),
+    getDiffBetween: (dirPath, refA, refB) => getDiffBetween(dirPath, refA, refB),
+    getDiffBetweenFull: (dirPath, refA, refB) => getDiffBetweenFull(dirPath, refA, refB),
+    getFileDiffStructured: (dirPath, filePath, options) => getFileDiffStructured(dirPath, filePath, options),
+    revertFileLine: (dirPath, filePath, op, lineNum, content) => revertFileLine(dirPath, filePath, op, lineNum, content),
+    gitRevert: (dirPath, sha) => gitRevert(dirPath, sha),
+    gitPruneRemotes: (dirPath) => gitPruneRemotes(dirPath),
+    gitAmend: (dirPath, message) => gitAmend(dirPath, message),
+    getReflog: (dirPath, n) => getReflog(dirPath, n),
+    checkoutRef: (dirPath, ref) => checkoutRef(dirPath, ref),
+    getBlame: (dirPath, filePath) => getBlame(dirPath, filePath),
+    deleteTag: (dirPath, tagName) => deleteTag(dirPath, tagName),
+    pushTag: (dirPath, tagName, remoteName) => pushTag(dirPath, tagName, remoteName),
+    stageFile: (dirPath, filePath) => stageFile(dirPath, filePath),
+    unstageFile: (dirPath, filePath) => unstageFile(dirPath, filePath),
+    discardFile: (dirPath, filePath) => discardFile(dirPath, filePath),
+    gitFetchRemote: (dirPath, remoteName, ref) => gitFetchRemote(dirPath, remoteName, ref),
+    gitPullRebase: (dirPath) => gitPullRebase(dirPath),
+    getGitignore: (dirPath) => getGitignore(dirPath),
+    getGitattributes: (dirPath) => getGitattributes(dirPath),
+    getSubmodules: (dirPath) => getSubmodules(dirPath),
+    submoduleUpdate: (dirPath, init) => submoduleUpdate(dirPath, init),
+    getGitState: (dirPath) => getGitState(dirPath),
+    getWorktrees: (dirPath) => getWorktrees(dirPath),
+    worktreeAdd: (dirPath, worktreePath, branch) => worktreeAdd(dirPath, worktreePath, branch),
+    worktreeRemove: (dirPath, worktreePath) => worktreeRemove(dirPath, worktreePath),
+    getBisectStatus: (dirPath) => getBisectStatus(dirPath),
+    bisectStart: (dirPath, badRef, goodRef) => bisectStart(dirPath, badRef, goodRef),
+    bisectGood: (dirPath) => bisectGood(dirPath),
+    bisectBad: (dirPath) => bisectBad(dirPath),
+    bisectReset: (dirPath) => bisectReset(dirPath),
+    copyToClipboard: (text) => {
+      if (text != null && typeof text === 'string') clipboard.writeText(text);
+      return null;
+    },
+    openPathInFinder: (dirPath) => {
+      if (dirPath != null && typeof dirPath === 'string') return shell.openPath(dirPath);
+      return Promise.resolve('');
+    },
+    openInTerminal: (dirPath) => openInTerminalImpl(dirPath),
+    runShellCommand: (dirPath, command) => runShellCommand(dirPath, command),
+    openInEditor: (dirPath) => openInEditorImpl(dirPath),
+    openFileInEditor: (dirPath, relativePath) => openFileInEditorImpl(dirPath, relativePath),
+    getFileDiff: async (dirPath, filePath, isUntracked) => getFileDiffImpl(dirPath, filePath, isUntracked),
+    getReleasesUrl: (gitRemote) => getReleasesUrl(gitRemote),
+    getPullRequestsUrl: (gitRemote) => getPullRequestsUrl(gitRemote),
+    syncFromRemote: (dirPath) => gitFetch(dirPath),
+    getGitHubReleases: async (gitRemote, token = null) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo', releases: [] };
+      const authToken = token || getStore().get('githubToken') || null;
+      try {
+        const releases = await fetchGitHubReleases(slug.owner, slug.repo, authToken);
+        return { ok: true, releases };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch releases'), releases: [] };
+      }
+    },
+    getPullRequests: async (gitRemote, state = 'open', token = null) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo', pullRequests: [] };
+      const authToken = token || getStore().get('githubToken') || null;
+      try {
+        const pullRequests = await fetchGitHubPullRequests(slug.owner, slug.repo, authToken, state);
+        return { ok: true, pullRequests };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch pull requests'), pullRequests: [] };
+      }
+    },
+    createPullRequest: async (dirPath, baseBranch, title, body, token = null) => {
+      let remoteName;
+      try {
+        remoteName = await getPushRemote(dirPath);
+      } catch (_) {}
+      if (!remoteName) return { ok: false, error: 'No push remote configured' };
+      let remoteUrl;
+      try {
+        const out = await runInDir(dirPath, 'git', ['remote', 'get-url', remoteName]);
+        remoteUrl = (out.stdout || '').trim() || null;
+      } catch (_) {}
+      const slug = getRepoSlug(remoteUrl);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo. Configure a GitHub remote and push branch.' };
+      let headBranch;
+      try {
+        const out = await runInDir(dirPath, 'git', ['branch', '--show-current']);
+        headBranch = (out.stdout || '').trim();
+      } catch (_) {
+        return { ok: false, error: 'Could not get current branch' };
+      }
+      if (!headBranch) return { ok: false, error: 'Not on a branch' };
+      const authToken = token || getStore().get('githubToken') || null;
+      if (!authToken) return { ok: false, error: 'GitHub token required to create pull requests. Set it in Settings or the project.' };
+      try {
+        const pr = await createGitHubPullRequest(slug.owner, slug.repo, headBranch, baseBranch || 'main', title || 'WIP', body || '', authToken);
+        return { ok: true, pullRequest: pr };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to create pull request') };
+      }
+    },
+    mergePullRequest: async (gitRemote, prNumber, mergeMethod = 'merge', token = null) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo' };
+      const authToken = token || getStore().get('githubToken') || null;
+      if (!authToken) return { ok: false, error: 'GitHub token required to merge' };
+      try {
+        const result = await mergeGitHubPullRequest(slug.owner, slug.repo, Number(prNumber), mergeMethod || 'merge', authToken);
+        return { ok: true, result };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to merge pull request') };
+      }
+    },
+    downloadLatestRelease: async (gitRemote) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo' };
+      try {
+        const releases = await fetchGitHubReleases(slug.owner, slug.repo);
+        if (!releases.length) return { ok: false, error: 'No releases found' };
+        const release = releases[0];
+        const assets = release.assets || [];
+        const asset = pickAssetForPlatform(assets, process.platform);
+        if (!asset || !asset.browser_download_url) return { ok: false, error: 'No compatible asset for your platform' };
+        const win = BrowserWindow.getAllWindows()[0] || null;
+        const defaultPath = path.join(app.getPath('downloads'), asset.name);
+        return showSaveDialogAndDownload(win, defaultPath, asset.browser_download_url);
+      } catch (err) {
+        return { ok: false, error: formatGitHubError(err.message || 'Failed to fetch or download') };
+      }
+    },
+    downloadAsset: async (url, suggestedFileName) => {
+      if (!url || typeof url !== 'string') return { ok: false, error: 'Invalid URL' };
+      const win = BrowserWindow.getAllWindows()[0] || null;
+      const defaultPath = path.join(app.getPath('downloads'), suggestedFileName || 'download');
+      return showSaveDialogAndDownload(win, defaultPath, url);
+    },
+    openUrl: (url) => {
+      if (url && typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+        shell.openExternal(url);
+      }
+      return null;
+    },
+    getAppInfo: () => {
+      try {
+        const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
+        return { name: pkg.productName || pkg.name, version: pkg.version };
+      } catch {
+        return { name: 'Shipwell', version: '0.1.0' };
+      }
+    },
+    getChangelog: async () => {
+      try {
+        const changelogPath = path.join(app.getAppPath(), 'CHANGELOG.md');
+        const raw = fs.readFileSync(changelogPath, 'utf8');
+        const html = marked.parse(raw, { gfm: true });
+        const content = sanitizeHtml(html, {
+          allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'code', 'pre', 'br', 'blockquote'],
+          allowedAttributes: { a: ['href'] },
+          allowedSchemes: ['http', 'https'],
+        });
+        return { ok: true, content };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Could not load changelog.' };
+      }
+    },
+    getPreference: (key) => getPreference(key),
+    getAvailablePhpVersions: () => getAvailablePhpVersions(),
+    getPhpVersionFromRequire: (phpRequire) => parsePhpRequireToVersion(phpRequire),
+    setPreference: (key, value) => {
+      setPreference(key, value);
+      return null;
+    },
+    getTheme: () => ({ theme: getThemeSetting(), effective: getEffectiveTheme() }),
+    setTheme: (theme) => {
+      setThemeSetting(theme);
+      return null;
+    },
+    listApiMethods: () => Object.keys(apiRegistry).filter((k) => k !== 'listApiMethods' && k !== 'invokeApi'),
+    getApiDocs: () => getApiDocsFromModule(),
+    getApiMethodDoc: (methodName) => getApiMethodDocFromModule(methodName),
+    getSampleResponse: (methodName) => getSampleResponseForMethod(methodName),
+    invokeApi: (method, params) => runApiMethod(method, params),
+  };
+
+  // Helpers used by apiRegistry (must be defined after getProjectTestScripts etc.)
+  async function runProjectCoverageImpl(dirPath, projectType) {
+    const runNpm = (script) => runInDirCapture(dirPath, 'npm', ['run', script, '--no-color']);
+    const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi'], { env: getComposerEnv(dirPath) });
+    const { ok, scripts, error } = getProjectTestScripts(dirPath, projectType);
+    debug.log(getStore, 'project', 'runProjectCoverage getProjectTestScripts', {
+      ok,
+      projectType,
+      scripts: Array.isArray(scripts) ? scripts : [],
+      error: error || null,
+    });
+    if (!ok) {
+      return { ok: false, error: error || 'Failed to get scripts for coverage.', stdout: '', stderr: '', summary: null };
+    }
+    let scriptName = null;
+    if (projectType === 'npm') {
+      const names = Array.isArray(scripts) ? scripts : [];
+      // IMPORTANT: getCoverageScriptNameNpm expects package.json "scripts" values (strings),
+      // not just a list of names. Read package.json so we can pick the right script.
+      let scriptsObj = null;
+      try {
+        const pkgPath = path.join(dirPath, 'package.json');
+        if (fs.existsSync(pkgPath)) {
+          const content = fs.readFileSync(pkgPath, 'utf8');
+          const parsed = JSON.parse(content);
+          scriptsObj = typeof parsed?.scripts === 'object' && parsed.scripts !== null ? parsed.scripts : null;
+        }
+      } catch (e) {
+        debug.log(getStore, 'project', 'runProjectCoverage read package.json failed', e?.message || e);
+      }
+      scriptName = getCoverageScriptNameNpm(scriptsObj);
+      // Fall back to `test` so we still run something useful.
+      if (!scriptName && names.includes('test')) scriptName = 'test';
+    } else if (projectType === 'php') {
+      const names = Array.isArray(scripts) ? scripts : [];
+      scriptName = getCoverageScriptNameComposer(names);
+      if (!scriptName && names.includes('test')) {
+        scriptName = 'test';
+      }
+      if (!scriptName && names.length > 0) {
+        scriptName = names[0];
+      }
+    }
+    debug.log(getStore, 'project', 'runProjectCoverage coverage script', { projectType, scriptName });
+    if (!scriptName) {
+      return { ok: false, error: 'No coverage or test script found for this project.', stdout: '', stderr: '', summary: null };
+    }
     try {
-      const runNpm = (script) => runInDirCapture(dirPath, 'npm', ['run', script, '--no-color']);
-      const runComposer = (script) => runInDirCapture(dirPath, 'composer', ['run', script, '--no-ansi'], { env: getComposerEnv(dirPath) });
       if (projectType === 'npm') {
-        const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
-        const result = await runNpm(script);
-        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        const result = await runNpm(scriptName);
+        const summary = parseCoverageSummary(result.stdout);
+        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr, summary: summary || null };
       }
       if (projectType === 'php') {
-        const script = scriptName && scriptName.trim() ? scriptName.trim() : 'test';
-        const result = await runComposer(script);
-        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+        const result = await runComposer(scriptName);
+        const summary = parseCoverageSummary(result.stdout);
+        return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr, summary: summary || null };
       }
-      return { ok: false, error: 'Run tests is supported for npm and PHP projects only.', stdout: '', stderr: '' };
+      return { ok: false, error: 'Coverage not supported for this project type.', stdout: '', stderr: '', summary: null };
     } catch (e) {
-      return { ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Failed to run tests' };
+      return { ok: false, error: e.message || 'Coverage run failed', stdout: '', stderr: '', summary: null };
     }
-  });
-  ipcMain.handle('rm-run-project-coverage', async (_e, dirPath, projectType) => {
-    try {
-      let result;
-      const runNpmCoverage = async () => {
-        const pkgPath = path.join(dirPath, 'package.json');
-        let scriptName = null;
-        let hasTestScript = false;
-        if (fs.existsSync(pkgPath)) {
-          const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-          const scripts = typeof data.scripts === 'object' && data.scripts !== null ? data.scripts : {};
-          scriptName = getCoverageScriptNameNpm(scripts);
-          hasTestScript = typeof scripts.test === 'string';
-        }
-        if (scriptName) {
-          return await runInDirCapture(dirPath, 'npm', ['run', scriptName, '--no-color']);
-        }
-        if (hasTestScript) {
-          return await runInDirCapture(dirPath, 'npm', ['test', '--', '--coverage', '--no-color']);
-        }
-        return null;
-      };
-      const composerEnv = getComposerEnv(dirPath);
-      const runPhpCoverage = async () => {
-        const manifest = getComposerManifestInfo(dirPath);
-        const { scripts } = getComposerScriptNames(manifest);
-        const coverageScript = getCoverageScriptNameComposer(scripts);
-        if (coverageScript) {
-          return await runInDirCapture(dirPath, 'composer', ['run', coverageScript, '--no-ansi'], { env: composerEnv });
-        }
-        if (scripts && scripts.length > 0 && scripts.includes('test')) {
-          return await runInDirCapture(dirPath, 'composer', ['run', 'test', '--', '--coverage-text', '--no-ansi'], { env: composerEnv });
-        }
-        return null;
-      };
-      if (projectType === 'npm') {
-        result = await runNpmCoverage();
-        if (result === null) {
-          result = await runPhpCoverage();
-        }
-        if (result === null) {
-          return { ok: false, error: 'No coverage or test script found in package.json or composer.json.', stdout: '', stderr: '', summary: null };
-        }
-      } else if (projectType === 'php') {
-        result = await runPhpCoverage();
-        if (result === null) {
-          return { ok: false, error: 'No coverage or test script found in composer.json.', stdout: '', stderr: '', summary: null };
-        }
-      } else {
-        return { ok: false, error: 'Coverage is supported for npm and PHP projects only.', stdout: '', stderr: '', summary: null };
-      }
-      const out = [result.stdout, result.stderr].filter(Boolean).join('\n');
-      const summary = parseCoverageSummary(stripAnsi(out)) || null;
-      return { ok: result.ok, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr, summary };
-    } catch (e) {
-      return { ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Failed to run coverage', summary: null };
+  }
+  async function getReleasePlanForRelease(dirPath, bump, force, options) {
+    const resolved = getProjectNameVersionAndType(dirPath, path, fs);
+    if (!resolved.ok) return { ok: false, error: resolved.error };
+    const strategyPlan = getReleasePlanFromStrategy(resolved.projectType, resolved.version);
+    if (strategyPlan.action === 'error') return { ok: false, error: strategyPlan.error };
+    if (strategyPlan.action === 'bump_and_tag') {
+      const res = await getCommitsSinceTag(dirPath, null);
+const suggested = (res && res.ok && res.commits) ? suggestBumpFromCommits(res.commits) : null;
+const effectiveBump = (force ? bump : (suggested || bump)) || bump;
+      const tagMessage = (options && options.tagMessage) || 'chore: release';
+      return { ok: true, action: 'bump_and_tag', bump: effectiveBump, tagMessage };
     }
-  });
-  ipcMain.handle('rm-version-bump', (_e, dirPath, bump) => runVersionBump(dirPath, bump));
-  ipcMain.handle('rm-git-tag-and-push', (_e, dirPath, tagMessage) => gitTagAndPush(dirPath, tagMessage));
-  ipcMain.handle('rm-release', async (_e, dirPath, bump, force, options = {}) => {
-    if (!force) {
-      const status = await getGitStatus(dirPath);
-      if (!status.clean) {
-        return { ok: false, dirty: true, error: 'Uncommitted changes. Commit or stash before releasing.' };
-      }
-    }
-    const info = await getProjectInfoAsync(dirPath);
-    if (!info.ok) return { ok: false, error: info.error };
-    const projectType = info.projectType || 'npm';
-    const plan = getReleasePlan(projectType, info.version);
-    if (plan.action === 'error') return { ok: false, error: plan.error };
-    let version;
-    let tag;
+    const tag = formatTag(strategyPlan.versionForTag);
+    const tagMessage = (options && options.tagMessage) || `chore: release ${tag}`;
+    return { ok: true, action: 'tag_only', tag, versionForTag: strategyPlan.versionForTag, tagMessage };
+  }
+  async function runReleaseImpl(dirPath, bump, force, options) {
+    const plan = await getReleasePlanForRelease(dirPath, bump, force, options);
+    if (!plan.ok) return plan;
     if (plan.action === 'bump_and_tag') {
-      const bumpResult = await runVersionBump(dirPath, bump, projectType);
-      if (!bumpResult.ok) return bumpResult;
-      version = bumpResult.version;
-      const pushResult = await gitTagAndPush(dirPath, `chore: release v${version}`);
-      if (!pushResult.ok) return pushResult;
-      tag = pushResult.tag;
-    } else {
-      tag = formatTag(plan.versionForTag);
-      const pushResult = await gitTagAndPush(dirPath, `chore: release ${tag}`, { version: plan.versionForTag });
-      if (!pushResult.ok) return pushResult;
-      version = plan.versionForTag;
+      const bumpResult = await runVersionBump(dirPath, plan.bump, 'npm');
+      if (!bumpResult.ok) return { ok: false, error: bumpResult.error };
+      const pushResult = await gitTagAndPush(dirPath, plan.tagMessage);
+      if (!pushResult.ok) return { ok: false, error: pushResult.error };
+      return { ok: true, tag: pushResult.tag, bump: plan.bump };
     }
-    const token = getStore().get('githubToken') || options.githubToken;
-    const gitRemote = info.gitRemote || null;
-    const slug = gitRemote ? getRepoSlug(gitRemote) : null;
-    const actionsUrl = gitRemote ? getActionsUrl(gitRemote) : null;
-    if (token && slug) {
-      try {
-        await createGitHubRelease(
-          slug.owner,
-          slug.repo,
-          tag,
-          options.releaseNotes != null ? options.releaseNotes : null,
-          !!options.draft,
-          !!options.prerelease,
-          token
-        );
-      } catch (e) {
-        return { ok: true, tag, version, actionsUrl, releaseError: formatGitHubError(e.message || '') };
-      }
-    }
-    return { ok: true, tag, version, actionsUrl };
-  });
-  ipcMain.handle('rm-get-commits-since-tag', (_e, dirPath, sinceTag) => getCommitsSinceTag(dirPath, sinceTag));
-  ipcMain.handle('rm-get-recent-commits', (_e, dirPath, n) => getRecentCommits(dirPath, n));
-  ipcMain.handle('rm-get-suggested-bump', (_e, commits) => suggestBumpFromCommits(commits));
-  ipcMain.handle('rm-get-shortcut-action', (_e, viewMode, selectedPath, key, metaKey, ctrlKey, inInput) =>
-    getShortcutAction(viewMode, selectedPath, key, metaKey, ctrlKey, inInput)
-  );
-  ipcMain.handle('rm-get-actions-url', (_e, gitRemote) => getActionsUrl(gitRemote) || null);
-  ipcMain.handle('rm-get-github-token', () => getStore().get('githubToken') || '');
-  ipcMain.handle('rm-set-github-token', (_e, token) => {
-    getStore().set('githubToken', typeof token === 'string' ? token : '');
-    return null;
-  });
-  ipcMain.handle('rm-get-ollama-settings', () => ({
-    baseUrl: getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL,
-    model: getStore().get('ollamaModel') || DEFAULT_MODEL,
-  }));
-  ipcMain.handle('rm-set-ollama-settings', (_e, baseUrl, model) => {
-    getStore().set('ollamaBaseUrl', typeof baseUrl === 'string' ? baseUrl : DEFAULT_BASE_URL);
-    getStore().set('ollamaModel', typeof model === 'string' ? model : DEFAULT_MODEL);
-    return null;
-  });
-  ipcMain.handle('rm-ollama-list-models', async (_e, baseUrl) => {
-    const url = typeof baseUrl === 'string' && baseUrl.trim() ? baseUrl.trim() : getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
-    return ollamaListModels(url, undefined, { onlyGenerate: true });
-  });
-  ipcMain.handle('rm-ollama-generate-commit-message', async (_e, dirPath) => {
-    const { baseUrl, model } = getStore().get('ollamaBaseUrl') != null
-      ? { baseUrl: getStore().get('ollamaBaseUrl'), model: getStore().get('ollamaModel') }
-      : { baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
-    const diff = await getGitDiffForCommit(dirPath);
-    const prompt = buildCommitMessagePrompt(diff);
-    const result = await ollamaGenerate(baseUrl, model, prompt);
-    return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
-  });
-  ipcMain.handle('rm-ollama-generate-release-notes', async (_e, dirPath, sinceTag) => {
-    const { baseUrl, model } = getStore().get('ollamaBaseUrl') != null
-      ? { baseUrl: getStore().get('ollamaBaseUrl'), model: getStore().get('ollamaModel') }
-      : { baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
-    const commitsResult = await getCommitsSinceTag(dirPath, sinceTag || null);
-    const commits = commitsResult.ok && commitsResult.commits ? commitsResult.commits : [];
-    const prompt = buildReleaseNotesPrompt(commits);
-    const result = await ollamaGenerate(baseUrl, model, prompt);
-    return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
-  });
-  ipcMain.handle('rm-get-git-status', (_e, dirPath) => getGitStatus(dirPath));
-  ipcMain.handle('rm-commit-changes', (_e, dirPath, message) => gitCommit(dirPath, message));
-  ipcMain.handle('rm-git-pull', (_e, dirPath) => gitPull(dirPath));
-  ipcMain.handle('rm-git-stash-push', (_e, dirPath, message) => gitStashPush(dirPath, message));
-  ipcMain.handle('rm-git-stash-pop', (_e, dirPath) => gitStashPop(dirPath));
-  ipcMain.handle('rm-git-discard-changes', (_e, dirPath) => gitDiscardChanges(dirPath));
-  ipcMain.handle('rm-git-merge-abort', (_e, dirPath) => gitMergeAbort(dirPath));
-  ipcMain.handle('rm-copy-to-clipboard', (_e, text) => {
-    if (text != null && typeof text === 'string') clipboard.writeText(text);
-    return null;
-  });
-  ipcMain.handle('rm-open-path-in-finder', (_e, dirPath) => {
-    if (dirPath != null && typeof dirPath === 'string') return shell.openPath(dirPath);
-    return Promise.resolve('');
-  });
-  ipcMain.handle('rm-open-in-terminal', (_e, dirPath) => {
+    const pushResult = await gitTagAndPush(dirPath, plan.tagMessage, { version: plan.versionForTag });
+    if (!pushResult.ok) return { ok: false, error: pushResult.error };
+    return { ok: true, tag: pushResult.tag, bump: null };
+  }
+  function openInTerminalImpl(dirPath) {
     if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
     const platform = process.platform;
     const { spawn: spawnProc } = require('child_process');
@@ -988,9 +2249,10 @@ app.whenReady().then(() => {
     } catch (e) {
       return Promise.resolve({ ok: false, error: e.message });
     }
-  });
+  }
   function openInEditorImpl(targetPath) {
     const { spawn: spawnProc } = require('child_process');
+    const preferred = getPreference('preferredEditor') || '';
     const tryEditor = (cmd, args) =>
       new Promise((resolve) => {
         const child = spawnProc(cmd, args || [targetPath], { detached: true, stdio: 'ignore', shell: true });
@@ -999,29 +2261,37 @@ app.whenReady().then(() => {
         setTimeout(() => resolve(true), 500);
       });
     return (async () => {
-      if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
-      if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
-      return { ok: false, error: 'Cursor or VS Code not found in PATH. Install one and ensure the shell command is available.' };
+      if (preferred === 'cursor') {
+        if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
+        if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
+      } else if (preferred === 'code') {
+        if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
+        if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
+      } else {
+        if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
+        if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
+      }
+      return { ok: false, error: 'No editor found. Add Cursor or VS Code to PATH.' };
     })();
   }
-  ipcMain.handle('rm-open-in-editor', (_e, dirPath) => {
-    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
-    return openInEditorImpl(dirPath);
-  });
-  ipcMain.handle('rm-open-file-in-editor', (_e, dirPath, relativePath) => {
-    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
-    const fullPath = path.join(dirPath, (relativePath || '').replace(/^[/\\]+/, ''));
+  function openFileInEditorImpl(dirPath, relativePath) {
+    const fullPath = path.isAbsolute(relativePath) ? relativePath : path.join(dirPath, relativePath);
     return openInEditorImpl(fullPath);
-  });
-
-  const MAX_FILE_VIEW_SIZE = 512 * 1024;
-  ipcMain.handle('rm-get-file-diff', async (_e, dirPath, filePath, isUntracked) => {
-    if (!dirPath || typeof filePath !== 'string') return { ok: false, error: 'Invalid path' };
-    const fullPath = path.join(dirPath, (filePath || '').replace(/^[/\\]+/, ''));
+  }
+  async function getFileDiffImpl(dirPath, filePath, isUntracked) {
     try {
+      const fullPath = path.join(dirPath, filePath);
+      const stat = fs.statSync(fullPath);
+      if (!stat.isFile()) return { ok: false, error: 'Not a file' };
+      const MAX_FILE_VIEW_SIZE = 512 * 1024;
+      const mime = require('mime-types').lookup(filePath) || 'application/octet-stream';
+      if (stat.size > MAX_FILE_VIEW_SIZE && /^image\//.test(mime)) {
+        const buf = fs.readFileSync(fullPath);
+        const base64 = buf.toString('base64');
+        const dataUrl = `data:${mime};base64,${base64}`;
+        return { ok: true, type: 'image', dataUrl };
+      }
       if (isUntracked) {
-        const stat = fs.statSync(fullPath);
-        if (stat.isDirectory()) return { ok: false, error: 'Cannot view directory' };
         if (stat.size > MAX_FILE_VIEW_SIZE) return { ok: false, error: `File too large to view (${Math.round(stat.size / 1024)} KB). Open in editor instead.` };
         const content = fs.readFileSync(fullPath, 'utf8');
         return { ok: true, type: 'new', content };
@@ -1032,84 +2302,201 @@ app.whenReady().then(() => {
     } catch (e) {
       return { ok: false, error: e.message || 'Failed to load file' };
     }
-  });
-  ipcMain.handle('rm-get-releases-url', (_e, gitRemote) => getReleasesUrl(gitRemote));
-  ipcMain.handle('rm-sync-from-remote', (_e, dirPath) => gitFetch(dirPath));
-  ipcMain.handle('rm-get-github-releases', async (_e, gitRemote, token = null) => {
-    const slug = getRepoSlug(gitRemote);
-    if (!slug) return { ok: false, error: 'Not a GitHub repo', releases: [] };
-    const authToken = token || getStore().get('githubToken') || null;
-    try {
-      const releases = await fetchGitHubReleases(slug.owner, slug.repo, authToken);
-      return { ok: true, releases };
-    } catch (e) {
-      return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch releases'), releases: [] };
+  }
+
+  // API HTTP server
+  let apiServerInstance = null;
+  const getApiPort = () => Number(getPreference('apiServerPort')) || 3847;
+  const isApiServerEnabled = () => !!getPreference('apiServerEnabled');
+  function ensureApiServer() {
+    if (apiServerInstance) return;
+    apiServerInstance = createApiServer(getApiPort(), async (method, params) => runApiMethod(method, params));
+  }
+  function startApiServer() {
+    ensureApiServer();
+    apiServerInstance.start();
+    debug.log(getStore, 'api', 'HTTP API server started', getApiPort());
+  }
+  function stopApiServer() {
+    if (apiServerInstance) {
+      apiServerInstance.stop();
+      apiServerInstance = null;
+      debug.log(getStore, 'api', 'HTTP API server stopped');
     }
+  }
+  if (isApiServerEnabled()) startApiServer();
+  ipcMain.handle('rm-get-api-server-status', () => ({
+    running: !!apiServerInstance,
+    port: getApiPort(),
+    enabled: isApiServerEnabled(),
+  }));
+  ipcMain.handle('rm-set-api-server-enabled', async (_e, enabled) => {
+    setPreference('apiServerEnabled', !!enabled);
+    if (enabled) startApiServer();
+    else stopApiServer();
+    return null;
   });
-  ipcMain.handle('rm-download-latest', async (e, gitRemote) => {
-    const slug = getRepoSlug(gitRemote);
-    if (!slug) return { ok: false, error: 'Not a GitHub repo' };
-    try {
-      const releases = await fetchGitHubReleases(slug.owner, slug.repo);
-      if (!releases.length) return { ok: false, error: 'No releases found' };
-      const release = releases[0];
-      const assets = release.assets || [];
-      const asset = pickAssetForPlatform(assets, process.platform);
-      if (!asset || !asset.browser_download_url) return { ok: false, error: 'No compatible asset for your platform' };
-      const win = BrowserWindow.fromWebContents(e.sender);
-      const defaultPath = path.join(app.getPath('downloads'), asset.name);
-      return showSaveDialogAndDownload(win, defaultPath, asset.browser_download_url);
-    } catch (err) {
-      return { ok: false, error: formatGitHubError(err.message || 'Failed to fetch or download') };
-    }
-  });
-  ipcMain.handle('rm-download-asset', async (e, url, suggestedFileName) => {
-    if (!url || typeof url !== 'string') return { ok: false, error: 'Invalid URL' };
-    const win = BrowserWindow.fromWebContents(e.sender);
-    const defaultPath = path.join(app.getPath('downloads'), suggestedFileName || 'download');
-    return showSaveDialogAndDownload(win, defaultPath, url);
-  });
-  ipcMain.handle('rm-open-url', (_e, url) => {
-    if (url && typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
-      shell.openExternal(url);
+  ipcMain.handle('rm-set-api-server-port', async (_e, port) => {
+    const p = Number(port);
+    if (!Number.isFinite(p) || p < 1 || p > 65535) return null;
+    setPreference('apiServerPort', p);
+    if (apiServerInstance) {
+      stopApiServer();
+      if (isApiServerEnabled()) startApiServer();
     }
     return null;
   });
-  ipcMain.handle('rm-get-app-info', () => {
-    try {
-      const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-      return { name: pkg.productName || pkg.name, version: pkg.version };
-    } catch {
-      return { name: 'Release Manager', version: '0.1.0' };
-    }
-  });
-  ipcMain.handle('rm-get-changelog', async () => {
-    try {
-      const changelogPath = path.join(app.getAppPath(), 'CHANGELOG.md');
-      const raw = fs.readFileSync(changelogPath, 'utf8');
-      const html = marked.parse(raw, { gfm: true });
-      const content = sanitizeHtml(html, {
-        allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'code', 'pre', 'br', 'blockquote'],
-        allowedAttributes: { a: ['href'] },
-        allowedSchemes: ['http', 'https'],
-      });
-      return { ok: true, content };
-    } catch (e) {
-      return { ok: false, error: e.message || 'Could not load changelog.' };
-    }
-  });
-  ipcMain.handle('rm-get-preference', (_e, key) => getPreference(key));
-  ipcMain.handle('rm-get-available-php-versions', () => getAvailablePhpVersions());
-  ipcMain.handle('rm-parse-php-require', (_e, phpRequire) => parsePhpRequireToVersion(phpRequire));
-  ipcMain.handle('rm-set-preference', (_e, key, value) => {
-    setPreference(key, value);
-    return null;
-  });
-  ipcMain.handle('rm-get-theme', () => ({ theme: getThemeSetting(), effective: getEffectiveTheme() }));
-  ipcMain.handle('rm-set-theme', (_e, theme) => {
-    setThemeSetting(theme);
-    return null;
-  });
+  ipcMain.handle('rm-list-api-methods', () => apiRegistry.listApiMethods());
+  ipcMain.handle('rm-get-api-docs', () => getApiDocsFromModule());
+  ipcMain.handle('rm-get-api-method-doc', (_e, methodName) => getApiMethodDocFromModule(methodName));
+
+  // Explicit handler for inline terminal (ensure it is always registered)
+  ipcMain.handle('rm-run-shell-command', (_e, dirPath, command) => runShellCommand(dirPath, command));
+
+  // IPC handlers delegate to apiRegistry (channel name -> method name, then apiRegistry[method](...args))
+  const IPC_TO_METHOD = {
+    'rm-invoke-api': 'invokeApi',
+    'rm-get-projects': 'getProjects',
+    'rm-get-all-projects-info': 'getAllProjectsInfo',
+    'rm-set-projects': 'setProjects',
+    'rm-show-directory-dialog': 'showDirectoryDialog',
+    'rm-get-project-info': 'getProjectInfo',
+    'rm-get-composer-info': 'getComposerInfo',
+    'rm-get-composer-outdated': 'getComposerOutdated',
+    'rm-get-composer-validate': 'getComposerValidate',
+    'rm-get-composer-audit': 'getComposerAudit',
+    'rm-composer-update': 'composerUpdate',
+    'rm-get-project-test-scripts': 'getProjectTestScripts',
+    'rm-run-project-tests': 'runProjectTests',
+    'rm-run-project-coverage': 'runProjectCoverage',
+    'rm-version-bump': 'versionBump',
+    'rm-git-tag-and-push': 'gitTagAndPush',
+    'rm-release': 'release',
+    'rm-get-commits-since-tag': 'getCommitsSinceTag',
+    'rm-get-recent-commits': 'getRecentCommits',
+    'rm-get-suggested-bump': 'getSuggestedBump',
+    'rm-get-shortcut-action': 'getShortcutAction',
+    'rm-get-actions-url': 'getActionsUrl',
+    'rm-get-github-token': 'getGitHubToken',
+    'rm-set-github-token': 'setGitHubToken',
+    'rm-get-ollama-settings': 'getOllamaSettings',
+    'rm-set-ollama-settings': 'setOllamaSettings',
+    'rm-get-claude-settings': 'getClaudeSettings',
+    'rm-set-claude-settings': 'setClaudeSettings',
+    'rm-get-ai-provider': 'getAiProvider',
+    'rm-set-ai-provider': 'setAiProvider',
+    'rm-ollama-list-models': 'ollamaListModels',
+    'rm-ollama-generate-commit-message': 'ollamaGenerateCommitMessage',
+    'rm-ollama-generate-release-notes': 'ollamaGenerateReleaseNotes',
+    'rm-ollama-suggest-test-fix': 'ollamaSuggestTestFix',
+    'rm-get-git-status': 'getGitStatus',
+    'rm-git-pull': 'gitPull',
+    'rm-get-branches': 'getBranches',
+    'rm-checkout-branch': 'checkoutBranch',
+    'rm-create-branch': 'createBranch',
+    'rm-create-branch-from': 'createBranchFrom',
+    'rm-git-push': 'gitPush',
+    'rm-git-push-force': 'gitPushForce',
+    'rm-sync-from-remote': 'gitFetch',
+    'rm-git-merge': 'gitMerge',
+    'rm-git-stash-push': 'gitStashPush',
+    'rm-commit-changes': 'commitChanges',
+    'rm-git-stash-pop': 'gitStashPop',
+    'rm-git-discard-changes': 'gitDiscardChanges',
+    'rm-git-merge-abort': 'gitMergeAbort',
+    'rm-get-remote-branches': 'getRemoteBranches',
+    'rm-checkout-remote-branch': 'checkoutRemoteBranch',
+    'rm-get-stash-list': 'getStashList',
+    'rm-stash-apply': 'stashApply',
+    'rm-stash-drop': 'stashDrop',
+    'rm-get-tags': 'getTags',
+    'rm-checkout-tag': 'checkoutTag',
+    'rm-get-commit-log': 'getCommitLog',
+    'rm-get-commit-detail': 'getCommitDetail',
+    'rm-delete-branch': 'deleteBranch',
+    'rm-delete-remote-branch': 'deleteRemoteBranch',
+    'rm-git-rebase': 'gitRebase',
+    'rm-git-rebase-abort': 'gitRebaseAbort',
+    'rm-git-rebase-continue': 'gitRebaseContinue',
+    'rm-git-rebase-skip': 'gitRebaseSkip',
+    'rm-git-merge-continue': 'gitMergeContinue',
+    'rm-get-remotes': 'getRemotes',
+    'rm-add-remote': 'addRemote',
+    'rm-remove-remote': 'removeRemote',
+    'rm-rename-remote': 'renameRemote',
+    'rm-set-remote-url': 'setRemoteUrl',
+    'rm-git-cherry-pick': 'gitCherryPick',
+    'rm-git-cherry-pick-abort': 'gitCherryPickAbort',
+    'rm-git-cherry-pick-continue': 'gitCherryPickContinue',
+    'rm-rename-branch': 'renameBranch',
+    'rm-create-tag': 'createTag',
+    'rm-write-gitignore': 'writeGitignore',
+    'rm-write-gitattributes': 'writeGitattributes',
+    'rm-git-rebase-interactive': 'gitRebaseInteractive',
+    'rm-git-reset': 'gitReset',
+    'rm-get-diff-between': 'getDiffBetween',
+    'rm-get-diff-between-full': 'getDiffBetweenFull',
+    'rm-get-file-diff-structured': 'getFileDiffStructured',
+    'rm-revert-file-line': 'revertFileLine',
+    'rm-git-revert': 'gitRevert',
+    'rm-git-prune-remotes': 'gitPruneRemotes',
+    'rm-git-amend': 'gitAmend',
+    'rm-get-reflog': 'getReflog',
+    'rm-checkout-ref': 'checkoutRef',
+    'rm-get-blame': 'getBlame',
+    'rm-delete-tag': 'deleteTag',
+    'rm-push-tag': 'pushTag',
+    'rm-stage-file': 'stageFile',
+    'rm-unstage-file': 'unstageFile',
+    'rm-discard-file': 'discardFile',
+    'rm-git-fetch-remote': 'gitFetchRemote',
+    'rm-git-pull-rebase': 'gitPullRebase',
+    'rm-get-gitignore': 'getGitignore',
+    'rm-get-gitattributes': 'getGitattributes',
+    'rm-get-submodules': 'getSubmodules',
+    'rm-submodule-update': 'submoduleUpdate',
+    'rm-get-git-state': 'getGitState',
+    'rm-get-worktrees': 'getWorktrees',
+    'rm-worktree-add': 'worktreeAdd',
+    'rm-worktree-remove': 'worktreeRemove',
+    'rm-get-bisect-status': 'getBisectStatus',
+    'rm-bisect-start': 'bisectStart',
+    'rm-bisect-good': 'bisectGood',
+    'rm-bisect-bad': 'bisectBad',
+    'rm-bisect-reset': 'bisectReset',
+    'rm-copy-to-clipboard': 'copyToClipboard',
+    'rm-open-path-in-finder': 'openPathInFinder',
+    'rm-open-in-terminal': 'openInTerminal',
+    'rm-open-in-editor': 'openInEditor',
+    'rm-open-file-in-editor': 'openFileInEditor',
+    'rm-get-file-diff': 'getFileDiff',
+    'rm-get-releases-url': 'getReleasesUrl',
+    'rm-get-pull-requests-url': 'getPullRequestsUrl',
+    'rm-get-pull-requests': 'getPullRequests',
+    'rm-create-pull-request': 'createPullRequest',
+    'rm-merge-pull-request': 'mergePullRequest',
+    'rm-get-github-releases': 'getGitHubReleases',
+    'rm-download-latest': 'downloadLatestRelease',
+    'rm-download-asset': 'downloadAsset',
+    'rm-open-url': 'openUrl',
+    'rm-get-app-info': 'getAppInfo',
+    'rm-get-changelog': 'getChangelog',
+    'rm-get-preference': 'getPreference',
+    'rm-get-available-php-versions': 'getAvailablePhpVersions',
+    'rm-parse-php-require': 'getPhpVersionFromRequire',
+    'rm-set-preference': 'setPreference',
+    'rm-get-theme': 'getTheme',
+    'rm-set-theme': 'setTheme',
+  };
+  for (const [channel, methodName] of Object.entries(IPC_TO_METHOD)) {
+    ipcMain.handle(channel, (_e, ...args) => {
+      debug.log(getStore, 'ipc', channel, 'args.length=', args?.length ?? 0);
+      return apiRegistry[methodName](...args);
+    });
+  }
+
+  createWindow();
+  debug.log(getStore, 'app', 'window created');
 });
 
 nativeTheme.on('updated', () => {

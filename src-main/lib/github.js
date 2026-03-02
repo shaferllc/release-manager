@@ -16,6 +16,13 @@ function getActionsUrl(gitRemote) {
   return `https://github.com/${slug.owner}/${slug.repo}/actions`;
 }
 
+function getPullRequestsUrl(gitRemote) {
+  if (!gitRemote || typeof gitRemote !== 'string') return null;
+  const slug = getRepoSlug(gitRemote);
+  if (!slug) return null;
+  return `https://github.com/${slug.owner}/${slug.repo}/pulls`;
+}
+
 function getRepoSlug(gitRemote) {
   if (!gitRemote || typeof gitRemote !== 'string') return null;
   const m = gitRemote.match(/github\.com[:/]([^/]+)\/([^/.]+)(?:\.git)?$/);
@@ -44,4 +51,4 @@ function pickAssetForPlatform(assets, platform = process.platform) {
   return assets[0];
 }
 
-module.exports = { getReleasesUrl, getActionsUrl, getRepoSlug, pickAssetForPlatform };
+module.exports = { getReleasesUrl, getActionsUrl, getPullRequestsUrl, getRepoSlug, pickAssetForPlatform };

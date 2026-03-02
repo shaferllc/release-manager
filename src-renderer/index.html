@@ -7,7 +7,7 @@
     http-equiv="Content-Security-Policy"
     content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'self';"
   />
-  <title>Release Manager</title>
+  <title>Shipwell</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -15,7 +15,7 @@
     <div class="flex items-center gap-4 no-drag min-w-0">
       <h1 class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 shrink-0">
         <img src="../assets/icons/icon-128.png" alt="" class="app-logo w-12 h-12 rounded-rm shrink-0" />
-        Release Manager
+        Shipwell
       </h1>
       <div class="flex items-center gap-2 shrink-0">
         <span class="text-xs font-medium text-rm-muted whitespace-nowrap">View</span>
@@ -55,7 +55,7 @@
   </nav>
 
   <main class="flex-1 flex min-h-0 overflow-hidden">
-    <aside class="aside-panel">
+    <aside id="projects-sidebar" class="aside-panel">
       <div class="aside-header">
         <span class="aside-title">Projects</span>
       </div>
@@ -79,9 +79,9 @@
         <p class="batch-bar-label"><span id="batch-release-count">0</span> selected</p>
         <p class="batch-bar-hint">Release:</p>
         <div class="batch-bar-buttons">
-          <button type="button" id="btn-batch-patch" class="btn-primary btn-compact" data-bump="patch">Patch</button>
-          <button type="button" id="btn-batch-minor" class="btn-secondary btn-compact" data-bump="minor">Minor</button>
-          <button type="button" id="btn-batch-major" class="btn-secondary btn-compact" data-bump="major">Major</button>
+          <button type="button" id="btn-batch-patch" class="btn-primary btn-compact inline-flex items-center gap-x-1.5 shrink-0" data-bump="patch"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Patch</button>
+          <button type="button" id="btn-batch-minor" class="btn-secondary btn-compact inline-flex items-center gap-x-1.5 shrink-0" data-bump="minor"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Minor</button>
+          <button type="button" id="btn-batch-major" class="btn-secondary btn-compact inline-flex items-center gap-x-1.5 shrink-0" data-bump="major"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Major</button>
         </div>
       </div>
       <ul id="project-list" class="project-list list-none m-0">
@@ -110,7 +110,7 @@
                 <option value="needs-release">Needs release first</option>
               </select>
             </label>
-            <button type="button" id="btn-dashboard-refresh" class="btn-secondary btn-compact">Refresh</button>
+            <button type="button" id="btn-dashboard-refresh" class="btn-secondary btn-compact inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>Refresh</button>
           </div>
         </div>
         <div class="dashboard-scroll">
@@ -138,7 +138,7 @@
       </div>
 
       <div id="settings-view" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
-        <div class="max-w-2xl mx-auto w-full py-8 px-8">
+        <div class="w-full py-8 px-8">
           <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Settings</h2>
           <section class="card mb-6">
             <div class="card-section">
@@ -147,6 +147,15 @@
                 Optional. Higher API limits, access to private repos, and ability to create or update releases (and drafts). Stored locally and used as the default for all projects. Override per project in the project’s Version &amp; release section if needed.
               </p>
               <input type="password" id="settings-github-token" class="input-field" placeholder="ghp_..." autocomplete="off" />
+            </div>
+          </section>
+          <section class="card mb-6">
+            <div class="card-section">
+              <label class="checkbox-label flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="settings-sign-commits" class="checkbox-input" />
+                <span class="card-label mb-0">Sign commits (GPG/SSH)</span>
+              </label>
+              <p class="m-0 mt-1 text-sm text-rm-muted">When enabled, commits and amends use <code class="bg-rm-surface px-1 rounded text-xs">git commit -S</code>. Configure GPG or SSH signing in Git (e.g. <code class="bg-rm-surface px-1 rounded text-xs">commit.gpgsign</code>) for this to work.</p>
             </div>
           </section>
           <section class="card mb-6">
@@ -191,19 +200,19 @@
       </div>
 
       <div id="changelog-view" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
-        <div class="max-w-2xl mx-auto w-full py-8 px-8 text-sm text-rm-text">
+        <div class="w-full py-8 px-8 text-sm text-rm-text">
           <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Changelog</h2>
           <div id="changelog-content" class="changelog-body prose-changelog"></div>
           <p id="changelog-error" class="text-rm-warning hidden"></p>
         </div>
       </div>
       <div id="docs-view" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
-        <div class="docs-content max-w-2xl mx-auto w-full py-8 px-8 text-sm text-rm-text">
+        <div class="docs-content w-full py-8 px-8 text-sm text-rm-text">
           <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Documentation</h2>
 
           <section class="mb-8">
             <h3 class="text-base font-semibold text-rm-text mb-2">Overview</h3>
-            <p class="m-0 mb-3 text-rm-muted">Release Manager helps you version, tag, and release multiple projects from one place. It supports <strong>npm</strong>, <strong>Rust</strong> (Cargo.toml), <strong>Go</strong> (go.mod), <strong>Python</strong> (pyproject.toml / setup.py), and <strong>PHP</strong> (composer.json). Add project folders, see version and git status, then bump and push or tag-and-push.</p>
+            <p class="m-0 mb-3 text-rm-muted">Shipwell helps you version, tag, and release multiple projects from one place. It supports <strong>npm</strong>, <strong>Rust</strong> (Cargo.toml), <strong>Go</strong> (go.mod), <strong>Python</strong> (pyproject.toml / setup.py), and <strong>PHP</strong> (composer.json). Add project folders, see version and git status, then bump and push or tag-and-push.</p>
           </section>
 
           <section class="mb-8">
@@ -285,8 +294,20 @@
         </div>
       </div>
 
-      <div id="project-detail" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden">
-        <div class="detail-content max-w-2xl mx-auto w-full py-8 px-8">
+      <div id="project-detail" class="flex-1 flex flex-col min-h-0 overflow-y-auto hidden relative min-h-[200px]">
+        <div id="detail-loading-overlay" class="detail-loading-overlay hidden absolute inset-0 flex flex-col items-center justify-center text-rm-text" aria-hidden="true">
+          <div class="detail-loading-overlay-backdrop"></div>
+          <div class="detail-loading-overlay-content">
+            <div class="detail-loading-orb">
+              <div class="detail-loading-ring detail-loading-ring-1"></div>
+              <div class="detail-loading-ring detail-loading-ring-2"></div>
+              <div class="detail-loading-ring detail-loading-ring-3"></div>
+              <div class="detail-loading-core"></div>
+            </div>
+            <p id="detail-loading-label" class="detail-loading-label mt-8 text-sm font-medium tracking-wide uppercase text-rm-muted">Loading project…</p>
+          </div>
+        </div>
+        <div class="detail-content w-full py-8 px-8 relative">
         <header class="detail-header mb-8">
           <div class="flex items-start justify-between gap-4">
             <div class="min-w-0 flex-1">
@@ -322,73 +343,341 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
               </button>
               <span id="copy-path-feedback" class="copy-feedback hidden">Copied!</span>
-              <button type="button" id="btn-remove-project" class="btn-ghost text-rm-muted hover:text-rm-text text-sm" title="Remove from list">Remove</button>
+              <button type="button" id="btn-remove-project" class="btn-ghost inline-flex items-center gap-x-1.5 shrink-0 text-rm-muted hover:text-rm-text text-sm" title="Remove from list"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Remove</button>
             </div>
           </div>
         </header>
 
         <div id="detail-tabs-bar" class="detail-tabs-bar hidden mb-4 flex flex-wrap gap-1 border-b border-rm-border pb-2">
-          <button type="button" class="detail-tab-btn is-active px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="all">All</button>
-          <button type="button" class="detail-tab-btn px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="git">Git</button>
-          <button type="button" class="detail-tab-btn px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="version">Version &amp; release</button>
-          <button type="button" class="detail-tab-btn detail-tab-composer px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="composer">Composer</button>
-          <button type="button" class="detail-tab-btn px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="sync">Sync</button>
-          <button type="button" class="detail-tab-btn detail-tab-tests px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="tests">Tests</button>
-          <button type="button" class="detail-tab-btn detail-tab-coverage px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="coverage">Coverage</button>
+          <button type="button" class="detail-tab-btn inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="all"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>All</button>
+          <button type="button" class="detail-tab-btn inline-flex items-center gap-x-1.5 shrink-0 is-active px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="git"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 15a3 3 0 0 0 6 0"/></svg>Git</button>
+          <button type="button" class="detail-tab-btn inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="version"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m4.9 4.9 2.8 2.8"/><path d="M2 12h4"/><path d="m4.9 19.1 2.8-2.8"/><path d="M12 18v4"/><path d="m19.1 19.1-2.8-2.8"/><path d="M22 12h-4"/><path d="m19.1 4.9-2.8 2.8"/><circle cx="12" cy="12" r="4"/></svg>Version &amp; release</button>
+          <button type="button" class="detail-tab-btn detail-tab-composer inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="composer"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>Composer</button>
+          <button type="button" class="detail-tab-btn inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-tab="sync"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>Sync</button>
+          <span class="detail-tab-group detail-tab-group-quality flex items-center gap-1 ml-2 pl-2 border-l border-rm-border">
+            <button type="button" class="detail-tab-btn detail-tab-tests inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="tests"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2 1.33-2 0 0-2.77 2.24-5 5-5 1.66 0 3 1.35 3 3.02 0 1.33 2 1.33 2 0"/></svg>Tests</button>
+            <button type="button" class="detail-tab-btn detail-tab-coverage inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 hidden" data-tab="coverage"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Coverage</button>
+          </span>
         </div>
         <div id="detail-tab-panels" class="detail-tab-panels">
-        <section id="detail-git-state" class="card card-sm collapsible-card mb-6 hidden detail-tab-panel" data-detail-tab="git" data-section="Git">
-          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-git-body">
-            <span class="collapsible-card-title">Git</span>
-            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
-          <div id="detail-git-body" class="collapsible-card-body">
-          <div class="card-section pt-0">
-            <div class="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
-              <span id="detail-branch" class="text-rm-muted">Branch: —</span>
-              <span id="detail-ahead-behind" class="text-rm-muted"></span>
+        <section id="detail-git-state" class="hidden detail-tab-panel detail-git-state-wrapper flex flex-col min-h-0" data-detail-tab="git" data-section="Git" aria-label="Git section wrapper">
+          <!-- Git client layout (toolbar + 3 panels) -->
+          <div class="detail-git-client flex flex-col min-h-0 flex-1">
+            <div class="detail-git-toolbar flex flex-wrap items-center gap-2 py-2 px-3 border-b border-rm-border bg-rm-surface/50 shrink-0">
+              <span class="text-xs font-medium text-rm-muted shrink-0">repository:</span>
+              <span id="detail-git-repo-name" class="text-sm text-rm-text truncate max-w-[8rem]" title="">—</span>
+              <span class="text-rm-border mx-1">|</span>
+              <span class="text-xs font-medium text-rm-muted shrink-0">branch:</span>
+              <select id="detail-git-toolbar-branch" class="detail-git-toolbar-select text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]" title="Current branch">
+                <option value="">—</option>
+              </select>
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" id="btn-git-toolbar-pull" class="detail-git-toolbar-btn icon-btn icon-btn-sm" title="Pull"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg></button>
+                <button type="button" id="btn-git-toolbar-push" class="detail-git-toolbar-btn icon-btn icon-btn-sm" title="Push"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg></button>
+                <button type="button" id="btn-git-toolbar-branch" class="detail-git-toolbar-btn icon-btn icon-btn-sm" title="Create branch"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 15a3 3 0 0 0 6 0"/></svg></button>
+                <button type="button" id="btn-git-toolbar-stash" class="detail-git-toolbar-btn icon-btn icon-btn-sm" title="Stash"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h14v8h-4l-4 4-4-4H5z"/></svg></button>
+                <button type="button" id="btn-git-toolbar-terminal" class="detail-git-toolbar-btn icon-btn icon-btn-sm" title="Open in Terminal"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg></button>
+              </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2 mt-3">
-              <button type="button" id="btn-git-pull" class="btn-secondary btn-compact text-xs" title="Fetch from remote and merge into current branch">Pull</button>
-              <button type="button" id="btn-git-stash" class="btn-secondary btn-compact text-xs" title="Temporarily save uncommitted changes; restore later with Pop stash">Stash</button>
-              <button type="button" id="btn-git-stash-pop" class="btn-secondary btn-compact text-xs" title="Reapply the most recent stashed changes to the working tree">Pop stash</button>
-              <button type="button" id="btn-git-merge-abort" class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10 hidden" title="Cancel the current merge and restore the branch to before the merge">Abort merge</button>
-              <button type="button" id="btn-git-discard" class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10" title="Permanently revert and remove all uncommitted changes (cannot be undone)">Discard all</button>
-              <span id="detail-git-action-status" class="text-xs text-rm-muted hidden"></span>
+            <div class="detail-git-three-panels flex flex-1 min-h-0">
+              <aside class="detail-git-sidebar-panel w-52 shrink-0 border-r border-rm-border bg-rm-bg-elevated/50 flex flex-col overflow-hidden">
+                <div class="p-2 border-b border-rm-border shrink-0">
+                  <input type="text" id="detail-git-filter" class="detail-git-filter-input w-full text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5" placeholder="Filter (⌘⌥F)" />
+                </div>
+                <div class="detail-git-sidebar-scroll flex-1 overflow-y-auto py-2">
+                  <div class="detail-git-sidebar-group px-2">
+                    <button type="button" class="detail-git-sidebar-group-title w-full text-left text-xs font-semibold text-rm-muted uppercase tracking-wide py-1 flex items-center gap-1" aria-expanded="true" data-group="local">
+                      <svg class="chevron w-3 h-3 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      Local
+                    </button>
+                    <ul id="detail-git-sidebar-local" class="m-0 pl-4 pr-2 pt-0.5 pb-2 list-none text-sm text-rm-text space-y-0.5"></ul>
+                  </div>
+                  <div class="detail-git-sidebar-group px-2">
+                    <button type="button" class="detail-git-sidebar-group-title w-full text-left text-xs font-semibold text-rm-muted uppercase tracking-wide py-1 flex items-center gap-1" aria-expanded="true" data-group="remote">
+                      <svg class="chevron w-3 h-3 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      Remote
+                    </button>
+                    <ul id="detail-git-sidebar-remote" class="m-0 pl-4 pr-2 pt-0.5 pb-2 list-none text-sm text-rm-text space-y-0.5"></ul>
+                  </div>
+                  <div class="detail-git-sidebar-group px-2">
+                    <button type="button" class="detail-git-sidebar-group-title w-full text-left text-xs font-semibold text-rm-muted uppercase tracking-wide py-1" data-group="worktrees">Worktrees</button>
+                    <p id="detail-git-sidebar-worktrees-count" class="m-0 pl-4 text-xs text-rm-muted">No additional worktrees</p>
+                  </div>
+                  <div class="detail-git-sidebar-group px-2">
+                    <button type="button" class="detail-git-sidebar-group-title w-full text-left text-xs font-semibold text-rm-muted uppercase tracking-wide py-1 flex items-center gap-1" aria-expanded="true" data-group="tags">
+                      <svg class="chevron w-3 h-3 shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                      Tags
+                    </button>
+                    <ul id="detail-git-sidebar-tags" class="m-0 pl-4 pr-2 pt-0.5 pb-2 list-none text-xs text-rm-muted space-y-0.5 max-h-40 overflow-y-auto"></ul>
+                  </div>
+                </div>
+                <nav id="detail-git-jump" class="detail-git-jump border-t border-rm-border pt-2 px-2 pb-2 shrink-0 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                  <span class="text-rm-muted font-medium shrink-0 w-full">Sections</span>
+                  <div id="detail-git-jump-links" class="flex flex-wrap gap-1" aria-label="Git sections"></div>
+                </nav>
+              </aside>
+              <div class="detail-git-center-panel flex-1 min-w-0 overflow-auto border-r border-rm-border">
+                <div class="detail-git-commit-table-wrap overflow-auto h-full">
+                  <table class="detail-git-commit-table w-full text-sm border-collapse">
+                    <thead class="sticky top-0 bg-rm-surface/95 z-10">
+                      <tr class="border-b border-rm-border text-left text-xs font-semibold text-rm-muted uppercase tracking-wide">
+                        <th class="detail-git-th-graph py-2 px-2 w-14">Graph</th>
+                        <th class="detail-git-th-message py-2 px-2 min-w-[12rem]">Commit message</th>
+                        <th class="detail-git-th-author py-2 px-2 w-32">Author</th>
+                        <th class="detail-git-th-date py-2 px-2 w-24">Date</th>
+                      </tr>
+                    </thead>
+                    <tbody id="detail-git-commit-tbody" class="text-rm-text"></tbody>
+                  </table>
+                  <p id="detail-git-commit-empty" class="m-0 p-4 text-xs text-rm-muted hidden">No commits.</p>
+                </div>
+              </div>
+              <aside class="detail-git-right-panel w-80 shrink-0 flex flex-col overflow-hidden bg-rm-bg-elevated/30">
+                <div class="detail-git-right-header p-3 border-b border-rm-border shrink-0">
+                  <label class="block text-[10px] font-semibold text-rm-muted uppercase tracking-wider mb-1.5">Section</label>
+                  <select id="detail-git-right-section-select" class="detail-git-right-section-select w-full text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5 mb-2" title="Choose what to manage in this panel">
+                    <option value="working-tree">Working tree &amp; commit</option>
+                    <option value="git-section-branch-sync">Branch &amp; sync</option>
+                    <option value="git-section-merge-rebase">Merge &amp; rebase</option>
+                    <option value="git-section-stash">Stash</option>
+                    <option value="git-section-tags">Tags</option>
+                    <option value="git-section-commit-history">Commit history</option>
+                    <option value="git-section-reflog">Reflog</option>
+                    <option value="git-section-delete-branch">Branches</option>
+                    <option value="git-section-remotes">Remotes</option>
+                    <option value="git-section-compare-reset">Compare &amp; reset</option>
+                    <option value="git-section-gitignore">.gitignore</option>
+                    <option value="git-section-gitattributes">.gitattributes</option>
+                    <option value="git-section-submodules">Submodules</option>
+                    <option value="git-section-worktrees">Worktrees</option>
+                    <option value="git-section-bisect">Bisect</option>
+                  </select>
+                  <div class="detail-git-right-header-files flex items-center justify-between gap-2 flex-wrap">
+                    <p id="detail-git-right-file-count" class="m-0 text-sm font-medium text-rm-text">0 file changes</p>
+                    <div class="flex items-center gap-1">
+                      <button type="button" class="detail-git-view-toggle text-xs font-medium px-2 py-1 rounded-rm border border-transparent bg-transparent text-rm-muted hover:text-rm-text is-active" data-view="path">Path</button>
+                      <button type="button" class="detail-git-view-toggle text-xs font-medium px-2 py-1 rounded-rm border border-transparent bg-transparent text-rm-muted hover:text-rm-text" data-view="tree">Tree</button>
+                    </div>
+                  </div>
+                  <button type="button" id="btn-git-right-stage-all" class="btn-primary btn-compact text-xs mt-2 w-full inline-flex items-center gap-x-1.5 shrink-0 hidden"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Stage all changes</button>
+                </div>
+                <div id="detail-git-right-working-tree" class="detail-git-right-section flex-1 overflow-y-auto p-3 min-h-0 flex flex-col">
+                  <p class="text-xs font-semibold text-rm-muted uppercase tracking-wide mb-1.5">Unstaged files</p>
+                  <ul id="detail-git-right-unstaged" class="m-0 pl-0 list-none text-xs font-mono text-rm-text space-y-0.5 max-h-32 overflow-y-auto"></ul>
+                  <p id="detail-git-right-unstaged-empty" class="m-0 text-xs text-rm-muted">No unstaged changes.</p>
+                  <p class="text-xs font-semibold text-rm-muted uppercase tracking-wide mb-1.5 mt-3 pt-3 border-t border-rm-border">Staged files</p>
+                  <ul id="detail-git-right-staged" class="m-0 pl-0 list-none text-xs font-mono text-rm-text space-y-0.5 max-h-24 overflow-y-auto"></ul>
+                  <p id="detail-git-right-staged-empty" class="m-0 text-xs text-rm-muted">No staged changes.</p>
+                  <div class="mt-4 pt-3 border-t border-rm-border">
+                    <div class="flex items-center gap-2 mb-2">
+                      <button type="button" id="btn-git-right-commit" class="btn-secondary btn-compact text-xs">Commit</button>
+                      <label class="text-xs text-rm-muted flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="detail-git-right-amend" class="rounded border-rm-border" /> Amend previous commit</label>
+                    </div>
+                    <input type="text" id="detail-git-right-commit-summary" class="input-field w-full text-sm mb-1" placeholder="Commit summary" maxlength="72" />
+                    <span id="detail-git-right-summary-count" class="text-xs text-rm-muted block mb-2">0/72</span>
+                    <textarea id="detail-git-right-commit-description" class="input-field w-full text-sm resize-none" rows="3" placeholder="Description (optional)"></textarea>
+                    <button type="button" id="btn-git-right-ollama-commit" class="btn-secondary btn-compact text-xs mt-2 w-full border-rm-accent/50 text-rm-accent hover:bg-rm-accent/10">Compose commit with AI</button>
+                    <button type="button" id="btn-git-right-stage-and-commit" class="btn-primary btn-compact text-xs mt-2 w-full inline-flex items-center gap-x-1.5 shrink-0 hidden"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>Stage changes to commit</button>
+                  </div>
+                </div>
+                <div id="detail-git-right-views" class="detail-git-right-views hidden flex-1 overflow-auto min-h-0 p-3" aria-label="Git section content"></div>
+              </aside>
             </div>
           </div>
-          <div id="detail-uncommitted-wrap" class="card-section border-t border-rm-border pt-5 mt-0">
-            <p id="detail-uncommitted-label" class="m-0 text-xs font-medium text-rm-muted">Working tree clean</p>
-            <p id="detail-git-merge-conflict-hint" class="m-0 mt-1 text-xs text-rm-muted hidden">Click a file to view it, then use <strong>Open in editor</strong> to resolve conflict markers (<code class="bg-rm-surface px-1 rounded">&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code class="bg-rm-surface px-1 rounded">=======</code>, <code class="bg-rm-surface px-1 rounded">&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). When done, commit.</p>
-            <p id="detail-git-next-step" class="m-0 mt-1.5 text-xs text-rm-muted hidden">Next step: <button type="button" id="btn-git-go-version" class="text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer font-medium">Version &amp; release</button></p>
-            <ul id="detail-uncommitted-list" class="m-0 mt-2.5 pl-4 text-xs text-rm-muted max-h-64 overflow-y-auto list-disc space-y-1"></ul>
-            <div id="detail-commit-wrap" class="hidden mt-5 pt-5 border-t border-rm-border rounded-rm-lg bg-rm-bg/30 p-4 -mx-1">
-              <label class="block text-xs font-semibold text-rm-text uppercase tracking-wider mb-2">Commit changes</label>
-              <p class="text-xs text-rm-muted mb-2">Commit adds all modified and untracked files, then creates a new commit on the current branch with your message.</p>
-              <div class="flex flex-wrap items-center gap-2 mb-2">
-                <textarea id="detail-commit-message" class="commit-message-input flex-1 min-w-0" rows="3" placeholder="Commit message (subject and optional body)"></textarea>
-                <button type="button" id="btn-copy-commit-message" class="icon-btn icon-btn-sm shrink-0 self-start" title="Copy to clipboard" aria-label="Copy commit message">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-                </button>
-              </div>
-              <div class="flex flex-wrap items-center gap-3 mb-3">
-                <span id="copy-commit-message-feedback" class="copy-feedback hidden">Copied!</span>
-              </div>
-              <div class="flex flex-wrap items-center gap-3">
-                <button type="button" id="btn-ollama-commit" class="btn-secondary btn-compact shrink-0" title="Generate with Ollama">Generate</button>
-                <button type="button" id="btn-commit" class="btn-primary btn-compact shrink-0">Commit</button>
-                <p id="detail-commit-status" class="m-0 text-xs text-rm-muted hidden"></p>
+          <div id="detail-git-subtabs-bar" class="detail-git-subtabs-bar hidden mb-4 flex flex-wrap gap-1 border-b border-rm-border pb-2">
+            <button type="button" class="detail-git-subtab-btn inline-flex items-center gap-x-1.5 shrink-0 is-active px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-git-subtab="main"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>Main</button>
+            <button type="button" class="detail-git-subtab-btn inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-git-subtab="history"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>History</button>
+            <button type="button" class="detail-git-subtab-btn inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent text-rm-muted hover:text-rm-text hover:bg-rm-surface/50" data-git-subtab="advanced"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Advanced</button>
+          </div>
+          <div id="detail-git-cards-wrap" class="detail-git-cards-wrap hidden">
+          <!-- Card: Branch & sync -->
+          <div id="git-section-branch-sync" class="card card-sm collapsible-card git-card-spacing detail-tab-panel git-subtab-panel" data-detail-tab="git" data-git-subtab="main" data-section="Branch &amp; sync">
+            <div class="collapsible-card-header-row">
+              <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-git-branch-sync-body">
+                <span class="collapsible-card-title">Branch &amp; sync</span>
+                <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <button type="button" class="doc-trigger" data-doc="branch-sync" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+            </div>
+            <div id="detail-git-branch-sync-body" class="collapsible-card-body">
+              <div class="card-section pt-0">
+                <p class="m-0 mb-4 text-xs text-rm-muted">Switch or create branches and keep them in sync with the remote. <strong>Pull</strong> fetches and merges; <strong>Pull (rebase)</strong> fetches and replays your commits on top. <strong>Push</strong> uploads your branch (and sets upstream if needed). Use <strong>From remote</strong> to check out a branch that exists only on the server—it creates a local tracking branch.</p>
+                <div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm mb-3">
+                  <span id="detail-branch" class="text-rm-muted">Branch: —</span>
+                  <span id="detail-ahead-behind" class="text-rm-muted"></span>
+                  <button type="button" id="btn-copy-branch" class="icon-btn icon-btn-sm text-rm-muted hover:text-rm-text shrink-0" title="Copy branch name" aria-label="Copy branch name">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                  </button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                  <label class="text-xs font-medium text-rm-muted shrink-0 self-center">Switch branch</label>
+                  <select id="detail-branch-select" class="detail-branch-select text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]" title="Select a branch to checkout">
+                    <option value="">—</option>
+                  </select>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                  <label class="text-xs font-medium text-rm-muted shrink-0 self-center">From remote</label>
+                  <button type="button" id="btn-load-remote-branches" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Load branches</span></button>
+                  <select id="detail-remote-branch-select" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[12rem]" title="Remote branch to checkout (creates local tracking)">
+                    <option value="">—</option>
+                  </select>
+                  <button type="button" id="btn-checkout-remote-branch" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Checkout</span></button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 flex-wrap overflow-x-auto">
+                  <button type="button" id="btn-git-pull" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Fetch and merge"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Pull</span></button>
+                  <button type="button" id="btn-git-pull-rebase" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Pull with rebase"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Pull (rebase)</span></button>
+                  <button type="button" id="btn-git-fetch" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Fetch only"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Fetch</span></button>
+                  <button type="button" id="btn-git-prune" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Remove remote-tracking branches for deleted remote branches"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Prune</span></button>
+                  <button type="button" id="btn-git-push" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Push current branch"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Push</span></button>
+                  <button type="button" id="btn-git-push-force" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10" title="Force push (overwrites remote)"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg><span class="shrink-0 text-xs text-rm-warning whitespace-nowrap">Force push</span></button>
+                  <button type="button" id="btn-git-push-force-lease" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10" title="Force push with lease (safer)"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg><span class="shrink-0 text-xs text-rm-warning whitespace-nowrap">Force (lease)</span></button>
+                  <button type="button" id="btn-git-create-branch" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Create and checkout new branch"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Create branch</span></button>
+                </div>
+                <span id="detail-git-action-status" class="text-xs text-rm-muted hidden block mt-2"></span>
               </div>
             </div>
           </div>
+
+          <!-- Card: Merge & rebase -->
+          <div id="git-section-merge-rebase" class="card card-sm collapsible-card git-card-spacing detail-tab-panel git-subtab-panel" data-detail-tab="git" data-git-subtab="main" data-section="Merge &amp; rebase">
+            <div class="collapsible-card-header-row">
+              <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-git-merge-rebase-body">
+                <span class="collapsible-card-title">Merge &amp; rebase</span>
+                <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <button type="button" class="doc-trigger" data-doc="merge-rebase" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+            </div>
+            <div id="detail-git-merge-rebase-body" class="collapsible-card-body">
+              <div class="card-section pt-0">
+                <p class="m-0 mb-4 text-xs text-rm-muted"><strong>Merge</strong> brings another branch’s commits into your current branch (adds a merge commit). <strong>Rebase</strong> moves your current branch’s commits on top of another branch (linear history). If you’re in the middle of a merge or rebase, use <strong>Abort</strong> to cancel and return to the previous state.</p>
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                  <label class="text-xs font-medium text-rm-muted shrink-0 self-center">Merge branch into current</label>
+                  <select id="detail-merge-branch-select" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]">
+                    <option value="">—</option>
+                  </select>
+                  <select id="detail-merge-strategy" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[8rem]" title="Merge strategy">
+                    <option value="">Default</option>
+                    <option value="ours">Ours</option>
+                    <option value="theirs">Theirs</option>
+                  </select>
+                  <select id="detail-merge-strategy-option" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[8rem]" title="Conflict resolution">
+                    <option value="">Default</option>
+                    <option value="ours">Resolve ours</option>
+                    <option value="theirs">Resolve theirs</option>
+                  </select>
+                  <button type="button" id="btn-git-merge-picker" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Merge</span></button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                  <label class="text-xs font-medium text-rm-muted shrink-0 self-center">Rebase onto</label>
+                  <select id="detail-rebase-onto-select" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]">
+                    <option value="">—</option>
+                  </select>
+                  <button type="button" id="btn-git-rebase" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Rebase</span></button>
+                  <button type="button" id="btn-git-rebase-interactive" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Interactive rebase (edit todo in Cursor/VS Code)"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Interactive rebase</span></button>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <button type="button" id="btn-git-merge-continue" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Finish merge after resolving conflicts"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Continue merge</button>
+                  <button type="button" id="btn-git-rebase-continue" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Finish rebase after resolving conflicts"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Continue rebase</button>
+                  <button type="button" id="btn-git-rebase-skip" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Skip current commit during rebase"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>Skip</button>
+                  <button type="button" id="btn-git-merge-abort" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10 hidden" title="Abort merge"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Abort merge</button>
+                  <button type="button" id="btn-git-rebase-abort" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10 hidden" title="Abort rebase"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Abort rebase</button>
+                  <button type="button" id="btn-git-cherry-pick-continue" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Continue cherry-pick after resolving conflicts"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Continue cherry-pick</button>
+                  <button type="button" id="btn-git-cherry-pick-abort" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10 hidden" title="Abort cherry-pick"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Abort cherry-pick</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: Stash -->
+          <div id="git-section-stash" class="card card-sm collapsible-card git-card-spacing detail-tab-panel git-subtab-panel" data-detail-tab="git" data-git-subtab="main" data-section="Stash">
+            <div class="collapsible-card-header-row">
+              <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-git-stash-body">
+                <span class="collapsible-card-title">Stash</span>
+                <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <button type="button" class="doc-trigger" data-doc="stash" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+            </div>
+            <div id="detail-git-stash-body" class="collapsible-card-body">
+              <div class="card-section pt-0">
+                <p class="m-0 mb-3 text-xs text-rm-muted"><strong>Stash</strong> saves your uncommitted changes (modified and untracked files) so you can switch branches or pull without committing. <strong>Apply</strong> reapplies a stash but keeps it in the list; <strong>Pop stash</strong> applies the latest and removes it. Use the list below to apply or drop a specific stash. Optional: add a message when stashing to identify it later.</p>
+                <div class="flex flex-wrap items-center gap-2 mb-2">
+                  <label class="checkbox-label text-xs text-rm-muted cursor-pointer flex items-center gap-1.5">
+                    <input type="checkbox" id="stash-include-untracked" class="checkbox-input" />
+                    <span>Include untracked</span>
+                  </label>
+                  <label class="checkbox-label text-xs text-rm-muted cursor-pointer flex items-center gap-1.5">
+                    <input type="checkbox" id="stash-keep-index" class="checkbox-input" />
+                    <span>Keep index</span>
+                  </label>
+                </div>
+                <div class="flex flex-wrap items-center gap-2 mb-3">
+                  <button type="button" id="btn-git-stash" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Stash changes"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Stash</span></button>
+                  <button type="button" id="btn-git-stash-pop" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Pop most recent stash"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="8 18 12 22 16 18"/><line x1="12" y1="9" x2="12" y2="22"/></svg><span class="shrink-0 text-xs text-rm-text whitespace-nowrap">Pop stash</span></button>
+                </div>
+                <div id="detail-stash-list-wrap" class="border-t border-rm-border pt-3 hidden">
+                  <span class="card-label text-rm-muted text-xs block mb-2">Stash list</span>
+                  <ul id="detail-stash-list" class="m-0 pl-4 text-xs text-rm-muted space-y-1 list-none"></ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card: Working tree & commit -->
+          <div id="git-section-working-tree" class="card card-sm collapsible-card git-card-spacing detail-tab-panel git-subtab-panel" data-detail-tab="git" data-git-subtab="main" data-section="Working tree">
+            <div class="collapsible-card-header-row">
+              <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-git-working-tree-body">
+                <span class="collapsible-card-title">Working tree &amp; commit</span>
+                <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+              </button>
+              <button type="button" class="doc-trigger" data-doc="working-tree" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+            </div>
+            <div id="detail-git-working-tree-body" class="collapsible-card-body">
+              <div id="detail-uncommitted-wrap" class="card-section pt-0">
+                <p class="m-0 mb-3 text-xs text-rm-muted">Your <strong>working tree</strong> is the set of changed files. <strong>Unstaged</strong> below can be staged; <strong>Staged</strong> are what will be committed. Use <strong>Stage</strong> / <strong>Unstage</strong> per file, or <strong>Commit</strong> to stage all and create a commit. <strong>Discard</strong> per file or <strong>Discard all</strong> throws away changes. If you have merge conflicts, resolve in your editor then commit or Continue merge.</p>
+                <p id="detail-uncommitted-label" class="m-0 text-xs font-medium text-rm-muted">Working tree clean</p>
+                <p id="detail-git-merge-conflict-hint" class="m-0 mt-1 text-xs text-rm-muted hidden">Click a file to view it, then use <strong>Open in editor</strong> to resolve conflict markers (<code class="bg-rm-surface px-1 rounded">&lt;&lt;&lt;&lt;&lt;&lt;&lt;</code>, <code class="bg-rm-surface px-1 rounded">=======</code>, <code class="bg-rm-surface px-1 rounded">&gt;&gt;&gt;&gt;&gt;&gt;&gt;</code>). When done, commit.</p>
+                <button type="button" id="btn-open-conflicted-in-editor" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 mt-2 hidden" title="Open each conflicted file in editor"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Open conflicted files in editor</button>
+                <p id="detail-git-next-step" class="m-0 mt-1.5 text-xs text-rm-muted hidden">Next step: <button type="button" id="btn-git-go-version" class="text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer font-medium">Version &amp; release</button></p>
+                <p id="detail-unstaged-label" class="m-0 mt-3 text-xs font-medium text-rm-muted hidden">Unstaged changes</p>
+                <ul id="detail-uncommitted-list" class="m-0 mt-1.5 pl-4 text-xs text-rm-muted max-h-48 overflow-y-auto list-none space-y-1"></ul>
+                <p id="detail-staged-label" class="m-0 mt-4 pt-3 border-t border-rm-border text-xs font-medium text-rm-accent hidden">Staged (will be committed)</p>
+                <ul id="detail-staged-list" class="m-0 mt-1.5 pl-4 text-xs text-rm-muted max-h-48 overflow-y-auto list-none space-y-1"></ul>
+                <div class="flex flex-wrap items-center gap-2 mt-3">
+                  <button type="button" id="btn-git-discard" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10" title="Discard all uncommitted changes"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Discard all</button>
+                </div>
+                <div id="detail-commit-wrap" class="hidden mt-5 pt-5 border-t border-rm-border rounded-rm-lg bg-rm-bg/30 p-4 -mx-1">
+                  <label class="block text-xs font-semibold text-rm-text uppercase tracking-wider mb-2">Commit changes</label>
+                  <p class="text-xs text-rm-muted mb-2">Stage all and create a commit with your message.</p>
+                  <div class="flex flex-wrap items-center gap-2 mb-2">
+                    <textarea id="detail-commit-message" class="commit-message-input flex-1 min-w-0" rows="3" placeholder="Commit message (subject and optional body)"></textarea>
+                    <button type="button" id="btn-copy-commit-message" class="icon-btn icon-btn-sm shrink-0 self-start" title="Copy to clipboard" aria-label="Copy commit message">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    </button>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-3 mb-3">
+                    <span id="copy-commit-message-feedback" class="copy-feedback hidden">Copied!</span>
+                  </div>
+                  <div class="flex flex-wrap items-center gap-3">
+                    <label class="checkbox-label text-xs text-rm-muted cursor-pointer flex items-center gap-1.5 shrink-0"><input type="checkbox" id="detail-commit-sign" class="checkbox-input" /><span>Sign commit</span></label>
+                    <button type="button" id="btn-ollama-commit" class="btn-secondary btn-compact shrink-0 inline-flex items-center gap-x-1.5 shrink-0" title="Generate with Ollama"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>Generate</button>
+                    <button type="button" id="btn-commit" class="btn-primary btn-compact shrink-0 inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>Commit</button>
+                    <button type="button" id="btn-git-amend" class="btn-secondary btn-compact shrink-0 inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Amend last commit with staged changes"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Amend</button>
+                    <p id="detail-commit-status" class="m-0 text-xs text-rm-muted hidden"></p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
         <section id="detail-version-card" class="card mb-6 collapsible-card detail-tab-panel" data-detail-tab="version" data-section="Version">
-          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-version-body">
-            <span class="collapsible-card-title">Version &amp; release</span>
-            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-version-body">
+              <span class="collapsible-card-title">Version &amp; release</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="version-release" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
           <div id="detail-version-body" class="collapsible-card-body">
           <div class="card-section flex flex-wrap items-center gap-x-5 gap-y-3 pt-0">
             <div class="flex items-center gap-2.5">
@@ -456,13 +745,13 @@
             </div>
 
             <div id="detail-release-bump-buttons" class="flex flex-wrap gap-3">
-              <button type="button" id="btn-release-patch" class="btn-primary" data-bump="patch">Patch</button>
-              <button type="button" id="btn-release-minor" class="btn-secondary" data-bump="minor">Minor</button>
-              <button type="button" id="btn-release-major" class="btn-secondary" data-bump="major">Major</button>
-              <button type="button" id="btn-release-prerelease" class="btn-secondary btn-prerelease" data-bump="prerelease">Pre-release</button>
+              <button type="button" id="btn-release-patch" class="btn-primary inline-flex items-center gap-x-1.5 shrink-0" data-bump="patch"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Patch</button>
+              <button type="button" id="btn-release-minor" class="btn-secondary inline-flex items-center gap-x-1.5 shrink-0" data-bump="minor"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Minor</button>
+              <button type="button" id="btn-release-major" class="btn-secondary inline-flex items-center gap-x-1.5 shrink-0" data-bump="major"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Major</button>
+              <button type="button" id="btn-release-prerelease" class="btn-secondary btn-prerelease inline-flex items-center gap-x-1.5 shrink-0" data-bump="prerelease"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m4.9 4.9 2.8 2.8"/><path d="M2 12h4"/><path d="m4.9 19.1 2.8-2.8"/><path d="M12 18v4"/><path d="m19.1 19.1-2.8-2.8"/><path d="M22 12h-4"/><path d="m19.1 4.9-2.8 2.8"/><circle cx="12" cy="12" r="4"/></svg>Pre-release</button>
             </div>
             <div id="detail-release-tag-only-wrap" class="hidden">
-              <button type="button" id="btn-release-tag-only" class="btn-primary">Tag and push</button>
+              <button type="button" id="btn-release-tag-only" class="btn-primary inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2H2v10l9.29 9.29c.94.94 2.46.94 3.4 0l6.6-6.6c.94-.94.94-2.46 0-3.4L12 2Z"/><path d="M7 7h.01"/></svg>Tag and push</button>
             </div>
 
             <p id="release-shortcuts-hint" class="mt-3 text-xs text-rm-muted">Shortcuts: <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘1</kbd> Patch, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘2</kbd> Minor, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘3</kbd> Major, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘S</kbd> Sync, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘D</kbd> Download</p>
@@ -495,8 +784,8 @@
               <ul id="detail-composer-scripts" class="m-0 pl-4 text-sm text-rm-muted list-disc"></ul>
             </div>
             <div class="flex flex-wrap items-center gap-3 mb-4">
-              <button type="button" id="btn-composer-refresh" class="btn-secondary btn-compact">Refresh outdated</button>
-              <button type="button" id="btn-composer-update-all" class="btn-secondary btn-compact hidden" title="Run composer update for all packages">Update all</button>
+              <button type="button" id="btn-composer-refresh" class="btn-secondary btn-compact inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>Refresh outdated</button>
+              <button type="button" id="btn-composer-update-all" class="btn-secondary btn-compact inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Run composer update for all packages"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>Update all</button>
               <label class="checkbox-label text-sm text-rm-muted cursor-pointer flex items-center gap-2">
                 <input type="checkbox" id="detail-composer-direct-only" class="checkbox-input" checked />
                 <span>Direct only</span>
@@ -545,19 +834,22 @@
         </section>
 
         <section id="detail-sync-card" class="card mb-6 collapsible-card detail-tab-panel" data-detail-tab="sync" data-section="Sync">
-          <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-sync-body">
-            <span class="collapsible-card-title">Sync &amp; download</span>
-            <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </button>
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-sync-body">
+              <span class="collapsible-card-title">Sync &amp; download</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="sync" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
           <div id="detail-sync-body" class="collapsible-card-body">
           <div class="card-section pt-0">
             <p class="m-0 mb-6 text-sm text-rm-muted">
               <strong>Sync</strong> runs <code class="bg-rm-bg px-1 rounded text-xs font-mono">git fetch</code> so your local refs and tags match the remote. Download buttons fetch GitHub Release assets for your platform.
             </p>
             <div class="flex flex-wrap gap-3">
-              <button type="button" id="btn-sync" class="btn-secondary" title="Run git fetch in this project">Sync</button>
-              <button type="button" id="btn-download-latest" class="btn-secondary">Download latest</button>
-              <button type="button" id="btn-choose-version" class="btn-secondary">Choose version…</button>
+              <button type="button" id="btn-sync" class="btn-secondary inline-flex items-center gap-x-1.5 shrink-0" title="Run git fetch in this project"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>Sync</button>
+              <button type="button" id="btn-download-latest" class="btn-secondary inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Download latest</button>
+              <button type="button" id="btn-choose-version" class="btn-secondary inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>Choose version…</button>
               <a id="link-releases" href="#" class="btn-secondary inline-flex items-center gap-2 no-underline cursor-pointer hidden" target="_blank" rel="noopener">
                 Open Releases
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
@@ -574,6 +866,345 @@
           </div>
         </section>
 
+        <section id="git-section-tags" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="main" data-section="Tags">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-tags-body">
+              <span class="collapsible-card-title">Tags</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="tags" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+            <div id="detail-tags-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Tags mark a specific commit (e.g. release <code class="bg-rm-surface px-1 rounded text-xs">v1.0.0</code>). <strong>Create tag</strong> adds a new tag (optionally annotated). <strong>Checkout tag</strong> puts the repo in <em>detached HEAD</em>. <strong>Push tag</strong> uploads it to the remote; <strong>Delete tag</strong> removes it locally.</p>
+              <div class="flex flex-wrap items-end gap-2 mb-3">
+                <div class="flex flex-col gap-1">
+                  <label class="text-xs font-medium text-rm-muted">Create tag</label>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <input type="text" id="detail-create-tag-name" class="input-field text-sm py-1 min-w-[10rem]" placeholder="Tag name (e.g. v1.0.0)" />
+                    <input type="text" id="detail-create-tag-message" class="input-field text-sm py-1 min-w-[12rem]" placeholder="Message (optional, for annotated)" />
+                    <select id="detail-create-tag-ref" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]" title="Ref to tag (default HEAD)">
+                      <option value="">HEAD</option>
+                    </select>
+                    <button type="button" id="btn-create-tag" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Create tag</button>
+                  </div>
+                </div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2">
+                <select id="detail-tag-select" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[12rem]">
+                  <option value="">—</option>
+                </select>
+                <button type="button" id="btn-checkout-tag" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>Checkout tag</button>
+                <button type="button" id="btn-push-tag" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>Push tag</button>
+                <button type="button" id="btn-delete-tag" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Delete tag</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-commit-history" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="history" data-section="Commit history">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-commit-log-body">
+              <span class="collapsible-card-title">Commit history</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="commit-history" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-commit-log-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Recent commits on the current branch. Click a commit to see its message and diff. From the detail modal you can <strong>Copy SHA</strong>, <strong>Cherry-pick</strong> (apply that commit onto the current branch), or <strong>Revert</strong> (create a new commit that undoes it).</p>
+              <ul id="detail-commit-log-list" class="m-0 pl-0 text-sm text-rm-muted max-h-64 overflow-y-auto list-none space-y-1"></ul>
+              <p id="detail-commit-log-empty" class="m-0 text-xs text-rm-muted hidden">No commits.</p>
+              <div id="modal-commit-detail" class="modal-backdrop hidden">
+                <div class="modal-card modal-card-wide flex flex-col max-h-[85vh]">
+                  <div class="modal-header flex-shrink-0">
+                    <h3 id="modal-commit-detail-title" class="modal-title truncate flex-1 min-w-0"></h3>
+                    <button type="button" id="modal-commit-detail-close" class="modal-close" aria-label="Close">×</button>
+                  </div>
+                  <div id="modal-commit-detail-content" class="m-0 p-4 flex-1 overflow-auto text-xs font-mono border-t border-rm-border whitespace-pre-wrap"></div>
+                  <div class="modal-footer flex-shrink-0 flex flex-wrap gap-2 p-3 border-t border-rm-border">
+                    <button type="button" id="btn-commit-detail-copy-sha" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>Copy SHA</button>
+                    <button type="button" id="btn-commit-detail-cherry-pick" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m4.9 4.9 2.8 2.8"/><path d="M2 12h4"/><path d="m4.9 19.1 2.8-2.8"/><path d="M12 18v4"/><path d="m19.1 19.1-2.8-2.8"/><path d="M22 12h-4"/><path d="m19.1 4.9-2.8 2.8"/><circle cx="12" cy="12" r="4"/></svg>Cherry-pick</button>
+                    <button type="button" id="btn-commit-detail-revert" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Revert</button>
+                    <button type="button" id="btn-commit-detail-amend" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Amend this commit (only for HEAD)"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>Amend</button>
+                    <button type="button" id="modal-commit-detail-close-btn" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="modal-diff-full" class="modal-backdrop hidden">
+            <div class="modal-card modal-card-wide flex flex-col max-h-[85vh]">
+              <div class="modal-header flex-shrink-0">
+                <h3 id="modal-diff-full-title" class="modal-title truncate flex-1 min-w-0">Diff</h3>
+                <button type="button" id="modal-diff-full-close" class="modal-close" aria-label="Close">×</button>
+              </div>
+              <pre id="modal-diff-full-content" class="m-0 p-4 flex-1 overflow-auto text-xs font-mono border-t border-rm-border whitespace-pre-wrap"></pre>
+              <div class="modal-footer flex-shrink-0 p-3 border-t border-rm-border">
+                <button type="button" id="modal-diff-full-close-btn" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
+              </div>
+            </div>
+          </div>
+          <div id="modal-switch-with-changes" class="modal-backdrop hidden">
+            <div class="modal-card flex flex-col max-w-md">
+              <div class="modal-header flex-shrink-0">
+                <h3 class="modal-title">Uncommitted changes</h3>
+                <button type="button" id="modal-switch-with-changes-close" class="modal-close" aria-label="Close">×</button>
+              </div>
+              <div class="modal-body flex-shrink-0 p-4">
+                <p class="m-0 mb-4 text-sm text-rm-text">You have uncommitted changes. How do you want to switch?</p>
+                <div class="flex flex-col gap-2">
+                  <button type="button" id="modal-switch-stash-pop" class="btn-primary btn-compact text-sm w-full text-left">Stash, switch &amp; pop</button>
+                  <p class="m-0 text-xs text-rm-muted">Stash your changes, switch branch, then pop the stash so you keep the same changes on the new branch.</p>
+                  <button type="button" id="modal-switch-stash-only" class="btn-secondary btn-compact text-sm w-full text-left">Stash and switch</button>
+                  <p class="m-0 text-xs text-rm-muted">Stash your changes and switch. Restore them later with Pop stash.</p>
+                  <button type="button" id="modal-switch-cancel" class="btn-secondary btn-compact text-sm w-full">Cancel</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-reflog" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="history" data-section="Reflog">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-reflog-body">
+              <span class="collapsible-card-title">Reflog</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="reflog" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-reflog-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Reflog records where HEAD and refs have been. Use it to recover after a bad reset or rebase. Click an entry to <strong>Checkout</strong> that ref (e.g. restore a lost commit).</p>
+              <button type="button" id="btn-load-reflog" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 mb-3"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Load reflog</button>
+              <ul id="detail-reflog-list" class="m-0 pl-0 text-sm text-rm-muted max-h-64 overflow-y-auto list-none space-y-1 font-mono"></ul>
+              <p id="detail-reflog-empty" class="m-0 text-xs text-rm-muted hidden">No reflog or load first.</p>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-delete-branch" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="main" data-section="Branches">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-branches-delete-body">
+              <span class="collapsible-card-title">Delete branch</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="delete-branch" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-branches-delete-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Remove branches you no longer need. <strong>Delete local</strong> removes the branch only on this machine (fails if it has unmerged changes unless you force). <strong>Delete on remote</strong> removes the branch from the remote (e.g. origin)—others will need to prune to see it gone. You cannot delete the branch you’re currently on.</p>
+              <div class="flex flex-wrap items-center gap-2">
+                <input type="text" id="detail-rename-branch-new-name" class="input-field text-sm py-1 min-w-[10rem]" placeholder="New name (rename current)" />
+                <button type="button" id="btn-rename-branch" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Rename selected branch or current">Rename</button>
+                <select id="detail-delete-branch-select" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]">
+                  <option value="">—</option>
+                </select>
+                <button type="button" id="btn-delete-branch" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Delete local</button>
+                <button type="button" id="btn-delete-remote-branch" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>Delete on remote</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-remotes" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="main" data-section="Remotes">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-remotes-body">
+              <span class="collapsible-card-title">Remotes</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="remotes" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-remotes-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Remotes are named URLs (e.g. <code class="bg-rm-surface px-1 rounded text-xs">origin</code>) for fetch/push. <strong>Fetch</strong> a specific remote to update its refs. Add or remove remotes below.</p>
+              <div class="flex flex-wrap items-center gap-2 mb-3">
+                <label class="text-xs font-medium text-rm-muted shrink-0">Fetch remote</label>
+                <select id="detail-fetch-remote-select" class="text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[8rem]">
+                  <option value="">—</option>
+                </select>
+                <button type="button" id="btn-fetch-remote" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>Fetch</button>
+              </div>
+              <ul id="detail-remotes-list" class="m-0 pl-0 list-none space-y-2"></ul>
+              <div class="flex flex-wrap items-center gap-2 mt-3">
+                <input type="text" id="detail-add-remote-name" class="input-field text-sm w-24" placeholder="Name" />
+                <input type="text" id="detail-add-remote-url" class="input-field text-sm flex-1 min-w-0" placeholder="URL" />
+                <button type="button" id="btn-add-remote" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add remote</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-compare-reset" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="main" data-section="Compare &amp; reset">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-compare-reset-body">
+              <span class="collapsible-card-title">Compare &amp; reset</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="compare-reset" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-compare-reset-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-4 text-xs text-rm-muted"><strong>Compare</strong>: enter two refs (branch, tag, or SHA) to see which files changed between them. Use <strong>Show full diff</strong> to open the full patch in a modal. <strong>Reset</strong> moves the current branch to a ref: <em>soft</em> keeps changes staged, <em>mixed</em> keeps changes unstaged, <em>hard</em> discards all changes—use with care.</p>
+              <div class="flex flex-wrap items-center gap-2 mb-3">
+                <label class="text-xs font-medium text-rm-muted shrink-0">Compare</label>
+                <input type="text" id="detail-compare-ref-a" class="input-field text-sm w-28 font-mono" placeholder="HEAD" />
+                <span class="text-rm-muted">..</span>
+                <input type="text" id="detail-compare-ref-b" class="input-field text-sm w-28 font-mono" placeholder="main" />
+                <button type="button" id="btn-compare" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Compare</button>
+                <button type="button" id="btn-compare-show-diff" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Show full diff in modal"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Show full diff</button>
+              </div>
+              <div id="detail-compare-result" class="text-xs text-rm-muted hidden mb-3"></div>
+              <div class="flex flex-wrap items-center gap-2">
+                <label class="text-xs font-medium text-rm-muted shrink-0">Reset to</label>
+                <input type="text" id="detail-reset-ref" class="input-field text-sm w-32 font-mono" placeholder="HEAD~1" />
+                <button type="button" id="btn-reset-soft" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Soft</button>
+                <button type="button" id="btn-reset-mixed" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Mixed</button>
+                <button type="button" id="btn-reset-hard" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Hard</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-gitignore" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="advanced" data-section=".gitignore">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-gitignore-body">
+              <span class="collapsible-card-title">.gitignore</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="gitignore" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-gitignore-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Files and patterns listed in <code class="bg-rm-surface px-1 rounded text-xs">.gitignore</code> are ignored by Git and won’t be committed. Edit in your editor to add or remove patterns (e.g. <code class="bg-rm-surface px-1 rounded text-xs">node_modules/</code>, <code class="bg-rm-surface px-1 rounded text-xs">.env</code>).</p>
+              <textarea id="detail-gitignore-content" class="m-0 p-3 rounded-rm border border-rm-border bg-rm-surface/50 text-xs font-mono text-rm-text w-full min-h-[8rem] max-h-48 resize-y hidden" spellcheck="false" placeholder="No .gitignore"></textarea>
+              <p id="detail-gitignore-empty" class="m-0 text-xs text-rm-muted hidden">No .gitignore file.</p>
+              <div class="flex flex-wrap items-center gap-2 mt-2">
+                <button type="button" id="btn-save-gitignore" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden">Save</button>
+                <button type="button" id="btn-open-gitignore-editor" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Open in editor</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-gitattributes" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="advanced" data-section=".gitattributes">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-gitattributes-body">
+              <span class="collapsible-card-title">.gitattributes</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="gitattributes" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-gitattributes-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Patterns here control line endings, merge strategies, and export rules. Edit in your editor to add or change attributes.</p>
+              <textarea id="detail-gitattributes-content" class="m-0 p-3 rounded-rm border border-rm-border bg-rm-surface/50 text-xs font-mono text-rm-text w-full min-h-[8rem] max-h-48 resize-y hidden" spellcheck="false" placeholder="No .gitattributes"></textarea>
+              <p id="detail-gitattributes-empty" class="m-0 text-xs text-rm-muted hidden">No .gitattributes file.</p>
+              <div class="flex flex-wrap items-center gap-2 mt-2">
+                <button type="button" id="btn-save-gitattributes" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden">Save</button>
+                <button type="button" id="btn-open-gitattributes-editor" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Open in editor</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-submodules" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="advanced" data-section="Submodules">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-submodules-body">
+              <span class="collapsible-card-title">Submodules</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="submodules" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-submodules-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Submodules are nested Git repos pinned to a commit. <strong>Update submodules</strong> runs <code class="bg-rm-surface px-1 rounded text-xs">git submodule update --init --recursive</code> to fetch and checkout the commits referenced by the parent repo.</p>
+              <ul id="detail-submodules-list" class="m-0 pl-0 list-none text-sm text-rm-muted space-y-1"></ul>
+              <p id="detail-submodules-empty" class="m-0 text-xs text-rm-muted hidden">No submodules.</p>
+              <button type="button" id="btn-submodule-update" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 mt-2 hidden"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>Update submodules</button>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-worktrees" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="advanced" data-section="Worktrees">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-worktrees-body">
+              <span class="collapsible-card-title">Worktrees</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="worktrees" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-worktrees-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Linked working trees let you have multiple checkouts of the same repo. Add a path (and optional branch); remove when done. You cannot remove the main worktree or one with uncommitted changes.</p>
+              <ul id="detail-worktrees-list" class="m-0 pl-0 list-none text-sm text-rm-muted space-y-2 mb-3"></ul>
+              <div class="flex flex-wrap items-center gap-2">
+                <input type="text" id="detail-worktree-path" class="input-field text-sm flex-1 min-w-0 max-w-xs" placeholder="Path (e.g. ../feature)" />
+                <input type="text" id="detail-worktree-branch" class="input-field text-sm w-28" placeholder="Branch (optional)" />
+                <button type="button" id="btn-worktree-add" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>Add worktree</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="git-section-bisect" class="card card-sm collapsible-card git-card-extra detail-tab-panel hidden git-subtab-panel git-card-spacing" data-detail-tab="git" data-git-subtab="advanced" data-section="Bisect">
+          <div class="collapsible-card-header-row">
+            <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-bisect-body">
+              <span class="collapsible-card-title">Bisect</span>
+              <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            </button>
+            <button type="button" class="doc-trigger" data-doc="bisect" title="Learn more" aria-label="Open documentation"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg></button>
+          </div>
+          <div id="detail-bisect-body" class="collapsible-card-body">
+            <div class="card-section pt-0">
+              <p class="m-0 mb-3 text-xs text-rm-muted">Find the commit that introduced a bug: mark the known-bad commit as <strong>Bad</strong> and an older known-good commit as <strong>Good</strong>. Git checks out a commit in between; you test it and mark Good or Bad until the first bad commit is found.</p>
+              <ol class="m-0 mb-3 pl-4 text-xs text-rm-muted space-y-1 list-decimal">
+                <li>Enter <strong>Bad ref</strong> (e.g. <code class="bg-rm-surface px-1 rounded font-mono">HEAD</code>) and <strong>Good ref</strong> (e.g. <code class="bg-rm-surface px-1 rounded font-mono">v1.0</code>).</li>
+                <li>Click <strong>Start bisect</strong>.</li>
+                <li>Test the checked-out commit, then click <strong>Mark good</strong> or <strong>Mark bad</strong> until bisect finishes.</li>
+              </ol>
+              <div id="detail-bisect-active-wrap" class="hidden mb-3 p-3 rounded-rm bg-rm-surface border border-rm-border">
+                <div id="detail-bisect-current" class="text-sm text-rm-text mb-1 font-mono"></div>
+                <div id="detail-bisect-good-bad" class="text-xs text-rm-muted mb-1"></div>
+                <div id="detail-bisect-progress" class="text-xs text-rm-muted mb-2"></div>
+                <a href="#" id="detail-bisect-view-commit" class="text-xs text-rm-accent hover:underline hidden">View commit</a>
+              </div>
+              <div id="detail-bisect-start-wrap" class="flex flex-wrap items-end gap-3 mb-3">
+                <div class="flex flex-col gap-1">
+                  <label for="detail-bisect-bad" class="text-xs text-rm-muted">Bad ref</label>
+                  <div class="flex items-center gap-1">
+                    <input type="text" id="detail-bisect-bad" class="input-field text-sm w-32 font-mono" placeholder="HEAD" />
+                    <button type="button" id="btn-bisect-browse-bad" class="btn-secondary btn-compact text-xs p-2" title="Browse refs (branches, tags, latest commits)" aria-label="Browse Bad ref"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                  </div>
+                </div>
+                <div class="flex flex-col gap-1">
+                  <label for="detail-bisect-good" class="text-xs text-rm-muted">Good ref</label>
+                  <div class="flex items-center gap-1">
+                    <input type="text" id="detail-bisect-good" class="input-field text-sm w-32 font-mono" placeholder="e.g. v1.0" />
+                    <button type="button" id="btn-bisect-browse-good" class="btn-secondary btn-compact text-xs p-2" title="Browse refs (branches, tags, latest commits)" aria-label="Browse Good ref"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></button>
+                  </div>
+                </div>
+                <button type="button" id="btn-bisect-start" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="3" x2="12" y2="21"/><path d="M5 12H2a10 10 0 0 0 20 0h-3"/></svg>Start bisect</button>
+              </div>
+              <div id="detail-bisect-ref-picker" class="detail-bisect-ref-picker hidden" role="listbox" aria-label="Choose ref">
+                <div id="detail-bisect-ref-picker-list" class="detail-bisect-ref-picker-list"></div>
+              </div>
+              <div class="flex flex-wrap items-center gap-2 mb-2">
+                <button type="button" id="btn-bisect-good" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>Mark good</button>
+                <button type="button" id="btn-bisect-bad" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>Mark bad</button>
+                <button type="button" id="btn-bisect-run-test" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Run project tests and mark Good (exit 0) or Bad (non-zero)"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Run test &amp; mark</button>
+                <button type="button" id="btn-bisect-reset" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>Reset bisect</button>
+              </div>
+              <details class="text-xs text-rm-muted">
+                <summary class="cursor-pointer hover:text-rm-text">Raw bisect status</summary>
+                <pre id="detail-bisect-status" class="mt-1 mb-0 font-mono whitespace-pre-wrap text-rm-muted hidden"></pre>
+              </details>
+            </div>
+          </div>
+        </section>
+
+          </div><!-- .detail-git-cards-wrap -->
+
         <section id="detail-tests-card" class="card mb-6 collapsible-card hidden detail-tab-panel" data-detail-tab="tests" data-section="Tests">
           <button type="button" class="collapsible-card-header" aria-expanded="true" aria-controls="detail-tests-body">
             <span class="collapsible-card-title">Run tests</span>
@@ -585,7 +1216,7 @@
               Run the project test suite: <code class="bg-rm-surface px-1 rounded text-xs font-mono">npm test</code> for npm, <code class="bg-rm-surface px-1 rounded text-xs font-mono">composer run test</code> for PHP.
             </p>
             <div class="flex flex-wrap items-center gap-3 mb-3">
-              <button type="button" id="btn-run-tests" class="btn-secondary btn-compact">Run all</button>
+              <button type="button" id="btn-run-tests" class="btn-secondary btn-compact inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>Run all</button>
               <span id="detail-tests-status" class="text-xs text-rm-muted hidden"></span>
             </div>
             <div id="detail-tests-scripts-wrap" class="mb-3 hidden">
@@ -611,7 +1242,7 @@
                 <strong>PHP (Pest/PHPUnit):</strong> Coverage needs Xdebug's coverage mode or PCOV. In <code class="bg-rm-surface px-1 rounded font-mono">php.ini</code> set <code class="bg-rm-surface px-1 rounded font-mono">xdebug.mode=coverage</code>, or install the <code class="bg-rm-surface px-1 rounded font-mono">pcov</code> extension (e.g. <code class="bg-rm-surface px-1 rounded font-mono">brew install php-pcov</code> on macOS).
               </p>
               <div class="flex flex-wrap items-center gap-3 mb-3">
-                <button type="button" id="btn-run-coverage" class="btn-secondary btn-compact">Run coverage</button>
+                <button type="button" id="btn-run-coverage" class="btn-secondary btn-compact inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>Run coverage</button>
                 <span id="detail-coverage-status" class="text-xs text-rm-muted hidden"></span>
               </div>
               <pre id="detail-coverage-output" class="m-0 p-4 rounded-rm border border-rm-border bg-rm-surface/50 text-xs font-mono text-rm-text overflow-x-auto overflow-y-auto max-h-96 hidden"></pre>
@@ -654,13 +1285,28 @@
         </div>
         <div id="modal-file-view-content" class="modal-file-content m-0 p-4 flex-1 overflow-auto text-xs font-mono border-t border-rm-border"></div>
         <div class="modal-footer flex-shrink-0 flex flex-wrap items-center gap-2 p-3 border-t border-rm-border">
-          <button type="button" id="modal-file-view-open-editor" class="btn-secondary btn-compact text-xs">Open in editor</button>
-          <button type="button" id="modal-file-view-close-btn" class="btn-secondary btn-compact text-xs">Close</button>
+          <button type="button" id="modal-file-view-open-editor" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>Open in editor</button>
+          <button type="button" id="modal-file-view-blame" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Show line-by-line blame (who last changed each line)"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>Blame</button>
+          <button type="button" id="modal-file-view-diff" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 hidden" title="Back to diff view"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>Show diff</button>
+          <button type="button" id="modal-file-view-close-btn" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0"><svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="modal-docs" class="modal-backdrop hidden">
+      <div class="modal-card modal-card-wide flex flex-col max-h-[85vh]">
+        <div class="modal-header flex-shrink-0">
+          <h3 id="modal-docs-title" class="modal-title flex-1 min-w-0">Documentation</h3>
+          <button type="button" id="modal-docs-close" class="modal-close" aria-label="Close">×</button>
+        </div>
+        <div id="modal-docs-body" class="modal-docs-body flex-1 overflow-auto p-5 border-t border-rm-border text-sm text-rm-text"></div>
+        <div class="modal-footer flex-shrink-0 p-3 border-t border-rm-border">
+          <button type="button" id="modal-docs-close-btn" class="btn-secondary btn-compact">Close</button>
         </div>
       </div>
     </div>
   </main>
 
+  <script src="docsContent.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

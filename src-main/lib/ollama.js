@@ -182,12 +182,41 @@ Commits:
 ${list}`;
 }
 
+/**
+ * Build a prompt for suggesting a fix when tests fail.
+ * @param {string} testScriptName - e.g. "test"
+ * @param {string} stdout - test command stdout
+ * @param {string} stderr - test command stderr
+ * @returns {string}
+ */
+function buildTestFixPrompt(testScriptName, stdout, stderr) {
+  const out = (stdout || '').trim().slice(0, 6000);
+  const err = (stderr || '').trim().slice(0, 4000);
+  const script = testScriptName || 'test';
+  return `The project's test script "${script}" failed. Based on the command output below, suggest a concrete fix.
+
+Rules:
+- Be concise: 1–3 short paragraphs or a numbered list of steps.
+- If the error points to a file and line, mention them and what to change.
+- Suggest exact code or config changes when possible; otherwise describe the change.
+- Do not repeat the full error log.
+
+Command output (stdout):
+${out || '(empty)'}
+
+Command output (stderr):
+${err || '(empty)'}
+
+Suggested fix:`;
+}
+
 module.exports = {
   generate,
   listModels,
   modelSupportsGenerate,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTestFixPrompt,
   formatOllamaError,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,

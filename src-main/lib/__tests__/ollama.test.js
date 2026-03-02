@@ -4,6 +4,7 @@ const {
   modelSupportsGenerate,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTestFixPrompt,
   formatOllamaError,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
@@ -20,6 +21,23 @@ describe('ollama', () => {
       const out = buildCommitMessagePrompt('');
       expect(out).toContain('Changes:');
       expect(out).toContain('conventional commit');
+    });
+  });
+
+  describe('buildTestFixPrompt', () => {
+    it('includes script name and stdout/stderr in prompt', () => {
+      const out = buildTestFixPrompt('test', 'stdout here', 'stderr here');
+      expect(out).toContain('test script "test" failed');
+      expect(out).toContain('stdout here');
+      expect(out).toContain('stderr here');
+    });
+    it('uses "test" when testScriptName is empty', () => {
+      const out = buildTestFixPrompt('', 'out', 'err');
+      expect(out).toContain('"test" failed');
+    });
+    it('handles empty stdout and stderr', () => {
+      const out = buildTestFixPrompt('test', '', '');
+      expect(out).toContain('(empty)');
     });
   });
 
