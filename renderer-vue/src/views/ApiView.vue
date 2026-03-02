@@ -38,6 +38,52 @@
 
       <section class="card mb-6">
         <div class="card-section">
+          <span class="card-label">MCP server</span>
+          <p class="m-0 mb-4 text-sm text-rm-muted">
+            Start or stop the Model Context Protocol server used by Cursor and other MCP clients. When running from source, you can start it here or open a terminal and run <code class="bg-rm-surface px-1 rounded text-xs">npm run mcp</code>.
+          </p>
+          <div class="flex flex-wrap items-center gap-4 mb-3">
+            <span
+              class="text-xs font-medium px-2.5 py-1 rounded-full border"
+              :class="mcpStatus.running ? 'bg-rm-accent/15 text-rm-accent border-rm-accent/30' : 'bg-rm-surface/50 text-rm-muted border-rm-border'"
+            >
+              {{ mcpStatus.running ? `Running (PID ${mcpStatus.pid ?? '?'})` : 'Not running' }}
+            </span>
+            <button
+              type="button"
+              class="btn-primary btn-compact text-xs"
+              :disabled="mcpStatus.running || mcpBusy"
+              @click="startMcp"
+            >
+              {{ mcpBusy ? 'Starting…' : 'Start' }}
+            </button>
+            <button
+              type="button"
+              class="btn-secondary btn-compact text-xs"
+              :disabled="!mcpStatus.running || mcpBusy"
+              @click="stopMcp"
+            >
+              Stop
+            </button>
+            <button
+              type="button"
+              class="btn-secondary btn-compact text-xs"
+              :disabled="!appPath"
+              title="Open terminal at app folder; run npm run mcp there"
+              @click="openTerminalForMcp"
+            >
+              Open in Terminal
+            </button>
+          </div>
+          <p v-if="mcpError" class="m-0 text-xs text-rm-warning">{{ mcpError }}</p>
+          <p v-if="appPath" class="m-0 text-xs text-rm-muted">
+            App path: <code class="bg-rm-surface px-1 rounded text-[11px] break-all">{{ appPath }}</code>
+          </p>
+        </div>
+      </section>
+
+      <section class="card mb-6">
+        <div class="card-section">
           <span class="card-label">API Tester</span>
           <p class="m-0 mb-5 text-sm text-rm-muted">Select a method, set parameters, and send a request. Works via the app; enable the API server above to test over HTTP.</p>
           <div class="tester-row mb-4">
@@ -215,6 +261,10 @@ const sampleResult = ref(null);
 const builderParamValues = ref({});
 const sending = ref(false);
 const lastResponse = ref(null);
+const mcpStatus = ref({ running: false, pid: undefined });
+const mcpBusy = ref(false);
+const mcpError = ref('');
+const appPath = ref('');
 
 const baseUrl = computed(() => {
   if (!status.value.running || !status.value.port) return '';
@@ -279,6 +329,48 @@ const exampleCurl = computed(() => {
   -H "Content-Type: application/json" \\
   -d '{"method":"getProjects","params":[]}'`;
 });
+
+async function loadMcpStatus() {
+  try {
+    const s = await api.getMcpServerStatus?.();
+    if (s) mcpStatus.value = { running: !!s.running, pid: s.pid };
+  } catch (_) {}
+}
+async function loadAppPath() {
+  try {
+    const p = await api.getAppPath?.();
+    appPath.value = p || '';
+  } catch (_) {}
+}
+async function startMcp() {
+  mcpError.value = '';
+  mcpBusy.value = true;
+  try {
+    const r = await api.startMcpServer?.();
+    if (r?.ok) await loadMcpStatus();
+    else mcpError.value = r?.error || 'Failed to start';
+  } catch (e) {
+    mcpError.value = e?.message || 'Failed to start';
+  } finally {
+    mcpBusy.value = false;
+  }
+}
+async function stopMcp() {
+  mcpError.value = '';
+  mcpBusy.value = true;
+  try {
+    await api.stopMcpServer?.();
+    await loadMcpStatus();
+  } catch (e) {
+    mcpError.value = e?.message || 'Failed to stop';
+  } finally {
+    mcpBusy.value = false;
+  }
+}
+function openTerminalForMcp() {
+  const p = appPath.value;
+  if (p && api.openInTerminal) api.openInTerminal(p);
+}
 
 async function loadStatus() {
   try {
@@ -542,6 +634,8 @@ function copyToClipboard(text, label) {
 onMounted(() => {
   loadStatus();
   loadDocs();
+  loadMcpStatus();
+  loadAppPath();
 });
 
 watch(enabled, () => loadStatus());

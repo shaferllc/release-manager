@@ -63,6 +63,7 @@ if (pkg.productName && !app.isPackaged) {
 }
 
 let store;
+let mcpServerProcess = null;
 
 function getStore() {
   if (!store) store = new Store({ name: 'release-manager' });
@@ -2102,6 +2103,58 @@ app.whenReady().then(() => {
         return { name: 'Shipwell', version: '0.1.0' };
       }
     },
+    getAppPath: () => app.getAppPath(),
+    getMcpServerStatus: () => ({
+      running: mcpServerProcess != null && !mcpServerProcess.killed,
+      pid: mcpServerProcess?.pid ?? undefined,
+    }),
+    startMcpServer: () => {
+      if (mcpServerProcess != null && !mcpServerProcess.killed) {
+        return Promise.resolve({ ok: true, pid: mcpServerProcess.pid, alreadyRunning: true });
+      }
+      const appPath = app.getAppPath();
+      const mcpDir = path.join(appPath, 'mcp-server');
+      const indexPath = path.join(mcpDir, 'index.mjs');
+      if (!fs.existsSync(indexPath)) {
+        return Promise.resolve({ ok: false, error: 'MCP server not found (run from app source or install mcp-server).' });
+      }
+      const nodeModules = path.join(mcpDir, 'node_modules');
+      if (!fs.existsSync(nodeModules)) {
+        return Promise.resolve({ ok: false, error: 'Run npm run mcp:install from the app folder first.' });
+      }
+      return new Promise((resolve) => {
+        try {
+          const child = spawn(process.execPath, ['index.mjs'], {
+            cwd: mcpDir,
+            stdio: 'pipe',
+            env: process.env,
+          });
+          child.on('error', (err) => {
+            mcpServerProcess = null;
+            resolve({ ok: false, error: err.message || 'Failed to start MCP server' });
+          });
+          child.on('exit', (code, signal) => {
+            mcpServerProcess = null;
+          });
+          mcpServerProcess = child;
+          resolve({ ok: true, pid: child.pid });
+        } catch (e) {
+          resolve({ ok: false, error: e.message || 'Failed to start MCP server' });
+        }
+      });
+    },
+    stopMcpServer: () => {
+      if (mcpServerProcess == null || mcpServerProcess.killed) {
+        return Promise.resolve({ ok: true, wasRunning: false });
+      }
+      try {
+        mcpServerProcess.kill('SIGTERM');
+        mcpServerProcess = null;
+        return Promise.resolve({ ok: true, wasRunning: true });
+      } catch (e) {
+        return Promise.resolve({ ok: false, error: e.message || 'Failed to stop MCP server' });
+      }
+    },
     getChangelog: async () => {
       try {
         const changelogPath = path.join(app.getAppPath(), 'CHANGELOG.md');
@@ -2480,6 +2533,10 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-download-asset': 'downloadAsset',
     'rm-open-url': 'openUrl',
     'rm-get-app-info': 'getAppInfo',
+    'rm-get-app-path': 'getAppPath',
+    'rm-get-mcp-server-status': 'getMcpServerStatus',
+    'rm-start-mcp-server': 'startMcpServer',
+    'rm-stop-mcp-server': 'stopMcpServer',
     'rm-get-changelog': 'getChangelog',
     'rm-get-preference': 'getPreference',
     'rm-get-available-php-versions': 'getAvailablePhpVersions',
@@ -2508,6 +2565,10 @@ nativeTheme.on('updated', () => {
 });
 
 app.on('before-quit', () => {
+  try {
+    if (mcpServerProcess != null && !mcpServerProcess.killed) mcpServerProcess.kill('SIGTERM');
+    mcpServerProcess = null;
+  } catch (_) {}
   try {
     const w = BrowserWindow.getAllWindows()[0];
     if (w && !w.isDestroyed()) saveWindowBounds(w);

@@ -12,7 +12,7 @@
     "test:coverage": "npm run test:main:coverage && npm run test:vue:coverage",
     "test:vue": "cd renderer-vue && npm run test:run",
     "test:vue:coverage": "cd renderer-vue && npm run test:coverage",
-    "test:e2e": "node scripts/ensure-icon.js && npm run build:css && node tests/e2e/smoke.js",
+    "test:e2e": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && node tests/e2e/smoke.js",
     "start": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && electron .",
     "restart": "npm start",
     "dev": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && NODE_ENV=development electron . --enable-logging",
@@ -32,7 +32,8 @@
     "version:patch": "npm version patch",
     "version:minor": "npm version minor",
     "version:major": "npm version major",
-    "mcp": "node mcp-server/index.mjs"
+    "mcp": "node scripts/run-mcp.js",
+    "mcp:install": "npm install --prefix mcp-server"
   },
   "keywords": [
     "release",
@@ -105,11 +106,9 @@
     }
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.27.1",
     "electron-store": "^8.1.0",
     "marked": "^15.0.0",
-    "sanitize-html": "^2.13.0",
-    "zod": "^4.3.6"
+    "sanitize-html": "^2.13.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

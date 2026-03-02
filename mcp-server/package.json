@@ -1,0 +1,11 @@
+{
+  "name": "shipwell-mcp-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Standalone MCP server for Shipwell (run separately; not bundled with the Electron app)",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "zod": "^4.3.6"
+  }
+}
