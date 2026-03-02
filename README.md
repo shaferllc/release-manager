@@ -81,17 +81,18 @@ release-manager/
 
 | Command | Description |
 |---------|-------------|
-| `npm start` | Run the app |
-| `npm run dev` | Run with Electron logging |
-| `npm run watch` | Restart on main/renderer changes (nodemon) |
-| `npm run build:css` | Build Tailwind CSS |
+| `npm start` | Build Vue renderer and run the app |
+| `npm run dev` | Build Vue renderer and run with Electron logging |
+| `npm run build:renderer-vue` | Build the Vue UI into `dist-renderer/` (run from repo root) |
+| `npm run dev:vue` | Build Vue, then watch for changes and run Electron (auto-rebuild on save) |
+| `npm run build:css` | Build Tailwind CSS (legacy renderer) |
 | `npm run build` | Package with electron-builder |
-| `npm test` | Run test suite (Jest) |
+| `npm test` | Run test suite (Jest + Vue) |
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run test:coverage` | Run tests with coverage |
 | `npm run test:e2e` | E2E smoke test (launches app, checks UI) |
 
-**Development:** `npm start` runs the app without the file watcher. Use `npm run dev` to run with Electron logging and auto-reload on file changes. To disable reload in dev (e.g. if you see SIGABRT on restart), set `DISABLE_ELECTRON_RELOAD=1`.
+**Seeing UI changes:** The app uses the **Vue** renderer (built to `dist-renderer/`). Always run from the **repo root** (`release-manager/`), not from `renderer-vue/`. Use `npm start` or `npm run dev` to build the Vue bundle and launch; both now build the renderer first. If you only changed Vue files, run `npm run build:renderer-vue` then `npx electron .` to refresh without a full restart. For live reload during development, use `npm run dev:vue` (watches `renderer-vue` and rebuilds on save).
 
 ## Troubleshooting
 

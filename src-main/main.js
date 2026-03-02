@@ -26,9 +26,11 @@ const {
   listModels: ollamaListModels,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTestFixPrompt,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
 } = require('./lib/ollama');
+const { generate: claudeGenerate, DEFAULT_MODEL: CLAUDE_DEFAULT_MODEL } = require('./lib/claude');
 const { getGitDiffForCommit: getGitDiffForCommitLib } = require('./lib/gitDiff');
 const {
   parseStashList: parseStashListLib,
@@ -516,6 +518,20 @@ async function createBranch(dirPath, branchName, checkout = true) {
     } else {
       await runInDir(dirPath, 'git', ['branch', name]);
     }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Create branch failed' };
+  }
+}
+
+/** Create a new branch starting from an existing ref (branch or commit) and check it out. */
+async function createBranchFrom(dirPath, newBranchName, fromRef) {
+  const name = (newBranchName || '').trim();
+  const ref = (fromRef || '').trim();
+  if (!name) return { ok: false, error: 'Branch name is required' };
+  if (!ref) return { ok: false, error: 'Source branch or ref is required' };
+  try {
+    await runInDir(dirPath, 'git', ['checkout', '-b', name, ref]);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Create branch failed' };
@@ -1462,7 +1478,8 @@ function createWindow() {
     win.maximize();
   }
 
-  win.loadFile(path.join(__dirname, '..', 'src-renderer', 'index.html'));
+  // Vue + Vite renderer is the default (built to dist-renderer)
+  win.loadFile(path.join(__dirname, '..', 'dist-renderer', 'index.html'));
   win.once('ready-to-show', () => win.show());
 
   let saveBoundsTimeout;
@@ -1752,27 +1769,53 @@ app.whenReady().then(() => {
     getStore().set('ollamaModel', typeof model === 'string' ? model : DEFAULT_MODEL);
     return null;
   });
+  ipcMain.handle('rm-get-claude-settings', () => ({
+    apiKey: getStore().get('claudeApiKey') || '',
+    model: getStore().get('claudeModel') || CLAUDE_DEFAULT_MODEL,
+  }));
+  ipcMain.handle('rm-set-claude-settings', (_e, apiKey, model) => {
+    getStore().set('claudeApiKey', typeof apiKey === 'string' ? apiKey : '');
+    getStore().set('claudeModel', typeof model === 'string' ? model : CLAUDE_DEFAULT_MODEL);
+    return null;
+  });
+  ipcMain.handle('rm-get-ai-provider', () => getStore().get('aiProvider') || 'ollama');
+  ipcMain.handle('rm-set-ai-provider', (_e, provider) => {
+    const v = provider === 'claude' ? 'claude' : 'ollama';
+    getStore().set('aiProvider', v);
+    return null;
+  });
+  async function aiGenerate(prompt) {
+    const provider = getStore().get('aiProvider') || 'ollama';
+    if (provider === 'claude') {
+      const apiKey = getStore().get('claudeApiKey') || '';
+      const model = getStore().get('claudeModel') || CLAUDE_DEFAULT_MODEL;
+      if (apiKey.trim()) return claudeGenerate(apiKey, model, prompt);
+    }
+    const { baseUrl, model } = getStore().get('ollamaBaseUrl') != null
+      ? { baseUrl: getStore().get('ollamaBaseUrl'), model: getStore().get('ollamaModel') }
+      : { baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
+    return ollamaGenerate(baseUrl, model, prompt);
+  }
   ipcMain.handle('rm-ollama-list-models', async (_e, baseUrl) => {
     const url = typeof baseUrl === 'string' && baseUrl.trim() ? baseUrl.trim() : getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
     return ollamaListModels(url, undefined, { onlyGenerate: true });
   });
   ipcMain.handle('rm-ollama-generate-commit-message', async (_e, dirPath) => {
-    const { baseUrl, model } = getStore().get('ollamaBaseUrl') != null
-      ? { baseUrl: getStore().get('ollamaBaseUrl'), model: getStore().get('ollamaModel') }
-      : { baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
     const diff = await getGitDiffForCommit(dirPath);
     const prompt = buildCommitMessagePrompt(diff);
-    const result = await ollamaGenerate(baseUrl, model, prompt);
+    const result = await aiGenerate(prompt);
     return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
   });
   ipcMain.handle('rm-ollama-generate-release-notes', async (_e, dirPath, sinceTag) => {
-    const { baseUrl, model } = getStore().get('ollamaBaseUrl') != null
-      ? { baseUrl: getStore().get('ollamaBaseUrl'), model: getStore().get('ollamaModel') }
-      : { baseUrl: DEFAULT_BASE_URL, model: DEFAULT_MODEL };
     const commitsResult = await getCommitsSinceTag(dirPath, sinceTag || null);
     const commits = commitsResult.ok && commitsResult.commits ? commitsResult.commits : [];
     const prompt = buildReleaseNotesPrompt(commits);
-    const result = await ollamaGenerate(baseUrl, model, prompt);
+    const result = await aiGenerate(prompt);
+    return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
+  });
+  ipcMain.handle('rm-ollama-suggest-test-fix', async (_e, testScriptName, stdout, stderr) => {
+    const prompt = buildTestFixPrompt(testScriptName || 'test', stdout || '', stderr || '');
+    const result = await aiGenerate(prompt);
     return result.ok ? { ok: true, text: result.text } : { ok: false, error: result.error };
   });
   ipcMain.handle('rm-get-git-status', (_e, dirPath) => getGitStatus(dirPath));
@@ -1785,6 +1828,7 @@ app.whenReady().then(() => {
   ipcMain.handle('rm-get-branches', (_e, dirPath) => getBranches(dirPath));
   ipcMain.handle('rm-checkout-branch', (_e, dirPath, branchName) => checkoutBranch(dirPath, branchName));
   ipcMain.handle('rm-create-branch', (_e, dirPath, branchName, checkout) => createBranch(dirPath, branchName, checkout !== false));
+  ipcMain.handle('rm-create-branch-from', (_e, dirPath, newName, fromRef) => createBranchFrom(dirPath, newName, fromRef));
   ipcMain.handle('rm-git-push', (_e, dirPath) => gitPushWithUpstream(dirPath));
   ipcMain.handle('rm-git-push-force', (_e, dirPath, withLease) => gitPushForce(dirPath, !!withLease));
   ipcMain.handle('rm-git-merge', (_e, dirPath, branchName, options) => gitMerge(dirPath, branchName, options || {}));
@@ -1880,6 +1924,7 @@ app.whenReady().then(() => {
   });
   function openInEditorImpl(targetPath) {
     const { spawn: spawnProc } = require('child_process');
+    const preferred = getPreference('preferredEditor') || '';
     const tryEditor = (cmd, args) =>
       new Promise((resolve) => {
         const child = spawnProc(cmd, args || [targetPath], { detached: true, stdio: 'ignore', shell: true });
@@ -1888,9 +1933,17 @@ app.whenReady().then(() => {
         setTimeout(() => resolve(true), 500);
       });
     return (async () => {
+      if (preferred === 'cursor') {
+        if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
+        return { ok: false, error: 'Cursor not found in PATH. Install Cursor and add the shell command (Cursor: Install "cursor" command).' };
+      }
+      if (preferred === 'code') {
+        if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
+        return { ok: false, error: 'VS Code not found in PATH. Install VS Code and add the "code" command to PATH.' };
+      }
       if (await tryEditor('cursor', [targetPath])) return { ok: true, editor: 'cursor' };
       if (await tryEditor('code', [targetPath])) return { ok: true, editor: 'code' };
-      return { ok: false, error: 'Cursor or VS Code not found in PATH. Install one and ensure the shell command is available.' };
+      return { ok: false, error: 'Cursor or VS Code not found in PATH. Install one and ensure the shell command is available, or set Preferred editor in Settings.' };
     })();
   }
   ipcMain.handle('rm-open-in-editor', (_e, dirPath) => {

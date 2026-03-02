@@ -48,6 +48,13 @@ describe('gitOutputParsers', () => {
       expect(result[1].index).toBe('stash@{1}');
       expect(result[1].message).toBe('On feature');
     });
+
+    it('uses match[2] when line matches stash format (message can be empty)', () => {
+      const result = parseStashList('stash@{0} ');
+      expect(result).toHaveLength(1);
+      expect(result[0].index).toBe('stash@{0}');
+      expect(result[0].message).toBe('');
+    });
   });
 
   /** Parses `git branch -r` output; used to populate "From remote" and delete-remote branch list. */
@@ -116,6 +123,14 @@ describe('gitOutputParsers', () => {
       expect(result[0]).toEqual({ sha: 'onlysha', subject: '', author: '', date: '' });
     });
 
+    it('uses empty string for empty subject (parts[1] is "")', () => {
+      const nul = '\0';
+      const result = parseCommitLog(`abc${nul}${nul}Author${nul}Date`);
+      expect(result).toHaveLength(1);
+      expect(result[0].subject).toBe('');
+      expect(result[0].author).toBe('Author');
+    });
+
     it('handles subject with colons and special characters', () => {
       const nul = '\0';
       const out = `abc${nul}feat(scope): add thing${nul}Dev${nul}2024-02-01`;
@@ -156,6 +171,14 @@ describe('gitOutputParsers', () => {
       const result = parseRemotes(out);
       expect(result).toHaveLength(1);
       expect(result[0].url).toBe('https://only-push');
+    });
+
+    it('returns empty url when role is neither fetch nor push', () => {
+      const out = 'origin  https://example.com (unknown)';
+      const result = parseRemotes(out);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('origin');
+      expect(result[0].url).toBe('');
     });
   });
 

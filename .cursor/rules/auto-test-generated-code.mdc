@@ -1,0 +1,38 @@
+# Auto-create tests for generated code
+
+## Rule
+
+When you **generate or add new code** (functions, modules, components, composables, or features), you **must** create or update tests for that code in the same change.
+
+## Applies when
+
+- Adding a new JavaScript/TypeScript module, function, or class
+- Adding a new Vue component, composable, or store
+- Adding a new feature or user-facing behavior
+- Modifying existing code in a way that changes behavior (add or extend tests to cover the change)
+
+## Test locations
+
+- **Main process (Node):** `src-main/lib/**/*.js` → tests in `src-main/lib/__tests__/*.test.js` (Jest)
+- **Vue renderer:** `renderer-vue/src/**/*.{js,vue}` → tests in `renderer-vue/src/**/*.spec.js` (Vitest)
+
+## What to do
+
+1. **New file:** Create a corresponding test file (e.g. `foo.js` → `__tests__/foo.test.js` or `foo.spec.js` next to/near the source).
+2. **New export/function:** Add test cases that cover the new behavior (happy path and important edge cases).
+3. **New component:** Add a spec that mounts the component and asserts key behavior and emissions.
+4. **Behavior change:** Update or add tests so the new behavior is covered and existing tests still pass.
+
+## Exceptions
+
+- Purely config or static data changes (e.g. adding a string constant with no logic)
+- One-line or trivial fixes that don’t add new behavior
+- When the user explicitly asks to skip tests for a change
+
+## Checklist
+
+Before considering a code-generation task complete:
+
+- [ ] New or changed code has corresponding test file or test cases
+- [ ] `npm run test` (or `npm run test:main` / `npm run test:vue`) passes
+- [ ] Coverage thresholds are still met if the project enforces them
