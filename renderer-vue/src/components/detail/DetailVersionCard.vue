@@ -128,6 +128,7 @@ import { useModals } from '../../composables/useModals';
 import { useCollapsible } from '../../composables/useCollapsible';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
 import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
+import { useNotifications } from '../../composables/useNotifications';
 import { toPlainProjects } from '../../utils/plainProjects';
 
 const props = defineProps({ info: { type: Object, default: null } });
@@ -139,6 +140,7 @@ const modals = useModals();
 const { runWithOverlay } = useLongActionOverlay();
 const { collapsed, toggle } = useCollapsible('version');
 const { aiGenerateAvailable } = useAiGenerateAvailable();
+const notifications = useNotifications();
 
 function openDocs(docKey) {
   modals.openModal('docs', { docKey });
@@ -375,16 +377,21 @@ function release(bump) {
         releaseStatus.value = msg;
         releaseStatusSuccess.value = true;
         if (result.actionsUrl) actionsUrl.value = result.actionsUrl;
+        notifications.add({ title: 'Release created', message: result.tag ? `Tag ${result.tag} created and pushed.` : msg, type: 'success' });
         emit('refresh');
         loadReleasedVersions();
       } else {
-        releaseStatus.value = result?.error || 'Release failed.';
+        const err = result?.error || 'Release failed.';
+        releaseStatus.value = err;
         releaseStatusSuccess.value = false;
+        notifications.add({ title: 'Release failed', message: err, type: 'error' });
       }
     })
     .catch((e) => {
-      releaseStatus.value = e?.message || 'Release failed.';
+      const err = e?.message || 'Release failed.';
+      releaseStatus.value = err;
       releaseStatusSuccess.value = false;
+      notifications.add({ title: 'Release failed', message: err, type: 'error' });
     });
 }
 
@@ -398,12 +405,15 @@ function tagAndPush() {
     .then(() => {
       releaseStatus.value = 'Tag pushed.';
       releaseStatusSuccess.value = true;
+      notifications.add({ title: 'Tag pushed', message: 'Tag created and pushed.', type: 'success' });
       emit('refresh');
       loadReleasedVersions();
     })
     .catch((e) => {
-      releaseStatus.value = e?.message || 'Failed.';
+      const err = e?.message || 'Failed.';
+      releaseStatus.value = err;
       releaseStatusSuccess.value = false;
+      notifications.add({ title: 'Tag push failed', message: err, type: 'error' });
     });
 }
 

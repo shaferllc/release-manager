@@ -6,7 +6,7 @@
       <li
         v-for="(e, i) in entries"
         :key="i"
-        class="py-1 border-b border-rm-border/50 cursor-pointer hover:text-rm-accent truncate"
+        class="py-1 border-b border-rm-border cursor-pointer hover:text-rm-accent truncate"
         :title="e.message"
         @click="checkout(e)"
       >

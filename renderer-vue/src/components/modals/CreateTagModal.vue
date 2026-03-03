@@ -94,7 +94,7 @@
                 v-for="c in filteredRefCommits"
                 :key="c.sha"
                 type="button"
-                class="create-tag-commit-row w-full text-left text-xs px-2 py-2 border-0 border-b border-rm-border/50 bg-transparent hover:bg-rm-accent/15 text-rm-text"
+                class="create-tag-commit-row w-full text-left text-xs px-2 py-2 border-0 border-b border-rm-border bg-transparent hover:bg-rm-accent/15 text-rm-text"
                 @click="selectRefCommit(c.sha)"
               >
                 <span class="font-mono text-rm-muted">{{ c.sha }}</span>
@@ -124,6 +124,7 @@
 import { ref, computed, watch, onMounted } from 'vue';
 import { useApi } from '../../composables/useApi';
 import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
+import { useNotifications } from '../../composables/useNotifications';
 
 const props = defineProps({
   dirPath: { type: String, default: '' },
@@ -135,6 +136,7 @@ const emit = defineEmits(['close', 'created']);
 
 const api = useApi();
 const { aiGenerateAvailable } = useAiGenerateAvailable();
+const notifications = useNotifications();
 
 const tagName = ref('');
 const tagMessage = ref('');
@@ -264,10 +266,13 @@ async function submit() {
       tagMessage.value?.trim() || undefined,
       tagRef.value?.trim() || undefined
     );
+    notifications.add({ title: 'Tag created', message: name, type: 'success' });
     emit('created');
     emit('close');
   } catch (e) {
-    error.value = e?.message || 'Create tag failed.';
+    const err = e?.message || 'Create tag failed.';
+    error.value = err;
+    notifications.add({ title: 'Create tag failed', message: err, type: 'error' });
   } finally {
     submitting.value = false;
   }

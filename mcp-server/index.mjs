@@ -77,7 +77,7 @@ async function main() {
     'release_manager_call',
     {
       title: 'Call Release Manager API',
-      description: `Call any Release Manager API method. Requires the Release Manager app to be running with API server enabled (default ${API_BASE}). Examples: getProjects (params: []), getBranches (params: [dirPath]), getProjectInfo (params: [dirPath]). Use release_manager_list_methods to see all methods.`,
+      description: `Call any Release Manager API method. Requires the Release Manager app to be running with API server enabled (default ${API_BASE}). Examples: getProjects (params: []), getBranches (params: [dirPath]), getProjectInfo (params: [dirPath]), getLaunchAtLogin (params: []), setPreference (params: [key, value]), exportSettingsToFile (params: []), getGeminiSettings (params: []). AI providers: ollama, claude, openai, gemini. Settings: get/set LaunchAtLogin, ConfirmBeforeQuit, Proxy, AlwaysOnTop, MinimizeToTray; exportSettings, importSettings, resetSettings; exportSettingsToFile, importSettingsFromFile. Use release_manager_list_methods to see all methods and docs.`,
       inputSchema: z.object({
         method: z.string().describe('API method name (e.g. getProjects, getBranches, getProjectInfo)'),
         params: z

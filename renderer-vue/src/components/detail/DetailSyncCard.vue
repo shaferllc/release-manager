@@ -48,12 +48,14 @@ import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
 import { useCollapsible } from '../../composables/useCollapsible';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
+import { useNotifications } from '../../composables/useNotifications';
 
 const props = defineProps({ info: { type: Object, default: null } });
 
 const store = useAppStore();
 const api = useApi();
 const modals = useModals();
+const notifications = useNotifications();
 const { collapsed, toggle } = useCollapsible('sync');
 const { runWithOverlay } = useLongActionOverlay();
 
@@ -98,9 +100,17 @@ function openChooseVersion() {
       if (assets.length === 1) {
         const a = assets[0];
         api.downloadAsset?.(a.browser_download_url, a.name).then((r) => {
-          if (r?.ok) syncStatus.value = `Saved to ${r.filePath}`;
-          else if (!r?.canceled) syncStatus.value = r?.error || 'Download failed';
-        }).catch(() => { syncStatus.value = 'Download failed.'; });
+          if (r?.ok) {
+            syncStatus.value = `Saved to ${r.filePath}`;
+            notifications.add({ title: 'Download saved', message: r.filePath ? `Saved to ${r.filePath}` : a.name, type: 'success' });
+          } else if (!r?.canceled) {
+            syncStatus.value = r?.error || 'Download failed';
+            notifications.add({ title: 'Download failed', message: r?.error || 'Download failed', type: 'error' });
+          }
+        }).catch(() => {
+          syncStatus.value = 'Download failed.';
+          notifications.add({ title: 'Download failed', message: 'Download failed.', type: 'error' });
+        });
         return;
       }
       modals.openModal('pickAsset', {
@@ -118,8 +128,11 @@ async function sync() {
   try {
     await runWithOverlay(api.syncFromRemote(path));
     syncStatus.value = 'Synced.';
+    notifications.add({ title: 'Sync complete', message: 'Git fetch finished.', type: 'success' });
   } catch (e) {
-    syncStatus.value = e?.message || 'Sync failed.';
+    const err = e?.message || 'Sync failed.';
+    syncStatus.value = err;
+    notifications.add({ title: 'Sync failed', message: err, type: 'error' });
   }
 }
 
@@ -130,11 +143,19 @@ async function downloadLatest() {
   try {
     const remoteUrl = props.info?.gitRemote || '';
     const result = await runWithOverlay(api.downloadLatestRelease(remoteUrl));
-    if (result?.ok && result?.filePath) syncStatus.value = `Saved to ${result.filePath}`;
-    else if (result?.canceled) syncStatus.value = 'Canceled.';
-    else syncStatus.value = result?.error || 'Download started.';
+    if (result?.ok && result?.filePath) {
+      syncStatus.value = `Saved to ${result.filePath}`;
+      notifications.add({ title: 'Download saved', message: `Saved to ${result.filePath}`, type: 'success' });
+    } else if (result?.canceled) {
+      syncStatus.value = 'Canceled.';
+    } else {
+      syncStatus.value = result?.error || 'Download started.';
+      if (result?.error) notifications.add({ title: 'Download failed', message: result.error, type: 'error' });
+    }
   } catch (e) {
-    syncStatus.value = e?.message || 'Download failed.';
+    const err = e?.message || 'Download failed.';
+    syncStatus.value = err;
+    notifications.add({ title: 'Download failed', message: err, type: 'error' });
   }
 }
 

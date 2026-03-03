@@ -5,7 +5,7 @@
       <button type="button" class="btn-primary btn-compact text-xs" @click="openCreateTagModal">Create tag</button>
     </div>
     <ul v-if="tags.length" class="list-none m-0 p-0 space-y-1 text-sm max-h-48 overflow-y-auto">
-      <li v-for="t in tags" :key="t" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border/50">
+      <li v-for="t in tags" :key="t" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
         <span class="truncate text-rm-text font-mono">{{ t }}</span>
         <span class="flex gap-1 shrink-0">
           <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0" @click="pushTag(t)">Push</button>

@@ -1,6 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
+import { ref } from 'vue';
+
+vi.mock('../composables/useLicense', () => ({ useLicense: () => ({ hasLicense: ref(true) }) }));
+
 import Sidebar from './Sidebar.vue';
 
 describe('Sidebar', () => {
@@ -128,7 +132,8 @@ describe('Sidebar', () => {
     const wrapper = mount(Sidebar, {
       global: { plugins: [pinia] },
     });
-    await wrapper.find('.batch-bar-buttons .btn-primary').trigger('click');
+    const patchBtn = wrapper.find('.batch-bar-buttons .btn-primary');
+    await patchBtn.trigger('click');
     expect(releaseSpy).not.toHaveBeenCalled();
   });
 

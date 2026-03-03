@@ -78,4 +78,18 @@ describe('useCollapsible', () => {
     await wrapper.find('button').trigger('click');
     expect(wrapper.find('.collapsed').text()).toBe('true');
   });
+
+  it('toggle uses empty object when getPreference returns non-object', async () => {
+    globalThis.window.releaseManager.getPreference = vi.fn().mockResolvedValue('not-an-object');
+    globalThis.window.releaseManager.setPreference = vi.fn().mockResolvedValue();
+    const wrapper = mount(TestComponent, {
+      global: { plugins: [createPinia()] },
+    });
+    await wrapper.find('button').trigger('click');
+    expect(wrapper.find('.collapsed').text()).toBe('true');
+    expect(globalThis.window.releaseManager.setPreference).toHaveBeenCalledWith(
+      'collapsedSections',
+      expect.objectContaining({ git: true })
+    );
+  });
 });

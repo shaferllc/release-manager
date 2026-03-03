@@ -20,6 +20,7 @@
     </main>
     <ModalHost @refresh="onModalRefresh" />
     <FeatureFlagsModal v-if="showFeatureFlagsModal" />
+    <AppToasts />
     <LoadingBar />
     <LoadingOverlay />
   </div>
@@ -49,6 +50,7 @@ import { useLicense } from './composables/useLicense';
 import * as debug from './utils/debug';
 import { toPlainProjects } from './utils/plainProjects';
 import FeatureFlagsModal from './components/modals/FeatureFlagsModal.vue';
+import AppToasts from './components/AppToasts.vue';
 
 const store = useAppStore();
 const featureFlags = useFeatureFlags();
@@ -296,7 +298,7 @@ onMounted(async () => {
     const [accent, fontSize, radius, reducedMotion, reduceTransparency, highContrast] = await Promise.all([
       api.getPreference?.('appearanceAccent').catch(() => 'green'),
       api.getPreference?.('appearanceFontSize').catch(() => 'comfortable'),
-      api.getPreference?.('appearanceRadius').catch(() => 'rounded'),
+      api.getPreference?.('appearanceRadius').catch(() => 'sharp'),
       api.getPreference?.('appearanceReducedMotion').catch(() => false),
       api.getPreference?.('appearanceReduceTransparency').catch(() => false),
       api.getPreference?.('appearanceHighContrast').catch(() => false),
@@ -310,9 +312,39 @@ onMounted(async () => {
     el.setAttribute('data-high-contrast', highContrast ? 'true' : 'false');
   } catch (_) {}
   window.addEventListener('keydown', handleShortcut);
+
+  // Detect all problems: report renderer errors to crash ingestion (when enabled in main)
+  function reportRendererError(message, stackTrace, payload = {}) {
+    if (typeof api.sendCrashReport !== 'function') return;
+    api.sendCrashReport({
+      message: typeof message === 'string' ? message : (message && message.message) || String(message),
+      stack_trace: stackTrace || (message && message.stack),
+      payload: { process: 'renderer', ...payload },
+    }).catch(() => {});
+  }
+  const onWindowError = (event) => {
+    const msg = event?.message || event;
+    const stack = event?.error?.stack;
+    reportRendererError(msg, stack, { type: 'error', source: event?.filename, lineno: event?.lineno, colno: event?.colno });
+  };
+  const onUnhandledRejection = (event) => {
+    const reason = event?.reason;
+    const msg = reason?.message ?? (typeof reason === 'string' ? reason : String(reason));
+    const stack = reason?.stack;
+    reportRendererError(msg, stack, { type: 'unhandledrejection' });
+  };
+  window.addEventListener('error', onWindowError);
+  window.addEventListener('unhandledrejection', onUnhandledRejection);
+  window.__releaseManagerRemoveErrorHandlers = () => {
+    window.removeEventListener('error', onWindowError);
+    window.removeEventListener('unhandledrejection', onUnhandledRejection);
+  };
 });
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleShortcut);
+  if (typeof window.__releaseManagerRemoveErrorHandlers === 'function') {
+    window.__releaseManagerRemoveErrorHandlers();
+  }
 });
 </script>

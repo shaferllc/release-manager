@@ -28,7 +28,7 @@
           </nav>
         </aside>
         <button type="button" class="detail-sidebar-resizer shrink-0 border-0 bg-transparent hover:bg-rm-accent/20 active:bg-rm-accent/30 transition-colors self-stretch" aria-label="Resize sidebar" @pointerdown="onWpSidebarResize" />
-        <div class="detail-wp-content flex-1 min-w-0 overflow-auto p-4 border-l border-rm-border/50">
+        <div class="detail-wp-content flex-1 min-w-0 overflow-auto p-4 border-l border-rm-border">
           <template v-if="selectedSection === 'overview'">
             <h3 class="text-sm font-semibold text-rm-text mb-2">Overview</h3>
             <p class="text-sm text-rm-muted m-0 mb-3">This project is detected as a WordPress site (wp-config.php or wp-includes present).</p>

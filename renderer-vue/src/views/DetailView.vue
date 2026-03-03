@@ -81,7 +81,6 @@ import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
-import { useLicense } from '../composables/useLicense';
 import DetailHeader from '../components/detail/DetailHeader.vue';
 import DetailDashboardCard from '../components/detail/DetailDashboardCard.vue';
 import DetailVersionCard from '../components/detail/DetailVersionCard.vue';
@@ -103,7 +102,6 @@ defineEmits(['refresh']);
 const store = useAppStore();
 const api = useApi();
 const { isTabEnabled } = useFeatureFlags();
-const { isTabAllowed } = useLicense();
 const info = ref(null);
 const error = ref(null);
 
@@ -138,13 +136,14 @@ const baseTabs = [
   { id: 'ftp', label: 'FTP', icon: tabIcons.ftp },
   { id: 'ssh', label: 'SSH', icon: tabIcons.ssh },
 ];
+/* Tab visibility: feature flags only. When user enables a tab in Hidden options, it shows. License still gates in-tab features (e.g. AI, batch). */
 const visibleTabs = computed(() => {
-  const t = baseTabs.filter((tab) => isTabEnabled(tab.id) && isTabAllowed(tab.id));
-  if (isTabEnabled('wordpress') && isTabAllowed('wordpress') && info.value?.hasWordPress) t.push({ id: 'wordpress', label: 'WordPress', icon: tabIcons.wordpress });
-  if (isTabEnabled('composer') && isTabAllowed('composer') && info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: tabIcons.composer });
-  if (isTabEnabled('tests') && isTabAllowed('tests') && showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: tabIcons.tests });
-  if (isTabEnabled('coverage') && isTabAllowed('coverage') && showCoverageTab.value) t.push({ id: 'coverage', label: 'Coverage', icon: tabIcons.coverage });
-  if (isTabEnabled('api') && isTabAllowed('api')) t.push({ id: 'api', label: 'API', icon: tabIcons.api });
+  const t = baseTabs.filter((tab) => isTabEnabled(tab.id));
+  if (isTabEnabled('wordpress') && info.value?.hasWordPress) t.push({ id: 'wordpress', label: 'WordPress', icon: tabIcons.wordpress });
+  if (isTabEnabled('composer') && info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: tabIcons.composer });
+  if (isTabEnabled('tests') && showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: tabIcons.tests });
+  if (isTabEnabled('coverage') && showCoverageTab.value) t.push({ id: 'coverage', label: 'Coverage', icon: tabIcons.coverage });
+  if (isTabEnabled('api')) t.push({ id: 'api', label: 'API', icon: tabIcons.api });
   return t;
 });
 

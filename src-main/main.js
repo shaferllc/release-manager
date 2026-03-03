@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen, Menu, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -35,6 +35,7 @@ const {
 } = require('./lib/ollama');
 const { generate: claudeGenerate, DEFAULT_MODEL: CLAUDE_DEFAULT_MODEL } = require('./lib/claude');
 const { generate: openaiGenerate, DEFAULT_MODEL: OPENAI_DEFAULT_MODEL } = require('./lib/openai');
+const { generate: geminiGenerate, DEFAULT_MODEL: GEMINI_DEFAULT_MODEL } = require('./lib/gemini');
 const {
   parseStashList: parseStashListLib,
   parseRemoteBranches: parseRemoteBranchesLib,
@@ -68,6 +69,8 @@ const { createSshManager } = require('./services/ssh');
 const { createDialogsService } = require('./services/dialogs');
 const { createLicenseServer } = require('./lib/licenseServer');
 const appSettings = require('./lib/appSettings');
+const { sendCrashReport: sendCrashReportToIngestion } = require('./lib/crashReports');
+const { track: telemetryTrack, flush: telemetryFlush, startFlushTimer: telemetryStartFlushTimer, stopFlushTimer: telemetryStopFlushTimer } = require('./lib/telemetry');
 const { SMTPServer } = require(path.join(appRoot, 'node_modules', 'smtp-server'));
 const { simpleParser } = require(path.join(appRoot, 'node_modules', 'mailparser'));
 const localtunnel = require(path.join(appRoot, 'node_modules', 'localtunnel'));
@@ -592,7 +595,8 @@ function saveWindowBounds(win) {
   } catch (_) {}
 }
 
-function createWindow() {
+function createWindow(opts = {}) {
+  const telemetrySource = opts.telemetrySource || 'launch';
   const saved = getStore().get('windowBounds');
   const clamped = clampBoundsToDisplay(saved);
   const width = clamped?.width ?? DEFAULT_WINDOW_WIDTH;
@@ -621,7 +625,10 @@ function createWindow() {
 
   // Vue + Vite renderer is the default (built to dist-renderer)
   win.loadFile(path.join(__dirname, '..', 'dist-renderer', 'index.html'));
-  win.once('ready-to-show', () => win.show());
+  win.once('ready-to-show', () => {
+    win.show();
+    telemetryTrack(getPreference, 'app.opened', { source: telemetrySource });
+  });
 
   let saveBoundsTimeout;
   function scheduleSaveBounds() {
@@ -754,6 +761,11 @@ app.whenReady().then(() => {
       const apiKey = getStore().get('openaiApiKey') || '';
       const model = getStore().get('openaiModel') || OPENAI_DEFAULT_MODEL;
       return openaiGenerate(apiKey, model, prompt);
+    }
+    if (provider === 'gemini') {
+      const apiKey = getStore().get('geminiApiKey') || '';
+      const model = getStore().get('geminiModel') || GEMINI_DEFAULT_MODEL;
+      return geminiGenerate(apiKey, model, prompt);
     }
     const baseUrl = getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
     const model = getStore().get('ollamaModel') || DEFAULT_MODEL;
@@ -899,6 +911,15 @@ app.whenReady().then(() => {
       getStore().set('openaiModel', model || '');
       return null;
     },
+    getGeminiSettings: () => ({
+      apiKey: getStore().get('geminiApiKey') || '',
+      model: getStore().get('geminiModel') || GEMINI_DEFAULT_MODEL,
+    }),
+    setGeminiSettings: (apiKey, model) => {
+      getStore().set('geminiApiKey', apiKey || '');
+      getStore().set('geminiModel', model || '');
+      return null;
+    },
     getAiProvider: () => getStore().get('aiProvider') || 'ollama',
     setAiProvider: (provider) => {
       getStore().set('aiProvider', provider || 'ollama');
@@ -908,6 +929,7 @@ app.whenReady().then(() => {
       const provider = getStore().get('aiProvider') || 'ollama';
       if (provider === 'openai') return !!((getStore().get('openaiApiKey') || '').trim());
       if (provider === 'claude') return !!((getStore().get('claudeApiKey') || '').trim());
+      if (provider === 'gemini') return !!((getStore().get('geminiApiKey') || '').trim());
       return true;
     },
     ollamaListModels: async (baseUrl) => ollamaListModels(baseUrl || getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL),
@@ -1276,6 +1298,7 @@ app.whenReady().then(() => {
       const { canceled, filePath } = await dialogsService.showSaveDialog({ defaultPath: 'shipwell-settings.json', title: 'Export settings' });
       if (canceled || !filePath) return { ok: false, canceled: true };
       fs.writeFileSync(filePath, result.data);
+      telemetryTrack(getPreference, 'feature.export_used', { format: 'json', feature: 'settings_export' });
       return { ok: true, filePath };
     },
     importSettingsFromFile: async (replace) => {
@@ -1289,6 +1312,40 @@ app.whenReady().then(() => {
     getApiMethodDoc: (methodName) => getApiMethodDocFromModule(methodName),
     getSampleResponse: (methodName) => getSampleResponseForMethod(methodName),
     invokeApi: (method, params) => runApiMethod(method, params),
+    sendCrashReport: async (options) => sendCrashReportToIngestion(getPreference, options || {}),
+    sendTelemetry: (event, properties) => telemetryTrack(getPreference, event, properties),
+    flushTelemetry: () => telemetryFlush(getPreference),
+    showSystemNotification: (title, body) => {
+      if (!Notification.isSupported()) return null;
+      const enabled = getPreference('notificationsEnabled');
+      if (enabled === false) return null;
+      const onlyWhenNotFocused = getPreference('notificationsOnlyWhenNotFocused');
+      if (onlyWhenNotFocused) {
+        const win = BrowserWindow.getAllWindows()[0] || null;
+        if (win && !win.isDestroyed() && win.isFocused()) return null;
+      }
+      const playSound = getPreference('notificationSound');
+      const n = new Notification({
+        title: title || 'Release Manager',
+        body: body || '',
+        silent: !playSound,
+      });
+      n.on('click', () => {
+        const w = BrowserWindow.getAllWindows()[0] || null;
+        if (w && !w.isDestroyed()) w.focus();
+      });
+      n.show();
+      return null;
+    },
+    runRendererTest: async (filePath) => {
+      const rendererVueDir = path.join(appRoot, 'renderer-vue');
+      if (filePath && typeof filePath === 'string' && filePath.trim()) {
+        const result = await runInDirCapture(rendererVueDir, 'npx', ['vitest', 'run', filePath.trim(), '--reporter=verbose']);
+        return result;
+      }
+      const result = await runInDirCapture(rendererVueDir, 'npm', ['run', 'test:run', '--', '--reporter=verbose']);
+      return result;
+    },
   };
 
   // Helpers used by apiRegistry (must be defined after getProjectTestScripts etc.)
@@ -1536,6 +1593,8 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-set-claude-settings': 'setClaudeSettings',
     'rm-get-openai-settings': 'getOpenAISettings',
     'rm-set-openai-settings': 'setOpenAISettings',
+    'rm-get-gemini-settings': 'getGeminiSettings',
+    'rm-set-gemini-settings': 'setGeminiSettings',
     'rm-get-ai-provider': 'getAiProvider',
     'rm-set-ai-provider': 'setAiProvider',
     'rm-get-ai-generate-available': 'getAiGenerateAvailable',
@@ -1710,8 +1769,13 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-set-always-on-top': 'setAlwaysOnTop',
     'rm-get-minimize-to-tray': 'getMinimizeToTray',
     'rm-set-minimize-to-tray': 'setMinimizeToTray',
-    'rm-export-settings-to-file': 'exportSettingsToFile',
+'rm-export-settings-to-file': 'exportSettingsToFile',
     'rm-import-settings-from-file': 'importSettingsFromFile',
+    'rm-send-crash-report': 'sendCrashReport',
+    'rm-send-telemetry': 'sendTelemetry',
+    'rm-flush-telemetry': 'flushTelemetry',
+    'rm-show-system-notification': 'showSystemNotification',
+    'rm-run-renderer-test': 'runRendererTest',
   };
   for (const [channel, methodName] of Object.entries(IPC_TO_METHOD)) {
     ipcMain.handle(channel, (_e, ...args) => {
@@ -1733,6 +1797,30 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
 
   createWindow();
   debug.log(getStore, 'app', 'window created');
+  telemetryStartFlushTimer(getPreference);
+
+  // Detect all problems: send crash reports on uncaught errors (when enabled)
+  function reportMainError(message, stackTrace, payload = {}) {
+    if (!getPreference('crashReports') || !getPreference('crashReportEndpoint')) return;
+    sendCrashReportToIngestion(getPreference, {
+      message: typeof message === 'string' ? message : (message && message.message) || String(message),
+      stack_trace: stackTrace || (message && message.stack),
+      payload: { process: 'main', ...payload },
+    }).catch(() => {});
+  }
+  process.on('uncaughtException', (err) => {
+    const msg = err?.message || String(err);
+    const stack = err?.stack;
+    debug.log(getStore, 'app', 'uncaughtException', msg, stack);
+    reportMainError(msg, stack, { type: 'uncaughtException' });
+    process.exit(1);
+  });
+  process.on('unhandledRejection', (reason, promise) => {
+    const msg = reason?.message || (typeof reason === 'string' ? reason : String(reason));
+    const stack = reason?.stack;
+    debug.log(getStore, 'app', 'unhandledRejection', msg, stack);
+    reportMainError(msg, stack, { type: 'unhandledRejection' });
+  });
 });
 
 nativeTheme.on('updated', () => {
@@ -1745,6 +1833,10 @@ nativeTheme.on('updated', () => {
 
 let confirmQuitHandled = false;
 app.on('before-quit', (e) => {
+  if (!confirmQuitHandled) {
+    telemetryStopFlushTimer();
+    telemetryFlush(getPreference).catch(() => {});
+  }
   if (!confirmQuitHandled && appSettings.getConfirmBeforeQuit()) {
     e.preventDefault();
     confirmQuitHandled = true;
@@ -1787,5 +1879,6 @@ app.on('before-quit', (e) => {
 });
 app.on('window-all-closed', () => app.quit());
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) createWindow();
+  if (BrowserWindow.getAllWindows().length === 0) createWindow({ telemetrySource: 'dock' });
+  else telemetryTrack(getPreference, 'app.opened', { source: 'dock' });
 });

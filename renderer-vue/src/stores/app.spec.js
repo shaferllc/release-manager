@@ -155,6 +155,96 @@ describe('useAppStore', () => {
     expect(list[1].name || list[1].path).toContain('project-two');
   });
 
+  it('filteredProjects filters by type when project has no type property', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/a', name: 'A' },
+      { path: '/b', name: 'B', type: 'npm' },
+    ]);
+    store.setFilterByType('npm');
+    expect(store.filteredProjects).toHaveLength(1);
+    expect(store.filteredProjects[0].path).toBe('/b');
+  });
+
+  it('filteredProjects filters by tag when project has no tags array', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/a', name: 'A' },
+      { path: '/b', name: 'B', tags: ['v1'] },
+    ]);
+    store.setFilterByTag('v1');
+    expect(store.filteredProjects).toHaveLength(1);
+    expect(store.filteredProjects[0].path).toBe('/b');
+  });
+
+  it('filteredProjects sort uses path when name and path exist for localeCompare', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/z', name: 'Z', starred: true },
+      { path: '/a', name: 'A', starred: true },
+    ]);
+    const list = store.filteredProjects;
+    expect(list[0].name).toBe('A');
+    expect(list[1].name).toBe('Z');
+  });
+
+  it('filteredProjects sort puts starred first when one starred one not', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/b', name: 'B' },
+      { path: '/a', name: 'A', starred: true },
+    ]);
+    const list = store.filteredProjects;
+    expect(list[0].starred).toBe(true);
+    expect(list[0].name).toBe('A');
+    expect(list[1].name).toBe('B');
+  });
+
+  it('filteredProjects sort uses path basename when name missing and path present', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/foo/bar/baz' },
+      { path: '/foo/bar/aaa' },
+    ]);
+    const list = store.filteredProjects;
+    expect(list[0].path).toBe('/foo/bar/aaa');
+    expect(list[1].path).toBe('/foo/bar/baz');
+  });
+
+  it('filteredProjects sort treats missing path as empty name', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { name: 'X' },
+      { path: '/a', name: 'A' },
+    ]);
+    const list = store.filteredProjects;
+    expect(list[0].name).toBe('A');
+    expect(list[1].name).toBe('X');
+  });
+
+  it('filteredProjects sort uses empty string when project has no name and no path', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/a', name: 'A' },
+      {},
+    ]);
+    const list = store.filteredProjects;
+    expect(list[1].path).toBe('/a');
+    expect(list[0]).toEqual({});
+  });
+
+  it('filteredProjects sort is stable when names are equal', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/b', name: 'Same' },
+      { path: '/a', name: 'Same' },
+    ]);
+    const list = store.filteredProjects;
+    expect(list).toHaveLength(2);
+    expect(list[0].name).toBe('Same');
+    expect(list[1].name).toBe('Same');
+  });
+
   it('allTags returns unique sorted tags', () => {
     const store = useAppStore();
     store.setProjects([
@@ -184,6 +274,33 @@ describe('useAppStore', () => {
     expect(store.projects).toHaveLength(1);
     expect(store.projects[0].path).toBe('/b');
     expect(store.selectedPath).toBe('/b');
+  });
+
+  it('removeProject sets selectedPath to null when removing last project', () => {
+    const store = useAppStore();
+    store.setProjects([{ path: '/only', name: 'Only' }]);
+    store.setSelectedPath('/only');
+    store.removeProject('/only');
+    expect(store.projects).toHaveLength(0);
+    expect(store.selectedPath).toBe(null);
+  });
+
+  it('removeProject leaves selectedPath when removing non-selected project', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/a', name: 'A' },
+      { path: '/b', name: 'B' },
+    ]);
+    store.setSelectedPath('/a');
+    store.removeProject('/b');
+    expect(store.selectedPath).toBe('/a');
+  });
+
+  it('selectedProject returns null when selectedPath not in projects', () => {
+    const store = useAppStore();
+    store.setProjects([{ path: '/a', name: 'A' }]);
+    store.setSelectedPath('/missing');
+    expect(store.selectedProject).toBe(null);
   });
 
   it('toggleProjectSelection adds and removes from set', () => {

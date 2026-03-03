@@ -4,13 +4,13 @@
     <div class="aside-header">
       <span class="aside-title">Projects</span>
     </div>
-    <div v-show="store.projects.length > 0" class="project-filters px-3 pt-2 pb-1 border-b border-rm-border">
-      <label class="block text-xs font-medium text-rm-muted mb-1">Type</label>
+    <div v-show="store.projects.length > 0" class="project-filters px-3 pt-3 pb-2 border-b border-rm-border">
+      <label class="block text-[11px] font-medium text-rm-muted uppercase tracking-wider mb-1">Type</label>
       <select v-model="filterType" class="filter-select mb-2">
         <option value="">All types</option>
         <option v-for="t in store.allTypes" :key="t" :value="t">{{ t }}</option>
       </select>
-      <label class="block text-xs font-medium text-rm-muted mb-1">Tag</label>
+      <label class="block text-[11px] font-medium text-rm-muted uppercase tracking-wider mb-1">Tag</label>
       <select v-model="filterTag" class="filter-select">
         <option value="">All tags</option>
         <option v-for="tag in store.allTags" :key="tag" :value="tag">{{ tag }}</option>
@@ -37,7 +37,7 @@
         <li
           v-for="p in store.filteredProjects"
           :key="p.path"
-          class="project-list-item flex items-center gap-1.5 rounded-rm px-3 py-2 text-sm cursor-pointer transition-colors group"
+          class="project-list-item flex items-center gap-1.5 px-3 py-2 text-sm cursor-pointer transition-colors group"
           :class="store.selectedPath === p.path ? 'bg-rm-accent/20 text-rm-accent font-medium' : 'text-rm-text hover:bg-rm-surface-hover'"
           @click="onRowClick($event, p.path)"
         >
@@ -85,6 +85,7 @@ import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useLicense } from '../composables/useLicense';
 import { useResizableSidebar } from '../composables/useResizableSidebar';
+import { useNotifications } from '../composables/useNotifications';
 import * as debug from '../utils/debug';
 import { toPlainProjects } from '../utils/plainProjects';
 import TerminalPanel from './detail/TerminalPanel.vue';
@@ -92,6 +93,7 @@ import TerminalPanel from './detail/TerminalPanel.vue';
 const store = useAppStore();
 const api = useApi();
 const license = useLicense();
+const notifications = useNotifications();
 const { sidebarStyle, onResizerPointerDown } = useResizableSidebar({
   preferenceKey: 'mainSidebarWidth',
   defaultWidth: 256,
@@ -161,5 +163,6 @@ async function removeProject(p) {
   debug.log('project', 'removeProject', p.path);
   store.removeProject(p.path);
   await api.setProjects?.(toPlainProjects(store.projects));
+  notifications.add({ title: 'Project removed', message: `"${name}" removed from the list.`, type: 'info' });
 }
 </script>

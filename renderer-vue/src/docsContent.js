@@ -393,4 +393,20 @@ OpenAI charges per token. Usage appears in your OpenAI account. The app does not
 Open **platform.openai.com** → API keys to create and manage keys.
 `,
   },
+  'settings-gemini': {
+    title: 'Google Gemini',
+    body: `
+## API key
+
+Use a **Gemini API key** from Google AI Studio. Sign in at AI Studio, go to Get API key, and create a key. Paste it here; it's stored locally and only sent to Google's API.
+
+## Model
+
+Pick a model from the list (e.g. Gemini 1.5 Flash, 1.5 Pro) or choose Custom to enter a model ID. See Google's docs for the latest model names.
+
+## Get an API key
+
+Open **aistudio.google.com** → Get API key to create and manage keys.
+`,
+  },
 };

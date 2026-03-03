@@ -90,6 +90,7 @@ import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import { useCollapsible } from '../../composables/useCollapsible';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
+import { useNotifications } from '../../composables/useNotifications';
 
 const props = defineProps({ info: { type: Object, default: null } });
 const emit = defineEmits(['refresh']);
@@ -98,6 +99,7 @@ const store = useAppStore();
 const api = useApi();
 const { runWithOverlay } = useLongActionOverlay();
 const { collapsed, toggle } = useCollapsible('pull-requests');
+const notifications = useNotifications();
 
 const pullRequestsUrl = ref('');
 const pullRequests = ref([]);
@@ -176,11 +178,15 @@ async function submitCreatePr() {
       api.openUrl?.(result.pullRequest.html_url);
       await load();
       emit('refresh');
+      notifications.add({ title: 'Pull request created', message: result.pullRequest?.title || 'PR opened in browser.', type: 'success' });
     } else {
       createPrError.value = result?.error || 'Failed to create pull request';
+      notifications.add({ title: 'Create PR failed', message: result?.error || 'Failed to create pull request', type: 'error' });
     }
   } catch (e) {
-    createPrError.value = e?.message || 'Failed to create pull request';
+    const err = e?.message || 'Failed to create pull request';
+    createPrError.value = err;
+    notifications.add({ title: 'Create PR failed', message: err, type: 'error' });
   } finally {
     createPrLoading.value = false;
   }
@@ -197,11 +203,14 @@ async function mergePr(pr) {
     if (result?.ok) {
       await load();
       emit('refresh');
+      notifications.add({ title: 'Pull request merged', message: `#${pr.number} merged.`, type: 'success' });
     } else {
-      window.alert(result?.error || 'Merge failed');
+      const err = result?.error || 'Merge failed';
+      notifications.add({ title: 'Merge failed', message: err, type: 'error' });
     }
   } catch (e) {
-    window.alert(e?.message || 'Merge failed');
+    const err = e?.message || 'Merge failed';
+    notifications.add({ title: 'Merge failed', message: err, type: 'error' });
   } finally {
     mergingPr.value = null;
   }

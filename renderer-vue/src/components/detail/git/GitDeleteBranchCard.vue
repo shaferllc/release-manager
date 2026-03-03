@@ -8,7 +8,7 @@
       <button type="button" class="btn-secondary btn-compact text-xs" @click="branchToRename = null">Cancel</button>
     </div>
     <ul v-else class="list-none m-0 p-0 space-y-1 text-sm max-h-48 overflow-y-auto">
-      <li v-for="b in branches" :key="b" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border/50">
+      <li v-for="b in branches" :key="b" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
         <span class="truncate font-mono" :class="{ 'text-rm-accent font-medium': b === currentBranch }">{{ b }}</span>
         <span class="flex gap-1 shrink-0">
           <button v-if="b !== currentBranch" type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0" @click="branchToRename = b; renameNewName = b">Rename</button>

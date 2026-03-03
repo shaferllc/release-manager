@@ -38,7 +38,7 @@
           <tr
             v-for="row in rows"
             :key="row.path"
-            class="dashboard-row cursor-pointer border-b border-rm-border/70 hover:bg-rm-surface/50 transition-colors"
+            class="dashboard-row cursor-pointer border-b border-rm-border hover:bg-rm-surface/50 transition-colors"
             @click="selectProject(row.path)"
           >
             <td class="py-2 pr-3 font-medium text-rm-text">{{ row.name || '—' }}</td>

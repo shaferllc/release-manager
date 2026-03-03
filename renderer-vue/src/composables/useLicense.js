@@ -35,8 +35,8 @@ export function useLicense() {
         licenseSource.value = status?.source ?? null;
         licenseEmail.value = status?.email ?? null;
       }
-      const bypass = await api.getPreference?.('licenseBypass').catch(() => false);
-      bypassLicense.value = !!bypass;
+      const bypassRaw = await api.getPreference?.('licenseBypass').catch(() => undefined);
+      bypassLicense.value = bypassRaw === false ? false : true;
     } catch {
       actualHasLicense.value = false;
       licenseSource.value = null;

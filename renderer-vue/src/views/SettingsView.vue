@@ -8,7 +8,8 @@
             <button
               type="button"
               class="settings-nav-btn w-full text-left px-3 py-2.5 rounded-rm text-sm font-medium transition-colors flex items-center gap-2.5"
-              :class="activeSection === s.id ? 'bg-rm-accent/15 text-rm-accent' : 'text-rm-text hover:bg-rm-surface-hover'"
+              :class="{ 'settings-nav-btn-active': activeSection === s.id }"
+              :aria-current="activeSection === s.id ? 'page' : undefined"
               @click="activeSection = s.id"
             >
               <span class="settings-nav-icon shrink-0 flex items-center justify-center w-5 h-5 [&>svg]:w-[18px] [&>svg]:h-[18px]" aria-hidden="true" v-html="s.icon"></span>
@@ -20,96 +21,13 @@
     </nav>
     <div class="settings-content flex-1 overflow-auto min-w-0">
       <div class="settings-content-inner py-8 px-8 max-w-2xl">
-        <!-- Account -->
-        <section v-show="activeSection === 'account'" class="settings-section">
-          <h3 class="settings-section-title">Account</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">License and GitHub access.</p>
-
-          <div class="settings-card">
-            <div class="settings-row">
-              <div class="settings-row-head">
-                <span class="settings-label">License</span>
-                <span class="settings-status" :class="license.hasLicense ? 'text-rm-success' : 'text-rm-muted'">
-                  {{ license.hasLicense ? (license.licenseSource === 'remote' && license.licenseEmail ? `Active (${license.licenseEmail})` : 'Active') : 'No license' }}
-                </span>
-              </div>
-              <p class="settings-desc">Full access to all features with a valid license. Without one, core features only.</p>
-              <div class="settings-license-benefits-block">
-                <p class="settings-license-benefits-headline">What you get with a license</p>
-                <div class="settings-license-benefits-grid">
-                  <div class="settings-license-benefit-item">
-                    <span class="settings-license-benefit-title">Project tabs</span>
-                    <span class="settings-license-benefit-desc">Pull requests, Dev stack, Email, Tunnels, FTP, SSH, API</span>
-                  </div>
-                  <div class="settings-license-benefit-item">
-                    <span class="settings-license-benefit-title">AI generation</span>
-                    <span class="settings-license-benefit-desc">Commit messages, release notes, test-fix suggestions</span>
-                  </div>
-                  <div class="settings-license-benefit-item">
-                    <span class="settings-license-benefit-title">Batch release</span>
-                    <span class="settings-license-benefit-desc">Bump and release multiple projects at once from the sidebar</span>
-                  </div>
-                </div>
-                <p class="settings-license-benefits-footer">Without a license you still have: Dashboard, Git, Version &amp; release, WordPress, Composer, Tests, Coverage.</p>
-              </div>
-              <div class="settings-controls flex flex-wrap items-center gap-2 mt-2">
-                <input v-model="licenseKeyInput" type="password" class="input-field flex-1 min-w-0 max-w-xs" placeholder="Enter license key" autocomplete="off" />
-                <button type="button" class="btn-primary btn-compact" :disabled="licenseSaving" @click="saveLicense">Save</button>
-              </div>
-              <p v-if="licenseMessage" class="mt-2 text-sm" :class="licenseMessageOk ? 'text-rm-success' : 'text-rm-warning'">{{ licenseMessage }}</p>
-            </div>
-            <div class="settings-divider" />
-            <div class="settings-row">
-              <span class="settings-label">License server (Laravel Passport)</span>
-              <p class="settings-desc">Log in with your account to license the app. Set your server URL and Passport client credentials, then log in below.</p>
-              <div class="grid gap-3 mt-2 max-w-xl">
-                <div>
-                  <label class="block text-xs font-medium text-rm-muted mb-1">Server URL</label>
-                  <input v-model="licenseServerUrl" type="url" class="input-field" placeholder="https://your-app.com" autocomplete="off" @blur="saveLicenseServerConfig" />
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-rm-muted mb-1">Client ID</label>
-                  <input v-model="licenseServerClientId" type="text" class="input-field" placeholder="2" autocomplete="off" @blur="saveLicenseServerConfig" />
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-rm-muted mb-1">Client secret</label>
-                  <input v-model="licenseServerClientSecret" type="password" class="input-field" placeholder="Passport client secret" autocomplete="off" @blur="saveLicenseServerConfig" />
-                </div>
-              </div>
-            </div>
-            <div class="settings-divider" />
-            <div class="settings-row">
-              <span class="settings-label">Log in with your account</span>
-              <p class="settings-desc">Use the email and password for your account on the license server.</p>
-              <p v-if="licenseRemoteLoggedIn" class="text-sm font-medium text-rm-success m-0 mb-2">Logged in as {{ licenseRemoteEmail || 'your account' }}</p>
-              <p v-else class="text-sm text-rm-muted m-0 mb-2">Not logged in</p>
-              <div class="flex flex-wrap items-center gap-2 mt-2">
-                <input v-model="licenseLoginEmail" type="email" class="input-field w-56" placeholder="Email" autocomplete="email" />
-                <input v-model="licenseLoginPassword" type="password" class="input-field w-48" placeholder="Password" autocomplete="current-password" />
-                <button type="button" class="btn-primary btn-compact" :disabled="licenseLoginLoading" @click="loginToLicenseServer">Log in</button>
-                <button type="button" class="btn-secondary btn-compact" :disabled="licenseLoginLoading" @click="logoutFromLicenseServer">Log out</button>
-              </div>
-              <p v-if="licenseLoginError" class="mt-2 text-sm text-rm-warning m-0">{{ licenseLoginError }}</p>
-            </div>
-            <div class="settings-divider" />
-            <div class="settings-row">
-              <span class="settings-label">GitHub token (default)</span>
-              <p class="settings-desc">Optional. Higher API limits and ability to create or update releases. Stored locally.</p>
-              <div class="settings-controls flex flex-wrap items-center gap-2 mt-2">
-                <input v-model="githubToken" type="password" class="input-field flex-1 min-w-0" placeholder="ghp_..." autocomplete="off" @blur="saveToken" />
-                <a href="#" class="text-xs text-rm-accent hover:underline shrink-0" @click.prevent="openUrl('https://github.com/settings/tokens')">Create token</a>
-              </div>
-            </div>
-          </div>
-        </section>
-
         <!-- Application -->
         <section v-show="activeSection === 'application'" class="settings-section">
           <h3 class="settings-section-title">Application</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Startup and quit behavior.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer">
-              <input v-model="launchAtLogin" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveLaunchAtLogin" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer">
+              <input v-model="launchAtLogin" type="checkbox" class="checkbox-input shrink-0" @change="saveLaunchAtLogin" />
               <div>
                 <span class="settings-label block">Launch at login</span>
                 <p class="settings-desc mt-0.5">Start the app when you log in to your computer.</p>
@@ -133,8 +51,8 @@
                 <option value="never">Never</option>
               </select>
             </div>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="confirmBeforeQuit" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveConfirmBeforeQuit" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="confirmBeforeQuit" type="checkbox" class="checkbox-input shrink-0" @change="saveConfirmBeforeQuit" />
               <div>
                 <span class="settings-label block">Confirm before closing</span>
                 <p class="settings-desc mt-0.5">Ask for confirmation when quitting the app.</p>
@@ -148,22 +66,22 @@
           <h3 class="settings-section-title">Notifications</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">In-app and system notifications.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer">
-              <input v-model="notificationsEnabled" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveNotificationsEnabled" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer">
+              <input v-model="notificationsEnabled" type="checkbox" class="checkbox-input shrink-0" @change="saveNotificationsEnabled" />
               <div>
                 <span class="settings-label block">Enable notifications</span>
                 <p class="settings-desc mt-0.5">Show in-app and system notifications for releases and errors.</p>
               </div>
             </label>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="notificationSound" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveNotificationSound" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="notificationSound" type="checkbox" class="checkbox-input shrink-0" @change="saveNotificationSound" />
               <div>
                 <span class="settings-label block">Notification sound</span>
                 <p class="settings-desc mt-0.5">Play a sound when a notification appears.</p>
               </div>
             </label>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="notificationsOnlyWhenNotFocused" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveNotificationsOnlyWhenNotFocused" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="notificationsOnlyWhenNotFocused" type="checkbox" class="checkbox-input shrink-0" @change="saveNotificationsOnlyWhenNotFocused" />
               <div>
                 <span class="settings-label block">Only when app is in background</span>
                 <p class="settings-desc mt-0.5">Show system notifications only when the app is not focused.</p>
@@ -177,15 +95,15 @@
           <h3 class="settings-section-title">Behavior</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">How you interact with projects and the UI.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer">
-              <input v-model="doubleClickToOpenProject" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveDoubleClickToOpenProject" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer">
+              <input v-model="doubleClickToOpenProject" type="checkbox" class="checkbox-input shrink-0" @change="saveDoubleClickToOpenProject" />
               <div>
                 <span class="settings-label block">Double-click to open project</span>
                 <p class="settings-desc mt-0.5">Require double-click to open a project in the sidebar (single-click to select only).</p>
               </div>
             </label>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="confirmDestructiveActions" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveConfirmDestructiveActions" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="confirmDestructiveActions" type="checkbox" class="checkbox-input shrink-0" @change="saveConfirmDestructiveActions" />
               <div>
                 <span class="settings-label block">Confirm destructive actions</span>
                 <p class="settings-desc mt-0.5">Ask for confirmation before delete, release, or batch release.</p>
@@ -210,8 +128,8 @@
                 <option :value="20">20</option>
               </select>
             </div>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="showTips" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveShowTips" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="showTips" type="checkbox" class="checkbox-input shrink-0" @change="saveShowTips" />
               <div>
                 <span class="settings-label block">Show tips and onboarding</span>
                 <p class="settings-desc mt-0.5">Show first-run tips and occasional hints. Uncheck to hide permanently.</p>
@@ -226,8 +144,8 @@
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Commit and repository options.</p>
 
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer">
-              <input v-model="signCommits" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveSignCommits" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer">
+              <input v-model="signCommits" type="checkbox" class="checkbox-input shrink-0" @change="saveSignCommits" />
               <div>
                 <span class="settings-label block">Sign commits (GPG/SSH)</span>
                 <p class="settings-desc mt-0.5">Use <code class="bg-rm-surface px-1 rounded text-xs">git commit -S</code> when committing.</p>
@@ -258,6 +176,14 @@
               <p class="settings-desc">External diff or merge tool command (e.g. code --diff).</p>
               <input v-model="gitDiffTool" type="text" class="input-field mt-2" placeholder="" @blur="saveGitDiffTool" />
             </div>
+            <div class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">GitHub token (default)</span>
+              <p class="settings-desc">Optional. Higher API limits and ability to create or update releases. Stored locally.</p>
+              <div class="settings-controls flex flex-wrap items-center gap-2 mt-2">
+                <input v-model="githubToken" type="password" class="input-field flex-1 min-w-0" placeholder="ghp_..." autocomplete="off" @blur="saveToken" />
+                <a href="#" class="text-xs text-rm-accent hover:underline shrink-0" @click.prevent="openUrl('https://github.com/settings/tokens')">Create token</a>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -277,6 +203,7 @@
                 <option value="ollama">Ollama (local)</option>
                 <option value="claude">Claude (Anthropic)</option>
                 <option value="openai">OpenAI</option>
+                <option value="gemini">Google Gemini</option>
               </select>
             </div>
 
@@ -312,7 +239,14 @@
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
-                  <input v-model="claudeModel" type="text" class="input-field" placeholder="claude-sonnet-4-20250514" autocomplete="off" @blur="saveClaude" />
+                  <select v-model="claudeModelPreset" class="input-field max-w-xs" @change="onClaudeModelPresetChange">
+                    <option value="claude-sonnet-4-20250514">Claude Sonnet 4</option>
+                    <option value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</option>
+                    <option value="claude-3-5-haiku-20241022">Claude 3.5 Haiku</option>
+                    <option value="claude-3-opus-20240229">Claude 3 Opus</option>
+                    <option value="custom">Custom...</option>
+                  </select>
+                  <input v-if="claudeModelPreset === 'custom'" v-model="claudeModel" type="text" class="input-field mt-2" placeholder="claude-sonnet-4-20250514" autocomplete="off" @blur="saveClaude" />
                 </div>
               </div>
             </div>
@@ -328,7 +262,38 @@
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
-                  <input v-model="openaiModel" type="text" class="input-field" placeholder="gpt-4o-mini" autocomplete="off" @blur="saveOpenAI" />
+                  <select v-model="openaiModelPreset" class="input-field max-w-xs" @change="onOpenAiModelPresetChange">
+                    <option value="gpt-4o-mini">GPT-4o mini</option>
+                    <option value="gpt-4o">GPT-4o</option>
+                    <option value="gpt-4-turbo">GPT-4 Turbo</option>
+                    <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                    <option value="o1-mini">o1 mini</option>
+                    <option value="custom">Custom...</option>
+                  </select>
+                  <input v-if="openaiModelPreset === 'custom'" v-model="openaiModel" type="text" class="input-field mt-2" placeholder="gpt-4o-mini" autocomplete="off" @blur="saveOpenAI" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Gemini -->
+            <div v-if="aiProvider === 'gemini'" class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Google Gemini</span>
+              <p class="settings-desc">Google AI Studio. <a href="#" class="text-rm-accent hover:underline" @click.prevent="openUrl('https://aistudio.google.com/apikey')">Get API key</a></p>
+              <div class="grid gap-3 mt-3">
+                <div>
+                  <label class="block text-xs font-medium text-rm-muted mb-1">API key</label>
+                  <input v-model="geminiApiKey" type="password" class="input-field" placeholder="AIza..." autocomplete="off" @blur="saveGemini" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
+                  <select v-model="geminiModelPreset" class="input-field max-w-xs" @change="onGeminiModelPresetChange">
+                    <option value="gemini-1.5-flash">Gemini 1.5 Flash</option>
+                    <option value="gemini-1.5-pro">Gemini 1.5 Pro</option>
+                    <option value="gemini-1.5-flash-8b">Gemini 1.5 Flash 8B</option>
+                    <option value="gemini-2.0-flash">Gemini 2.0 Flash</option>
+                    <option value="custom">Custom...</option>
+                  </select>
+                  <input v-if="geminiModelPreset === 'custom'" v-model="geminiModel" type="text" class="input-field mt-2" placeholder="gemini-1.5-flash" autocomplete="off" @blur="saveGemini" />
                 </div>
               </div>
             </div>
@@ -425,8 +390,8 @@
               </select>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <label class="settings-row-clickable flex items-start gap-3 cursor-pointer">
-                <input v-model="reducedMotion" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveReducedMotion" />
+              <label class="settings-row-clickable settings-checkbox-inline cursor-pointer">
+                <input v-model="reducedMotion" type="checkbox" class="checkbox-input shrink-0" @change="saveReducedMotion" />
                 <div>
                   <span class="settings-label block">Reduce motion</span>
                   <p class="settings-desc mt-0.5">Minimize animations and transitions. Aligns with system accessibility preferences.</p>
@@ -434,8 +399,8 @@
               </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <label class="settings-row-clickable flex items-start gap-3 cursor-pointer">
-                <input v-model="reduceTransparency" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveReduceTransparency" />
+              <label class="settings-row-clickable settings-checkbox-inline cursor-pointer">
+                <input v-model="reduceTransparency" type="checkbox" class="checkbox-input shrink-0" @change="saveReduceTransparency" />
                 <div>
                   <span class="settings-label block">Reduce transparency</span>
                   <p class="settings-desc mt-0.5">Use solid backgrounds instead of semi-transparent panels. Improves readability (Electron / macOS-style).</p>
@@ -443,8 +408,8 @@
               </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <label class="settings-row-clickable flex items-start gap-3 cursor-pointer">
-                <input v-model="highContrast" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveHighContrast" />
+              <label class="settings-row-clickable settings-checkbox-inline cursor-pointer">
+                <input v-model="highContrast" type="checkbox" class="checkbox-input shrink-0" @change="saveHighContrast" />
                 <div>
                   <span class="settings-label block">High contrast</span>
                   <p class="settings-desc mt-0.5">Stronger borders and higher-contrast text. Helps with visibility (Electron / accessibility).</p>
@@ -452,8 +417,8 @@
               </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <label class="settings-row-clickable flex items-start gap-3 cursor-pointer">
-                <input v-model="useDetailTabs" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveUseTabs" />
+              <label class="settings-row-clickable settings-checkbox-inline cursor-pointer">
+                <input v-model="useDetailTabs" type="checkbox" class="checkbox-input shrink-0" @change="saveUseTabs" />
                 <div>
                   <span class="settings-label block">Use tabs in project detail</span>
                   <p class="settings-desc mt-0.5">Switch between Git, Version &amp; release, and other sections with tabs.</p>
@@ -472,15 +437,15 @@
                     <option value="spacious">Spacious</option>
                   </select>
                 </div>
-                <label class="settings-row-clickable flex items-start gap-3 cursor-pointer">
-                  <input v-model="terminalPopoutAlwaysOnTop" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveTerminalPopoutAlwaysOnTop" />
+                <label class="settings-row-clickable settings-checkbox-inline cursor-pointer">
+                  <input v-model="terminalPopoutAlwaysOnTop" type="checkbox" class="checkbox-input shrink-0" @change="saveTerminalPopoutAlwaysOnTop" />
                   <div>
                     <span class="settings-label block">Always on top</span>
                     <p class="settings-desc mt-0.5">Keep the terminal window above other windows.</p>
                   </div>
                 </label>
-                <label class="settings-row-clickable flex items-start gap-3 cursor-pointer">
-                  <input v-model="terminalPopoutFullscreenable" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveTerminalPopoutFullscreenable" />
+                <label class="settings-row-clickable settings-checkbox-inline cursor-pointer">
+                  <input v-model="terminalPopoutFullscreenable" type="checkbox" class="checkbox-input shrink-0" @change="saveTerminalPopoutFullscreenable" />
                   <div>
                     <span class="settings-label block">Allow fullscreen</span>
                     <p class="settings-desc mt-0.5">Allow the terminal window to enter fullscreen (e.g. green traffic light on macOS).</p>
@@ -509,8 +474,8 @@
                 <option :value="60">60</option>
               </select>
             </div>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="offlineMode" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveOfflineMode" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="offlineMode" type="checkbox" class="checkbox-input shrink-0" @change="saveOfflineMode" />
               <div>
                 <span class="settings-label block">Offline mode</span>
                 <p class="settings-desc mt-0.5">Disable network-dependent features.</p>
@@ -533,20 +498,35 @@
           <h3 class="settings-section-title">Data &amp; privacy</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Telemetry, crash reports, and settings backup.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer">
-              <input v-model="telemetry" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveTelemetry" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer">
+              <input v-model="telemetry" type="checkbox" class="checkbox-input shrink-0" @change="saveTelemetry" />
               <div>
                 <span class="settings-label block">Telemetry / usage data</span>
-                <p class="settings-desc mt-0.5">Send anonymous usage statistics.</p>
+                <p class="settings-desc mt-0.5">Send usage events (e.g. app opened, feature used). Requires an endpoint URL (POST /api/telemetry, no auth). Throttle: 120/min per IP.</p>
               </div>
             </label>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="crashReports" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveCrashReports" />
+            <div v-if="telemetry" class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Telemetry endpoint</span>
+              <p class="settings-desc">Full URL to the telemetry API (e.g. https://your-server.com/api/telemetry).</p>
+              <input v-model="telemetryEndpoint" type="url" class="input-field mt-2" placeholder="https://your-server.com/api/telemetry" autocomplete="off" @blur="saveTelemetryEndpoint" />
+            </div>
+            <div v-if="telemetry" class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">User identifier (optional)</span>
+              <p class="settings-desc">Email or ID for context in events. Leave empty for anonymous.</p>
+              <input v-model="telemetryUserIdentifier" type="text" class="input-field mt-2 max-w-md" placeholder="user@example.com" autocomplete="off" @blur="saveTelemetryUserIdentifier" />
+            </div>
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="crashReports" type="checkbox" class="checkbox-input shrink-0" @change="saveCrashReports" />
               <div>
                 <span class="settings-label block">Crash reports</span>
-                <p class="settings-desc mt-0.5">Send crash reports to help fix bugs.</p>
+                <p class="settings-desc mt-0.5">Send crash reports to help fix bugs. Requires an ingestion endpoint URL (POST /api/crash-reports, no auth).</p>
               </div>
             </label>
+            <div v-if="crashReports" class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Crash report endpoint</span>
+              <p class="settings-desc">Full URL to the crash report API (e.g. https://your-server.com/api/crash-reports). Throttling is per-IP on the server.</p>
+              <input v-model="crashReportEndpoint" type="url" class="input-field mt-2" placeholder="https://your-server.com/api/crash-reports" autocomplete="off" @blur="saveCrashReportEndpoint" />
+            </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Settings backup</span>
               <p class="settings-desc">Export or import preferences. Reset restores defaults (does not remove projects).</p>
@@ -565,15 +545,15 @@
           <h3 class="settings-section-title">Window</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Window behavior and tray.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer">
-              <input v-model="alwaysOnTop" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveAlwaysOnTop" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer">
+              <input v-model="alwaysOnTop" type="checkbox" class="checkbox-input shrink-0" @change="saveAlwaysOnTop" />
               <div>
                 <span class="settings-label block">Always on top</span>
                 <p class="settings-desc mt-0.5">Keep the app window above other windows.</p>
               </div>
             </label>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="minimizeToTray" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveMinimizeToTray" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="minimizeToTray" type="checkbox" class="checkbox-input shrink-0" @change="saveMinimizeToTray" />
               <div>
                 <span class="settings-label block">Minimize to tray</span>
                 <p class="settings-desc mt-0.5">Closing the window hides it to the system tray instead of quitting.</p>
@@ -587,22 +567,22 @@
           <h3 class="settings-section-title">Accessibility</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Focus, cursor, and screen reader support.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer">
-              <input v-model="focusOutlineVisible" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveFocusOutlineVisible" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer">
+              <input v-model="focusOutlineVisible" type="checkbox" class="checkbox-input shrink-0" @change="saveFocusOutlineVisible" />
               <div>
                 <span class="settings-label block">Always show focus outline</span>
                 <p class="settings-desc mt-0.5">Show a visible focus ring on keyboard focus.</p>
               </div>
             </label>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="largeCursor" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveLargeCursor" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="largeCursor" type="checkbox" class="checkbox-input shrink-0" @change="saveLargeCursor" />
               <div>
                 <span class="settings-label block">Large cursor in inputs</span>
                 <p class="settings-desc mt-0.5">Use a larger text cursor in input fields.</p>
               </div>
             </label>
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer pt-2 border-t border-rm-border">
-              <input v-model="screenReaderSupport" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveScreenReaderSupport" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer pt-2 border-t border-rm-border">
+              <input v-model="screenReaderSupport" type="checkbox" class="checkbox-input shrink-0" @change="saveScreenReaderSupport" />
               <div>
                 <span class="settings-label block">Screen reader support</span>
                 <p class="settings-desc mt-0.5">Announce live regions for assistive technologies.</p>
@@ -617,8 +597,8 @@
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Options for debugging and troubleshooting.</p>
 
           <div class="settings-card">
-            <label class="settings-row settings-row-clickable flex items-start gap-3 cursor-pointer">
-              <input v-model="debugLogging" type="checkbox" class="checkbox-input mt-0.5 shrink-0" @change="saveDebugLogging" />
+            <label class="settings-row settings-row-clickable settings-checkbox-inline cursor-pointer">
+              <input v-model="debugLogging" type="checkbox" class="checkbox-input shrink-0" @change="saveDebugLogging" />
               <div>
                 <span class="settings-label block">Enable debug logging</span>
                 <p class="settings-desc mt-0.5">Log app actions (project load, IPC, preferences, nav). Renderer logs in DevTools; main process in terminal.</p>
@@ -637,12 +617,14 @@ import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useLicense } from '../composables/useLicense';
 import { useModals } from '../composables/useModals';
+import { useNotifications } from '../composables/useNotifications';
 import * as debug from '../utils/debug';
 
 const store = useAppStore();
 const api = useApi();
 const license = useLicense();
 const modals = useModals();
+const notifications = useNotifications();
 
 const SECTION_ICONS = {
   account: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
@@ -661,7 +643,6 @@ const SECTION_ICONS = {
   accessibility: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="4" r="2"/><path d="M12 14v6"/><path d="M9 18h6"/><path d="M12 14l-3 4"/><path d="M12 14l3 4"/><path d="M12 8a4 4 0 0 0-4 4v2"/><path d="M12 8a4 4 0 0 1 4 4v2"/></svg>',
 };
 const sections = [
-  { id: 'account', label: 'Account', icon: SECTION_ICONS.account },
   { id: 'application', label: 'Application', icon: SECTION_ICONS.application },
   { id: 'notifications', label: 'Notifications', icon: SECTION_ICONS.notifications },
   { id: 'behavior', label: 'Behavior', icon: SECTION_ICONS.behavior },
@@ -677,22 +658,9 @@ const sections = [
   { id: 'developer', label: 'Developer', icon: SECTION_ICONS.developer },
 ];
 
-const activeSection = ref('account');
+const activeSection = ref('application');
 
 const githubToken = ref('');
-const licenseKeyInput = ref('');
-const licenseSaving = ref(false);
-const licenseServerUrl = ref('');
-const licenseServerClientId = ref('');
-const licenseServerClientSecret = ref('');
-const licenseLoginEmail = ref('');
-const licenseLoginPassword = ref('');
-const licenseRemoteLoggedIn = ref(false);
-const licenseRemoteEmail = ref('');
-const licenseLoginLoading = ref(false);
-const licenseLoginError = ref('');
-const licenseMessage = ref('');
-const licenseMessageOk = ref(false);
 const signCommits = ref(false);
 const aiProvider = ref('ollama');
 const ollamaBaseUrl = ref('');
@@ -701,6 +669,11 @@ const claudeApiKey = ref('');
 const claudeModel = ref('');
 const openaiApiKey = ref('');
 const openaiModel = ref('');
+const claudeModelPreset = ref('claude-sonnet-4-20250514');
+const openaiModelPreset = ref('gpt-4o-mini');
+const geminiApiKey = ref('');
+const geminiModel = ref('');
+const geminiModelPreset = ref('gemini-1.5-flash');
 const preferredEditor = ref('');
 const phpPath = ref('');
 const useDetailTabs = ref(true);
@@ -725,7 +698,7 @@ const zoomOptions = [
   { value: 1.25, label: '125%' },
   { value: 1.5, label: '150%' },
 ];
-const borderRadius = ref('rounded');
+const borderRadius = ref('sharp');
 const reducedMotion = ref(false);
 const reduceTransparency = ref(false);
 const highContrast = ref(false);
@@ -752,7 +725,10 @@ const proxy = ref('');
 const requestTimeoutSeconds = ref(30);
 const offlineMode = ref(false);
 const telemetry = ref(false);
+const telemetryEndpoint = ref('');
+const telemetryUserIdentifier = ref('');
 const crashReports = ref(false);
+const crashReportEndpoint = ref('');
 const dataPrivacyMessage = ref('');
 const dataPrivacyMessageOk = ref(false);
 const alwaysOnTop = ref(false);
@@ -766,23 +742,22 @@ const ollamaListError = ref('');
 
 onMounted(async () => {
   try {
-    const [token, ollama, claude, openai, provider, editor, php, sign, tabs, debugLoad, licenseServerConfig, licenseRemoteSession, themeRes, appearanceAccent, appearanceFontSize, appearanceRadius, appearanceReducedMotion, appearanceZoomFactor, appearanceReduceTransparency, appearanceHighContrast, terminalSize, terminalAlwaysOnTop, terminalFullscreenable, launchAtLoginRes, defaultViewP, checkForUpdatesP, confirmBeforeQuitP, notificationsEnabledP, notificationSoundP, notificationsOnlyWhenNotFocusedP, doubleClickToOpenProjectP, confirmDestructiveActionsP, autoRefreshIntervalSecondsP, recentListLengthP, showTipsP, gitDefaultBranchP, gitAutoFetchIntervalMinutesP, gitSshKeyPathP, gitDiffToolP, proxyP, requestTimeoutSecondsP, offlineModeP, telemetryP, crashReportsP, alwaysOnTopP, minimizeToTrayP, focusOutlineVisibleP, largeCursorP, screenReaderSupportP] = await Promise.all([
+    const [token, ollama, claude, openai, geminiSettings, provider, editor, php, sign, tabs, debugLoad, themeRes, appearanceAccent, appearanceFontSize, appearanceRadius, appearanceReducedMotion, appearanceZoomFactor, appearanceReduceTransparency, appearanceHighContrast, terminalSize, terminalAlwaysOnTop, terminalFullscreenable, launchAtLoginRes, defaultViewP, checkForUpdatesP, confirmBeforeQuitP, notificationsEnabledP, notificationSoundP, notificationsOnlyWhenNotFocusedP, doubleClickToOpenProjectP, confirmDestructiveActionsP, autoRefreshIntervalSecondsP, recentListLengthP, showTipsP, gitDefaultBranchP, gitAutoFetchIntervalMinutesP, gitSshKeyPathP, gitDiffToolP, proxyP, requestTimeoutSecondsP, offlineModeP, telemetryP, telemetryEndpointP, telemetryUserIdentifierP, crashReportsP, crashReportEndpointP, alwaysOnTopP, minimizeToTrayP, focusOutlineVisibleP, largeCursorP, screenReaderSupportP] = await Promise.all([
       api.getGitHubToken?.() ?? '',
       api.getOllamaSettings?.() ?? {},
       api.getClaudeSettings?.() ?? {},
       api.getOpenAISettings?.() ?? {},
+      api.getGeminiSettings?.().catch(() => ({ apiKey: '', model: '' })),
       api.getAiProvider?.().catch(() => 'ollama'),
       api.getPreference?.('preferredEditor').catch(() => ''),
       api.getPreference?.('phpPath').catch(() => ''),
       api.getPreference?.('signCommits').catch(() => false),
       api.getPreference?.('detailUseTabs').catch(() => true),
       api.getPreference?.('debug').catch(() => undefined),
-      api.getLicenseServerConfig?.().catch(() => ({ url: '', clientId: '', clientSecret: '' })),
-      api.getLicenseRemoteSession?.().catch(() => ({ loggedIn: false })),
       api.getTheme?.().catch(() => ({ theme: 'dark' })),
       api.getPreference?.('appearanceAccent').catch(() => 'green'),
       api.getPreference?.('appearanceFontSize').catch(() => 'comfortable'),
-      api.getPreference?.('appearanceRadius').catch(() => 'rounded'),
+      api.getPreference?.('appearanceRadius').catch(() => 'sharp'),
       api.getPreference?.('appearanceReducedMotion').catch(() => false),
       api.getAppZoomFactor?.().catch(() => 1),
       api.getPreference?.('appearanceReduceTransparency').catch(() => false),
@@ -810,7 +785,10 @@ onMounted(async () => {
       api.getPreference?.('requestTimeoutSeconds').catch(() => 30),
       api.getPreference?.('offlineMode').catch(() => false),
       api.getPreference?.('telemetry').catch(() => false),
+      api.getPreference?.('telemetryEndpoint').catch(() => ''),
+      api.getPreference?.('telemetryUserIdentifier').catch(() => ''),
       api.getPreference?.('crashReports').catch(() => false),
+      api.getPreference?.('crashReportEndpoint').catch(() => ''),
       api.getAlwaysOnTop?.().catch(() => false),
       api.getMinimizeToTray?.().catch(() => false),
       api.getPreference?.('focusOutlineVisible').catch(() => false),
@@ -824,7 +802,15 @@ onMounted(async () => {
     claudeModel.value = claude?.model || '';
     openaiApiKey.value = openai?.apiKey || '';
     openaiModel.value = openai?.model || '';
-    aiProvider.value = provider === 'claude' ? 'claude' : provider === 'openai' ? 'openai' : 'ollama';
+    geminiApiKey.value = geminiSettings?.apiKey || '';
+    geminiModel.value = geminiSettings?.model || '';
+    const claudePresets = ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'];
+    claudeModelPreset.value = claudePresets.includes(claude?.model?.trim()) ? claude.model.trim() : 'custom';
+    const openaiPresets = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo', 'o1-mini'];
+    openaiModelPreset.value = openaiPresets.includes(openai?.model?.trim()) ? openai.model.trim() : 'custom';
+    const geminiPresets = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-8b', 'gemini-2.0-flash'];
+    geminiModelPreset.value = geminiPresets.includes(geminiSettings?.model?.trim()) ? geminiSettings.model.trim() : 'custom';
+    aiProvider.value = provider === 'claude' ? 'claude' : provider === 'openai' ? 'openai' : provider === 'gemini' ? 'gemini' : 'ollama';
     preferredEditor.value = editor === 'cursor' || editor === 'code' ? editor : '';
     phpPath.value = php || '';
     signCommits.value = !!sign;
@@ -832,15 +818,6 @@ onMounted(async () => {
     debugLogging.value = debugLoad !== false;
     debug.setEnabled(debugLoad !== false);
     store.setUseDetailTabs(tabs !== false);
-    if (licenseServerConfig) {
-      licenseServerUrl.value = licenseServerConfig.url || '';
-      licenseServerClientId.value = licenseServerConfig.clientId || '';
-      licenseServerClientSecret.value = licenseServerConfig.clientSecret || '';
-    }
-    if (licenseRemoteSession) {
-      licenseRemoteLoggedIn.value = !!licenseRemoteSession.loggedIn;
-      licenseRemoteEmail.value = licenseRemoteSession.email || '';
-    }
     if (themeRes?.theme) theme.value = themeRes.theme;
     if (appearanceAccent && ['green', 'blue', 'purple', 'amber', 'rose'].includes(appearanceAccent)) accentColor.value = appearanceAccent;
     if (appearanceFontSize && ['tighter', 'compact', 'comfortable', 'spacious', 'relaxed'].includes(appearanceFontSize)) fontSize.value = appearanceFontSize;
@@ -873,7 +850,10 @@ onMounted(async () => {
     requestTimeoutSeconds.value = [10, 30, 60].includes(requestTimeoutSecondsP) ? requestTimeoutSecondsP : 30;
     offlineMode.value = !!offlineModeP;
     telemetry.value = !!telemetryP;
+    telemetryEndpoint.value = typeof telemetryEndpointP === 'string' ? telemetryEndpointP : '';
+    telemetryUserIdentifier.value = typeof telemetryUserIdentifierP === 'string' ? telemetryUserIdentifierP : '';
     crashReports.value = !!crashReportsP;
+    crashReportEndpoint.value = typeof crashReportEndpointP === 'string' ? crashReportEndpointP : '';
     alwaysOnTop.value = !!alwaysOnTopP;
     minimizeToTray.value = !!minimizeToTrayP;
     focusOutlineVisible.value = !!focusOutlineVisibleP;
@@ -998,8 +978,17 @@ function saveOfflineMode() {
 function saveTelemetry() {
   api.setPreference?.('telemetry', telemetry.value);
 }
+function saveTelemetryEndpoint() {
+  api.setPreference?.('telemetryEndpoint', telemetryEndpoint.value?.trim() ?? '');
+}
+function saveTelemetryUserIdentifier() {
+  api.setPreference?.('telemetryUserIdentifier', telemetryUserIdentifier.value?.trim() ?? '');
+}
 function saveCrashReports() {
   api.setPreference?.('crashReports', crashReports.value);
+}
+function saveCrashReportEndpoint() {
+  api.setPreference?.('crashReportEndpoint', crashReportEndpoint.value?.trim() ?? '');
 }
 function saveAlwaysOnTop() {
   api.setAlwaysOnTop?.(alwaysOnTop.value);
@@ -1023,12 +1012,19 @@ async function exportSettingsToFile() {
   dataPrivacyMessage.value = '';
   try {
     const result = await api.exportSettingsToFile?.();
-    if (result?.ok) dataPrivacyMessage.value = 'Settings exported.';
-    else if (!result?.canceled) dataPrivacyMessage.value = result?.error || 'Export failed';
-    dataPrivacyMessageOk.value = !!result?.ok;
+    if (result?.ok) {
+      dataPrivacyMessage.value = 'Settings exported.';
+      dataPrivacyMessageOk.value = true;
+      notifications.add({ title: 'Settings exported', message: result.filePath ? `Saved to ${result.filePath}` : 'Settings exported.', type: 'success' });
+    } else if (!result?.canceled) {
+      dataPrivacyMessage.value = result?.error || 'Export failed';
+      dataPrivacyMessageOk.value = false;
+      notifications.add({ title: 'Export failed', message: result?.error || 'Export failed', type: 'error' });
+    }
   } catch (e) {
     dataPrivacyMessage.value = e?.message || 'Export failed';
     dataPrivacyMessageOk.value = false;
+    notifications.add({ title: 'Export failed', message: e?.message || 'Export failed', type: 'error' });
   }
 }
 async function importSettingsFromFile() {
@@ -1038,13 +1034,16 @@ async function importSettingsFromFile() {
     if (result?.ok) {
       dataPrivacyMessage.value = 'Settings imported. Reload the app to apply.';
       dataPrivacyMessageOk.value = true;
+      notifications.add({ title: 'Settings imported', message: 'Reload the app to apply.', type: 'success' });
     } else if (!result?.canceled) {
       dataPrivacyMessage.value = result?.error || 'Import failed';
       dataPrivacyMessageOk.value = false;
+      notifications.add({ title: 'Import failed', message: result?.error || 'Import failed', type: 'error' });
     }
   } catch (e) {
     dataPrivacyMessage.value = e?.message || 'Import failed';
     dataPrivacyMessageOk.value = false;
+    notifications.add({ title: 'Import failed', message: e?.message || 'Import failed', type: 'error' });
   }
 }
 function confirmResetSettings() {
@@ -1055,82 +1054,22 @@ function confirmResetSettings() {
     if (result?.ok) {
       dataPrivacyMessage.value = 'Settings reset. Reload the app to apply.';
       dataPrivacyMessageOk.value = true;
+      notifications.add({ title: 'Settings reset', message: 'Reload the app to apply.', type: 'success' });
     } else {
       dataPrivacyMessage.value = result?.error || 'Reset failed';
       dataPrivacyMessageOk.value = false;
+      notifications.add({ title: 'Reset failed', message: result?.error || 'Reset failed', type: 'error' });
     }
   } catch (e) {
     dataPrivacyMessage.value = e?.message || 'Reset failed';
     dataPrivacyMessageOk.value = false;
+    notifications.add({ title: 'Reset failed', message: e?.message || 'Reset failed', type: 'error' });
   }
 }
 
 function saveToken() {
   debug.log('settings', 'save GitHub token');
   api.setGitHubToken?.(githubToken.value?.trim() ?? '');
-}
-
-async function saveLicense() {
-  licenseMessage.value = '';
-  licenseSaving.value = true;
-  try {
-    const result = await license.setLicenseKey(licenseKeyInput.value);
-    licenseKeyInput.value = '';
-    if (result?.ok) {
-      licenseMessage.value = result.hasLicense ? 'License saved.' : 'License cleared.';
-      licenseMessageOk.value = true;
-    } else {
-      licenseMessage.value = 'Could not save license.';
-      licenseMessageOk.value = false;
-    }
-  } catch {
-    licenseMessage.value = 'Could not save license.';
-    licenseMessageOk.value = false;
-  } finally {
-    licenseSaving.value = false;
-  }
-}
-
-function saveLicenseServerConfig() {
-  api.setLicenseServerConfig?.({
-    url: licenseServerUrl.value?.trim() ?? '',
-    clientId: licenseServerClientId.value?.trim() ?? '',
-    clientSecret: licenseServerClientSecret.value?.trim() ?? '',
-  });
-}
-
-async function loginToLicenseServer() {
-  licenseLoginError.value = '';
-  licenseLoginLoading.value = true;
-  try {
-    const result = await api.loginToLicenseServer?.(licenseLoginEmail.value?.trim() ?? '', licenseLoginPassword.value ?? '');
-    if (result?.ok) {
-      licenseLoginPassword.value = '';
-      await license.loadStatus();
-      const session = await api.getLicenseRemoteSession?.().catch(() => ({}));
-      licenseRemoteLoggedIn.value = !!session?.loggedIn;
-      licenseRemoteEmail.value = session?.email ?? '';
-    } else {
-      licenseLoginError.value = result?.error || 'Login failed';
-    }
-  } catch (e) {
-    licenseLoginError.value = e?.message || 'Login failed';
-  } finally {
-    licenseLoginLoading.value = false;
-  }
-}
-
-async function logoutFromLicenseServer() {
-  licenseLoginError.value = '';
-  licenseLoginLoading.value = true;
-  try {
-    await api.logoutFromLicenseServer?.();
-    await license.loadStatus();
-    licenseRemoteLoggedIn.value = false;
-    licenseRemoteEmail.value = '';
-  } finally {
-    licenseLoginLoading.value = false;
-  }
 }
 
 function saveSignCommits() {
@@ -1143,11 +1082,30 @@ function saveOllama() {
 }
 function saveClaude() {
   debug.log('settings', 'save Claude');
-  api.setClaudeSettings?.(claudeApiKey.value?.trim() ?? '', claudeModel.value?.trim() ?? '');
+  const model = claudeModelPreset.value === 'custom' ? (claudeModel.value?.trim() ?? '') : (claudeModelPreset.value || '');
+  api.setClaudeSettings?.(claudeApiKey.value?.trim() ?? '', model);
+}
+function onClaudeModelPresetChange() {
+  if (claudeModelPreset.value !== 'custom') claudeModel.value = claudeModelPreset.value;
+  saveClaude();
 }
 function saveOpenAI() {
   debug.log('settings', 'save OpenAI');
-  api.setOpenAISettings?.(openaiApiKey.value?.trim() ?? '', openaiModel.value?.trim() ?? '');
+  const model = openaiModelPreset.value === 'custom' ? (openaiModel.value?.trim() ?? '') : (openaiModelPreset.value || '');
+  api.setOpenAISettings?.(openaiApiKey.value?.trim() ?? '', model);
+}
+function onOpenAiModelPresetChange() {
+  if (openaiModelPreset.value !== 'custom') openaiModel.value = openaiModelPreset.value;
+  saveOpenAI();
+}
+function saveGemini() {
+  debug.log('settings', 'save Gemini');
+  const model = geminiModelPreset.value === 'custom' ? (geminiModel.value?.trim() ?? '') : (geminiModelPreset.value || '');
+  api.setGeminiSettings?.(geminiApiKey.value?.trim() ?? '', model);
+}
+function onGeminiModelPresetChange() {
+  if (geminiModelPreset.value !== 'custom') geminiModel.value = geminiModelPreset.value;
+  saveGemini();
 }
 function saveAiProvider() {
   debug.log('settings', 'save aiProvider', aiProvider.value);
@@ -1222,7 +1180,18 @@ function saveDebugLogging() {
   background: transparent;
   cursor: pointer;
   font: inherit;
-  color: inherit;
+  color: rgb(var(--rm-text));
+}
+.settings-nav-btn:hover {
+  background: rgb(var(--rm-surface-hover) / 0.6);
+}
+.settings-nav-btn-active,
+.settings-nav-btn[aria-current="page"] {
+  background: rgb(var(--rm-accent) / 0.15);
+  color: rgb(var(--rm-accent));
+  border-left: 3px solid rgb(var(--rm-accent));
+  margin-left: -3px;
+  padding-left: calc(0.75rem + 3px);
 }
 .settings-nav-btn:focus {
   outline: none;
@@ -1255,6 +1224,31 @@ function saveDebugLogging() {
 }
 .settings-row {
   display: block;
+}
+/* Override .settings-row so checkbox + label are one line, description below (grid wins over block) */
+.settings-row.settings-checkbox-inline {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
+}
+.settings-row.settings-checkbox-inline > .checkbox-input {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+}
+.settings-row.settings-checkbox-inline > div {
+  display: contents;
+}
+.settings-row.settings-checkbox-inline .settings-label {
+  grid-column: 2;
+  grid-row: 1;
+}
+.settings-row.settings-checkbox-inline .settings-desc {
+  grid-column: 2;
+  grid-row: 2;
+  margin: 0;
 }
 .settings-row-head {
   display: flex;
@@ -1299,45 +1293,5 @@ function saveDebugLogging() {
 .accent-swatch {
   cursor: pointer;
   border: 2px solid transparent;
-}
-.settings-license-benefits-block {
-  margin-top: 1.25rem;
-  padding: 1.5rem 1.5rem;
-  background: linear-gradient(135deg, rgb(var(--rm-accent) / 0.08) 0%, rgb(var(--rm-accent) / 0.02) 100%);
-  border: 1px solid rgb(var(--rm-border));
-  border-radius: 10px;
-}
-.settings-license-benefits-headline {
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: rgb(var(--rm-text));
-  margin: 0 0 1.25rem 0;
-}
-.settings-license-benefits-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
-  gap: 1rem 1.5rem;
-  margin-bottom: 1rem;
-}
-.settings-license-benefit-item {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
-.settings-license-benefit-title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  color: rgb(var(--rm-accent));
-}
-.settings-license-benefit-desc {
-  font-size: 0.8125rem;
-  color: rgb(var(--rm-muted));
-  line-height: 1.4;
-}
-.settings-license-benefits-footer {
-  font-size: 0.8125rem;
-  color: rgb(var(--rm-muted));
-  margin: 0;
-  line-height: 1.4;
 }
 </style>

@@ -23,32 +23,32 @@
     </div>
     <!-- Full Git UI when repo exists -->
     <div v-else-if="info?.hasGit" class="flex flex-col flex-1 min-h-0">
-    <div class="detail-git-toolbar flex flex-wrap items-end gap-1 sm:gap-3 py-3 px-3 border-b border-rm-border bg-rm-surface/50 shrink-0">
-      <div class="detail-git-toolbar-meta flex items-center gap-2 shrink-0 mr-2 flex-wrap">
-        <span class="text-xs font-medium text-rm-muted">repository:</span>
+    <div class="detail-git-toolbar flex flex-wrap items-center gap-1.5 py-1.5 px-2 border-b border-rm-border bg-rm-surface/40 shrink-0">
+      <div class="detail-git-toolbar-meta flex items-center gap-2 shrink-0 flex-wrap">
+        <span class="text-xs text-rm-muted">repository:</span>
         <span class="text-sm text-rm-text truncate max-w-[8rem]" :title="repoName">{{ repoName }}</span>
-        <span class="text-rm-border mx-1">|</span>
-        <span class="text-xs font-medium text-rm-muted">branch:</span>
-        <select ref="branchSelectRef" v-model="selectedBranch" class="detail-git-toolbar-select text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]" @change="onBranchChangeSelect">
+        <span class="text-rm-border/70 mx-0.5">|</span>
+        <span class="text-xs text-rm-muted">branch:</span>
+        <select ref="branchSelectRef" v-model="selectedBranch" class="detail-git-toolbar-select text-sm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]" @change="onBranchChangeSelect">
           <option value="">—</option>
           <option value="__new__">+ New branch…</option>
           <option v-for="b in filteredBranches" :key="b" :value="b">{{ b }}</option>
         </select>
         <span v-if="aheadBehind" class="text-xs text-rm-muted">{{ aheadBehind }}</span>
         <template v-if="gitUser.name || gitUser.email">
-          <span class="text-rm-border mx-1">|</span>
-          <span class="text-xs font-medium text-rm-muted">committer:</span>
+          <span class="text-rm-border/70 mx-0.5">|</span>
+          <span class="text-xs text-rm-muted">committer:</span>
           <span class="text-xs text-rm-text truncate max-w-[12rem]" :title="gitUser.email ? `${gitUser.name || ''} <${gitUser.email}>` : gitUser.name">{{ gitUser.name || gitUser.email || '—' }}</span>
           <button type="button" class="text-[10px] text-rm-muted hover:text-rm-accent border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Refresh git user from config" aria-label="Refresh committer info" @click="loadGitUser">↻</button>
         </template>
       </div>
       <div class="detail-git-toolbar-actions flex flex-wrap items-end gap-1 sm:gap-2">
-        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Discard all uncommitted changes" @click="undoDiscard">
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Discard all uncommitted changes" @click="undoDiscard">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
           <span class="text-[10px] font-medium">Discard</span>
         </button>
         <div class="detail-git-toolbar-dropdown relative flex flex-col items-center gap-0.5">
-          <div class="flex items-stretch rounded-rm border-0 overflow-hidden">
+          <div class="flex items-stretch border-0 overflow-hidden">
             <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-r-none border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover min-w-[2rem]" title="Pull (run default)" @click="runDefaultPull">
               <span class="flex items-center gap-0.5">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
@@ -56,12 +56,12 @@
               </span>
               <span class="text-[10px] font-medium">Pull</span>
             </button>
-            <button type="button" class="detail-git-toolbar-btn flex flex-col items-center justify-center p-1 rounded-l-none border-0 border-l border-rm-border/50 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Pull options" aria-haspopup="true" :aria-expanded="pullDropdownOpen" @click="pullDropdownOpen = !pullDropdownOpen">
+            <button type="button" class="detail-git-toolbar-btn flex flex-col items-center justify-center p-1 rounded-l-none border-0 border-l border-rm-border bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Pull options" aria-haspopup="true" :aria-expanded="pullDropdownOpen" @click="pullDropdownOpen = !pullDropdownOpen">
               <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
           </div>
-          <div v-if="pullDropdownOpen" class="detail-git-toolbar-dropdown-menu absolute left-0 top-full mt-0.5 z-30 py-2 px-0 rounded-rm border border-rm-border bg-rm-bg shadow-lg min-w-[16rem] max-w-[20rem]">
-            <p class="text-[11px] text-rm-muted px-3 py-1.5 mb-1 border-b border-rm-border/60">Select a default pull/fetch operation to execute when clicking the Pull button.</p>
+          <div v-if="pullDropdownOpen" class="detail-git-toolbar-dropdown-menu absolute left-0 top-full mt-0.5 z-30 py-2 px-0 border border-rm-border bg-rm-bg shadow-lg min-w-[16rem] max-w-[20rem]">
+            <p class="text-[11px] text-rm-muted px-3 py-1.5 mb-1 border-b border-rm-border">Select a default pull/fetch operation to execute when clicking the Pull button.</p>
             <button
               v-for="opt in pullOptions"
               :key="opt.mode"
@@ -77,23 +77,23 @@
             </button>
           </div>
         </div>
-        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Push" @click="push">
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Push" @click="push">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
           <span class="text-[10px] font-medium">Push</span>
         </button>
-        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Branch" @click="focusBranchSelect">
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Branch" @click="focusBranchSelect">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 15a3 3 0 0 0 6 0"/></svg>
           <span class="text-[10px] font-medium">Branch</span>
         </button>
-        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Stash changes" @click="stashPush">
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Stash changes" @click="stashPush">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h14v8h-4l-4 4-4-4H5z"/></svg>
           <span class="text-[10px] font-medium">Stash</span>
         </button>
-        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Pop stash" @click="stashPop">
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Pop stash" @click="stashPop">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="12" width="14" height="8" rx="1"/><path d="M12 12V6M9 9l3-3 3 3"/></svg>
           <span class="text-[10px] font-medium">Pop</span>
         </button>
-        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" :class="{ 'bg-rm-accent/15 text-rm-accent': inlineTerminalOpen }" :title="inlineTerminalOpen ? 'Close inline terminal' : 'Open inline terminal'" @click="toggleInlineTerminal">
+        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" :class="{ 'bg-rm-accent/15 text-rm-accent': inlineTerminalOpen }" :title="inlineTerminalOpen ? 'Close inline terminal' : 'Open inline terminal'" @click="toggleInlineTerminal">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
           <span class="text-[10px] font-medium">Terminal</span>
         </button>
@@ -104,11 +104,11 @@
     </div>
     <div class="detail-git-three-panels flex-1 min-h-[380px] min-w-0 border-t border-rm-border overflow-hidden flex flex-col">
       <div class="detail-git-three-panels-row flex flex-1 min-h-0 min-w-0 overflow-x-auto">
-      <aside class="detail-git-sidebar-panel shrink-0 min-h-0 border-r border-rm-border bg-rm-bg-elevated/50 flex flex-col overflow-hidden" :style="gitSidebarStyle">
-        <div class="p-2 border-b border-rm-border shrink-0">
-          <input v-model="gitFilter" type="text" class="detail-git-filter-input w-full text-xs border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5" placeholder="Filter (⌘⌥F)" />
+      <aside class="detail-git-sidebar-panel shrink-0 min-h-0 bg-rm-bg-elevated/50 flex flex-col overflow-hidden" :style="gitSidebarStyle">
+        <div class="p-1.5 border-b border-rm-border shrink-0">
+          <input v-model="gitFilter" type="text" class="detail-git-filter-input w-full text-xs border border-rm-border bg-rm-bg text-rm-text px-1.5 py-1" placeholder="Filter (⌘⌥F)" />
         </div>
-        <div class="detail-git-sidebar-scroll flex-1 overflow-y-auto py-2 min-h-0 flex flex-col gap-2">
+        <div class="detail-git-sidebar-scroll flex-1 overflow-y-auto py-1 min-h-0 flex flex-col gap-1">
           <template v-for="widgetId in visibleOrderedWidgetIds" :key="widgetId">
           <div
             v-if="widgetId === 'local-branches'"
@@ -119,7 +119,7 @@
             @drop="onWidgetDrop($event, widgetId)"
             @dragleave="onWidgetDragLeave($event, widgetId)"
           >
-            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarLocalOpen" @click="sidebarLocalOpen = !sidebarLocalOpen">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2 py-1.5 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarLocalOpen" @click="sidebarLocalOpen = !sidebarLocalOpen">
               <span class="flex items-center gap-1.5 shrink-0 min-w-0">
                 <span v-if="hasMultipleVisibleWidgets" class="widget-drag-handle shrink-0 cursor-grab active:cursor-grabbing text-rm-muted hover:text-rm-text p-0.5 -ml-0.5" draggable="true" title="Drag to reorder" @click.stop @dragstart="onWidgetDragStart($event, widgetId)" @dragend="onWidgetDragEnd"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
                 <span class="w-3.5 h-3.5 shrink-0 text-rm-muted inline-block" v-html="sidebarWidgetIcon(widgetId)" aria-hidden="true"></span>
@@ -127,7 +127,7 @@
               </span>
               <svg class="w-3.5 h-3.5 shrink-0 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarLocalOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
-            <div v-show="sidebarLocalOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+            <div v-show="sidebarLocalOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border">
               <ul class="py-1 px-0 list-none m-0 text-xs text-rm-text space-y-0.5">
                 <li class="py-0.5">
                   <button
@@ -171,7 +171,7 @@
             @drop="onWidgetDrop($event, widgetId)"
             @dragleave="onWidgetDragLeave($event, widgetId)"
           >
-            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarRemoteOpen" @click="sidebarRemoteOpen = !sidebarRemoteOpen" @contextmenu.prevent="openRemoteContextMenu($event)">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2 py-1.5 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarRemoteOpen" @click="sidebarRemoteOpen = !sidebarRemoteOpen" @contextmenu.prevent="openRemoteContextMenu($event)">
               <span class="flex items-center gap-1.5 shrink-0 min-w-0">
                 <span v-if="hasMultipleVisibleWidgets" class="widget-drag-handle shrink-0 cursor-grab active:cursor-grabbing text-rm-muted hover:text-rm-text p-0.5 -ml-0.5" draggable="true" title="Drag to reorder" @click.stop @dragstart="onWidgetDragStart($event, widgetId)" @dragend="onWidgetDragEnd"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
                 <span class="w-3.5 h-3.5 shrink-0 text-rm-muted inline-block" v-html="sidebarWidgetIcon(widgetId)" aria-hidden="true"></span>
@@ -182,7 +182,7 @@
                 <svg class="w-3.5 h-3.5 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarRemoteOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
               </span>
             </button>
-            <div v-show="sidebarRemoteOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+            <div v-show="sidebarRemoteOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border">
               <ul class="max-h-28 overflow-y-auto py-1 px-0 list-none m-0 text-xs text-rm-text space-y-0.5">
                 <li
                 v-for="r in filteredRemoteBranches"
@@ -210,7 +210,7 @@
             @drop="onWidgetDrop($event, widgetId)"
             @dragleave="onWidgetDragLeave($event, widgetId)"
           >
-            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarWorktreesOpen" @click="sidebarWorktreesOpen = !sidebarWorktreesOpen">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2 py-1.5 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarWorktreesOpen" @click="sidebarWorktreesOpen = !sidebarWorktreesOpen">
               <span class="flex items-center gap-1.5 shrink-0 min-w-0">
                 <span v-if="hasMultipleVisibleWidgets" class="widget-drag-handle shrink-0 cursor-grab active:cursor-grabbing text-rm-muted hover:text-rm-text p-0.5 -ml-0.5" draggable="true" title="Drag to reorder" @click.stop @dragstart="onWidgetDragStart($event, widgetId)" @dragend="onWidgetDragEnd"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
                 <span class="w-3.5 h-3.5 shrink-0 text-rm-muted inline-block" v-html="sidebarWidgetIcon(widgetId)" aria-hidden="true"></span>
@@ -218,7 +218,7 @@
               </span>
               <svg class="w-3.5 h-3.5 shrink-0 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarWorktreesOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
-            <div v-show="sidebarWorktreesOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+            <div v-show="sidebarWorktreesOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border">
               <button type="button" class="text-xs text-rm-accent hover:underline border-0 bg-transparent cursor-pointer p-0 mb-1.5 font-medium" @click="addWorktreeFromSidebar">+ Add worktree</button>
               <ul class="max-h-32 overflow-y-auto py-1 px-0 list-none m-0 text-xs text-rm-muted space-y-0.5">
                 <li
@@ -248,7 +248,7 @@
             @drop="onWidgetDrop($event, widgetId)"
             @dragleave="onWidgetDragLeave($event, widgetId)"
           >
-            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarTagsOpen" @click="sidebarTagsOpen = !sidebarTagsOpen">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2 py-1.5 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarTagsOpen" @click="sidebarTagsOpen = !sidebarTagsOpen">
               <span class="flex items-center gap-1.5 shrink-0 min-w-0">
                 <span v-if="hasMultipleVisibleWidgets" class="widget-drag-handle shrink-0 cursor-grab active:cursor-grabbing text-rm-muted hover:text-rm-text p-0.5 -ml-0.5" draggable="true" title="Drag to reorder" @click.stop @dragstart="onWidgetDragStart($event, widgetId)" @dragend="onWidgetDragEnd"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
                 <span class="w-3.5 h-3.5 shrink-0 text-rm-muted inline-block" v-html="sidebarWidgetIcon(widgetId)" aria-hidden="true"></span>
@@ -256,7 +256,7 @@
               </span>
               <svg class="w-3.5 h-3.5 shrink-0 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarTagsOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
-            <div v-show="sidebarTagsOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+            <div v-show="sidebarTagsOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border">
               <button type="button" class="text-xs text-rm-accent hover:underline border-0 bg-transparent cursor-pointer p-0 mb-1.5 font-medium" @click="createTagFromSidebar">+ New tag</button>
               <ul class="max-h-32 overflow-y-auto py-1 px-0 list-none m-0 text-xs text-rm-muted space-y-0.5">
                 <li v-for="t in filteredTags" :key="t" class="cursor-pointer hover:text-rm-accent truncate py-0.5 flex items-center justify-between gap-1 group" @click="checkoutTag(t)" @contextmenu.prevent="openTagContextMenu($event, t)">
@@ -278,7 +278,7 @@
             @drop="onWidgetDrop($event, widgetId)"
             @dragleave="onWidgetDragLeave($event, widgetId)"
           >
-            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarStashOpen" @click="sidebarStashOpen = !sidebarStashOpen">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2 py-1.5 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarStashOpen" @click="sidebarStashOpen = !sidebarStashOpen">
               <span class="flex items-center gap-1.5 shrink-0 min-w-0">
                 <span v-if="hasMultipleVisibleWidgets" class="widget-drag-handle shrink-0 cursor-grab active:cursor-grabbing text-rm-muted hover:text-rm-text p-0.5 -ml-0.5" draggable="true" title="Drag to reorder" @click.stop @dragstart="onWidgetDragStart($event, widgetId)" @dragend="onWidgetDragEnd"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
                 <span class="w-3.5 h-3.5 shrink-0 text-rm-muted inline-block" v-html="sidebarWidgetIcon(widgetId)" aria-hidden="true"></span>
@@ -290,7 +290,7 @@
                 <svg class="w-3.5 h-3.5 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarStashOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
               </span>
             </button>
-            <div v-show="sidebarStashOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
+            <div v-show="sidebarStashOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border">
               <ul class="max-h-32 overflow-y-auto py-1 px-0 list-none m-0 text-xs text-rm-muted space-y-0.5">
                 <li
                   v-for="e in stashListEntries"
@@ -315,7 +315,7 @@
             @drop="onWidgetDrop($event, widgetId)"
             @dragleave="onWidgetDragLeave($event, widgetId)"
           >
-            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarSubmodulesOpen" @click="sidebarSubmodulesOpen = !sidebarSubmodulesOpen">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2 py-1.5 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarSubmodulesOpen" @click="sidebarSubmodulesOpen = !sidebarSubmodulesOpen">
               <span class="flex items-center gap-1.5 shrink-0 min-w-0">
                 <span v-if="hasMultipleVisibleWidgets" class="widget-drag-handle shrink-0 cursor-grab active:cursor-grabbing text-rm-muted hover:text-rm-text p-0.5 -ml-0.5" draggable="true" title="Drag to reorder" @click.stop @dragstart="onWidgetDragStart($event, widgetId)" @dragend="onWidgetDragEnd"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
                 <span class="w-3.5 h-3.5 shrink-0 text-rm-muted inline-block" v-html="sidebarWidgetIcon(widgetId)" aria-hidden="true"></span>
@@ -327,8 +327,8 @@
                 <svg class="w-3.5 h-3.5 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarSubmodulesOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
               </span>
             </button>
-            <div v-show="sidebarSubmodulesOpen" class="border-t border-rm-border/50">
-              <div class="px-2 py-1.5 border-b border-rm-border/50">
+            <div v-show="sidebarSubmodulesOpen" class="border-t border-rm-border">
+              <div class="px-2 py-1.5 border-b border-rm-border">
                 <input
                   v-model="submoduleSearch"
                   type="text"
@@ -365,7 +365,7 @@
             @drop="onWidgetDrop($event, widgetId)"
             @dragleave="onWidgetDragLeave($event, widgetId)"
           >
-            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarReflogOpen" @click="sidebarReflogOpen = !sidebarReflogOpen">
+            <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2 py-1.5 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="sidebarReflogOpen" @click="sidebarReflogOpen = !sidebarReflogOpen">
               <span class="flex items-center gap-1.5 shrink-0 min-w-0">
                 <span v-if="hasMultipleVisibleWidgets" class="widget-drag-handle shrink-0 cursor-grab active:cursor-grabbing text-rm-muted hover:text-rm-text p-0.5 -ml-0.5" draggable="true" title="Drag to reorder" @click.stop @dragstart="onWidgetDragStart($event, widgetId)" @dragend="onWidgetDragEnd"><svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg></span>
                 <span class="w-3.5 h-3.5 shrink-0 text-rm-muted inline-block" v-html="sidebarWidgetIcon(widgetId)" aria-hidden="true"></span>
@@ -377,8 +377,8 @@
                 <svg class="w-3.5 h-3.5 text-rm-muted transition-transform" :class="{ 'rotate-180': sidebarReflogOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
               </span>
             </button>
-            <div v-show="sidebarReflogOpen" class="border-t border-rm-border/50">
-              <div class="px-2 py-1.5 border-b border-rm-border/50">
+            <div v-show="sidebarReflogOpen" class="border-t border-rm-border">
+              <div class="px-2 py-1.5 border-b border-rm-border">
                 <input
                   v-model="reflogSearch"
                   type="text"
@@ -433,7 +433,7 @@
           </div>
           </template>
         </div>
-        <div class="border-t border-rm-border p-2 shrink-0 bg-rm-bg-elevated/50">
+        <div class="border-t border-rm-border p-1.5 shrink-0 bg-rm-bg-elevated/50">
           <div class="relative detail-git-widget-dropdown-wrap">
             <button
               type="button"
@@ -446,10 +446,10 @@
             </button>
             <div
               v-if="widgetDropdownOpen"
-              class="absolute bottom-full left-0 right-0 mb-1 py-1 rounded-rm border border-rm-border bg-rm-surface shadow-lg z-20 max-h-64 overflow-y-auto"
+              class="absolute bottom-full left-0 right-0 mb-1 py-1 border border-rm-border bg-rm-surface shadow-lg z-20 max-h-64 overflow-y-auto"
               role="menu"
             >
-              <p class="px-2 py-1 text-xs font-semibold text-rm-muted uppercase tracking-wide border-b border-rm-border/50 mb-1">Show / hide &amp; order</p>
+              <p class="px-2 py-1 text-xs font-semibold text-rm-muted uppercase tracking-wide border-b border-rm-border mb-1">Show / hide &amp; order</p>
               <div
                 v-for="id in sidebarWidgetOrder"
                 :key="id"
@@ -492,7 +492,7 @@
               <tr
                 v-for="(c, i) in commitLog"
                 :key="c.sha"
-                class="border-b border-rm-border/50 hover:bg-rm-surface-hover cursor-pointer"
+                class="border-b border-rm-border hover:bg-rm-surface-hover cursor-pointer"
                 @click="openCommitDetail(c.sha, i === 0)"
               >
                 <td class="py-1.5 px-2 w-14">
@@ -507,16 +507,16 @@
               </tr>
             </tbody>
           </table>
-          <p v-if="commitLog.length === 0 && !commitLogLoading" class="m-0 p-4 text-xs text-rm-muted">No commits.</p>
+          <p v-if="commitLog.length === 0 && !commitLogLoading" class="m-0 p-2 text-xs text-rm-muted">No commits.</p>
         </div>
       </div>
       <button type="button" class="detail-sidebar-resizer shrink-0 border-0 bg-transparent hover:bg-rm-accent/20 active:bg-rm-accent/30 transition-colors self-stretch" aria-label="Resize right panel" @pointerdown="onGitRightPanelResize" />
-      <div class="detail-git-right-panel shrink-0 flex flex-col overflow-hidden min-h-0 bg-rm-bg-elevated/30 p-4 border-l border-rm-border" :style="gitRightPanelStyle">
-        <div class="mb-3 flex items-center gap-2 relative shrink-0">
+      <div class="detail-git-right-panel shrink-0 flex flex-col min-h-0 px-2 py-2" :style="gitRightPanelStyle">
+        <div class="detail-git-section-dropdown-row mb-2 flex items-center gap-1.5 relative shrink-0">
           <div class="detail-git-section-dropdown flex-1 min-w-0 relative">
             <button
               type="button"
-              class="detail-git-section-select-btn w-full inline-flex items-center gap-2 text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5 text-left"
+              class="detail-git-section-select-btn w-full inline-flex items-center gap-1.5 text-xs border border-rm-border bg-rm-bg text-rm-text px-1.5 py-1 text-left"
               :aria-expanded="gitSectionDropdownOpen"
               aria-haspopup="listbox"
               @click="gitSectionDropdownOpen = !gitSectionDropdownOpen"
@@ -525,7 +525,7 @@
               <span class="truncate flex-1">{{ currentSectionOption?.label || 'Section' }}</span>
               <svg class="w-3 h-3 shrink-0 opacity-70" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
             </button>
-            <div v-if="gitSectionDropdownOpen" class="detail-git-section-dropdown-menu absolute left-0 right-0 top-full mt-0.5 z-20 py-1 rounded-rm border border-rm-border bg-rm-bg shadow-lg max-h-64 overflow-y-auto">
+            <div v-if="gitSectionDropdownOpen" class="detail-git-section-dropdown-menu absolute left-0 right-0 top-full mt-0.5 z-20 py-1 border border-rm-border bg-rm-bg shadow-lg max-h-64 overflow-y-auto">
               <button
                 v-for="opt in gitSectionOptions"
                 :key="opt.value"
@@ -540,33 +540,33 @@
               </button>
             </div>
           </div>
-          <button v-if="gitSectionDocKey" type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal shrink-0" title="Documentation" aria-label="Documentation" @click="openGitSectionDocs">(i)</button>
+          <button v-if="gitSectionDocKey" type="button" class="doc-trigger p-1 text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal shrink-0" title="Documentation" aria-label="Documentation" @click="openGitSectionDocs">(i)</button>
         </div>
         <template v-if="gitRightSection === 'working-tree'">
         <!-- Working tree & commit: header + file sections + commit area -->
         <div class="flex-1 min-h-0 flex flex-col overflow-hidden">
-          <!-- Header: Discard | N file changes on branch | Generate -->
-          <div class="flex items-center justify-between gap-2 px-2 py-2 border-b border-rm-border bg-rm-bg-elevated/50 shrink-0">
-            <button type="button" class="p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-muted hover:text-rm-warning hover:bg-rm-warning/10" title="Discard all uncommitted changes" :disabled="!hasChanges" @click="discardAll">
+          <!-- Toolbar: Discard | status | actions -->
+          <div class="detail-git-toolbar-bar">
+            <button type="button" class="p-1.5 border-0 bg-transparent cursor-pointer text-rm-muted hover:text-rm-warning hover:bg-rm-warning/10" title="Discard all uncommitted changes" :disabled="!hasChanges" @click="discardAll">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
             </button>
-            <span class="text-xs font-medium text-rm-text truncate min-w-0">
-              <template v-if="hasChanges">{{ fileChangesCount }} file {{ fileChangesCount === 1 ? 'change' : 'changes' }} on <code class="px-1 py-0.5 rounded bg-rm-surface text-rm-accent">{{ currentBranch || '…' }}</code></template>
+            <span class="text-xs truncate min-w-0" :class="hasChanges ? 'text-rm-text' : 'text-rm-muted'">
+              <template v-if="hasChanges">{{ fileChangesCount }} file {{ fileChangesCount === 1 ? 'change' : 'changes' }} on <code class="px-1.5 py-0.5 bg-rm-accent/15 text-rm-accent text-[11px] font-medium">{{ currentBranch || '…' }}</code></template>
               <template v-else>Working tree clean</template>
             </span>
-            <div class="flex items-center gap-1 shrink-0">
-              <button type="button" class="p-1.5 rounded-rm border border-rm-border bg-transparent cursor-pointer text-rm-muted hover:text-rm-accent hover:bg-rm-accent/10 shrink-0 text-[11px]" title="Create a test file to try staging, diff, discard, etc." :disabled="createTestFileLoading" @click="createTestFileAndRefresh">
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" class="p-1.5 border border-rm-border bg-transparent cursor-pointer text-rm-muted hover:text-rm-accent hover:bg-rm-accent/10 hover:border-rm-accent/40 shrink-0 text-[11px] transition-colors" title="Create a test file to try staging, diff, discard, etc." :disabled="createTestFileLoading" @click="createTestFileAndRefresh">
                 {{ createTestFileLoading ? '…' : '+ Test file' }}
               </button>
-              <button v-if="aiGenerateAvailable" type="button" class="p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-muted hover:text-rm-accent hover:bg-rm-accent/10 shrink-0" title="Generate commit message (AI)" @click="generateCommitMessage">
+              <button v-if="aiGenerateAvailable" type="button" class="p-1.5 border-0 bg-transparent cursor-pointer text-rm-muted hover:text-rm-accent hover:bg-rm-accent/10 shrink-0" title="Generate commit message (AI)" @click="generateCommitMessage">
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9z"/></svg>
               </button>
             </div>
           </div>
-          <!-- View mode: Path | Tree | View all files | Collapse All -->
-          <div class="flex flex-wrap items-center gap-2 px-2 py-1.5 border-b border-rm-border shrink-0">
-            <button type="button" class="detail-git-view-toggle text-xs font-medium px-2 py-1 rounded-rm border border-transparent bg-transparent cursor-pointer" :class="workingTreeView === 'path' ? 'text-rm-accent border-rm-accent/50 bg-rm-accent/10' : 'text-rm-muted hover:text-rm-text'" @click="workingTreeView = 'path'">Path</button>
-            <button type="button" class="detail-git-view-toggle text-xs font-medium px-2 py-1 rounded-rm border border-transparent bg-transparent cursor-pointer" :class="workingTreeView === 'tree' ? 'text-rm-accent border-rm-accent/50 bg-rm-accent/10' : 'text-rm-muted hover:text-rm-text'" @click="workingTreeView = 'tree'">Tree</button>
+          <!-- View: Path | Tree | options -->
+          <div class="detail-git-view-bar">
+            <button type="button" class="detail-git-view-toggle text-xs font-medium px-2 py-1 border border-transparent bg-transparent cursor-pointer" :class="workingTreeView === 'path' ? 'text-rm-accent border-rm-accent/50 bg-rm-accent/10' : 'text-rm-muted hover:text-rm-text'" @click="workingTreeView = 'path'">Path</button>
+            <button type="button" class="detail-git-view-toggle text-xs font-medium px-2 py-1 border border-transparent bg-transparent cursor-pointer" :class="workingTreeView === 'tree' ? 'text-rm-accent border-rm-accent/50 bg-rm-accent/10' : 'text-rm-muted hover:text-rm-text'" @click="workingTreeView = 'tree'">Tree</button>
             <template v-if="workingTreeView === 'tree'">
               <label class="flex items-center gap-1.5 text-xs text-rm-text cursor-pointer ml-1">
                 <input v-model="viewAllFiles" type="checkbox" class="rounded border-rm-border" />
@@ -576,16 +576,16 @@
             </template>
           </div>
           <!-- Tree mode + View all files: single expandable tree -->
-          <div v-if="workingTreeView === 'tree' && viewAllFiles" class="flex-1 min-h-0 overflow-y-auto rounded-rm border border-rm-border bg-rm-surface/20 mx-2 mt-2 overflow-hidden flex flex-col">
-            <div class="px-2 py-2 border-b border-rm-border bg-rm-surface/40 shrink-0">
-              <span class="text-xs font-semibold text-rm-muted uppercase tracking-wide">{{ trackedFilesLoading ? 'Loading…' : (fileCountInTree > 0 ? `${fileCountInTree} file${fileCountInTree === 1 ? '' : 's'}` : 'No files') }}</span>
+          <div v-if="workingTreeView === 'tree' && viewAllFiles" class="detail-git-files-panel flex-1 min-h-0 overflow-y-auto mx-2 mt-2 overflow-hidden flex flex-col">
+            <div class="px-2 py-1.5 shrink-0 border-b border-rm-border">
+              <span class="detail-git-sidebar-group-header-modern">{{ trackedFilesLoading ? 'Loading…' : (fileCountInTree > 0 ? `${fileCountInTree} file${fileCountInTree === 1 ? '' : 's'}` : 'No files') }}</span>
             </div>
             <div class="px-2 py-1 overflow-y-auto min-h-0 flex-1 text-xs">
               <p v-if="trackedFilesLoading" class="m-0 py-2 text-rm-muted">{{ viewAllFiles ? 'Loading project files…' : 'Loading…' }}</p>
               <p v-else-if="!workingTreeFlatRows.length" class="m-0 py-2 text-rm-muted">{{ viewAllFiles ? 'No files in project.' : 'No files to show. Check "View all files" to see every file in the project.' }}</p>
               <ul v-else class="m-0 pl-0 list-none space-y-0">
                 <template v-for="row in workingTreeFlatRows" :key="row.key">
-                  <li v-if="row.type === 'dir'" class="flex items-center gap-1 py-0.5 cursor-pointer hover:bg-rm-surface-hover/50 rounded-rm" :style="{ paddingLeft: row.depth * 12 + 4 + 'px' }" @click="toggleTreeExpand(row.key)">
+                  <li v-if="row.type === 'dir'" class="flex items-center gap-1 py-0.5 cursor-pointer hover:bg-rm-surface-hover/50" :style="{ paddingLeft: row.depth * 12 + 4 + 'px' }" @click="toggleTreeExpand(row.key)">
                     <svg class="w-3 h-3 shrink-0 text-rm-muted transition-transform" :class="{ 'rotate-90': treeExpandedKeys.has(row.key) }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
                     <span class="truncate text-rm-text font-medium">{{ row.name }}</span>
                   </li>
@@ -610,16 +610,19 @@
             </div>
           </div>
           <!-- File staging: Unstaged + Staged (Path mode, or Tree mode with only modified) -->
-          <div v-else class="flex-1 min-h-0 overflow-y-auto rounded-rm border border-rm-border bg-rm-surface/20 mx-2 mt-2 overflow-hidden flex flex-col">
-            <div class="detail-git-sidebar-group border-0 border-b border-rm-border bg-rm-surface/40">
-              <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="workingTreeUnstagedOpen" @click="workingTreeUnstagedOpen = !workingTreeUnstagedOpen">
-                <span class="text-xs font-semibold text-rm-muted uppercase tracking-wide">Unstaged files ({{ unstaged.length }})</span>
+          <div v-else class="detail-git-files-panel flex-1 min-h-0 overflow-y-auto overflow-hidden flex flex-col">
+            <div class="detail-git-file-group detail-git-file-group-unstaged">
+              <button type="button" class="detail-git-file-group-header w-full flex items-center justify-between gap-1 text-left border-0 bg-transparent cursor-pointer text-rm-text" :aria-expanded="workingTreeUnstagedOpen" @click="workingTreeUnstagedOpen = !workingTreeUnstagedOpen">
+                <span class="detail-git-file-group-label">
+                  <span class="detail-git-file-group-title">Unstaged</span>
+                  <span class="detail-git-file-group-count">({{ unstaged.length }})</span>
+                </span>
                 <span class="flex items-center gap-1 shrink-0">
-                  <button v-if="unstaged.length > 0" type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent px-1.5 py-0.5 rounded border border-rm-accent/50 cursor-pointer" @click.stop="stageAll">Stage all</button>
+                  <button v-if="unstaged.length > 0" type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent px-1.5 py-0.5 border border-rm-accent/50 cursor-pointer" @click.stop="stageAll">Stage all</button>
                   <svg class="w-3.5 h-3.5 shrink-0 text-rm-muted transition-transform" :class="{ 'rotate-180': workingTreeUnstagedOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </span>
               </button>
-              <div v-show="workingTreeUnstagedOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50 max-h-40 overflow-y-auto">
+              <div v-show="workingTreeUnstagedOpen" class="detail-git-file-group-content">
                 <template v-if="workingTreeView === 'path'">
                   <ul v-if="unstaged.length" class="m-0 mt-1 pl-0 list-none text-xs space-y-1">
                     <li v-for="f in unstaged" :key="'u-' + f" class="flex items-center gap-2 py-0.5" @contextmenu.prevent="openFilePathContextMenu($event, f)">
@@ -661,15 +664,18 @@
                 </template>
               </div>
             </div>
-            <div class="detail-git-sidebar-group border-0 border-b border-rm-border bg-rm-surface/40">
-              <button type="button" class="detail-git-sidebar-group-header w-full flex items-center justify-between gap-1 px-2.5 py-2 text-left border-0 bg-transparent cursor-pointer hover:bg-rm-surface-hover/50 text-rm-text" :aria-expanded="workingTreeStagedOpen" @click="workingTreeStagedOpen = !workingTreeStagedOpen">
-                <span class="text-xs font-semibold text-rm-muted uppercase tracking-wide">Staged files ({{ staged.length }})</span>
+            <div class="detail-git-file-group detail-git-file-group-staged">
+              <button type="button" class="detail-git-file-group-header w-full flex items-center justify-between gap-1 text-left border-0 bg-transparent cursor-pointer text-rm-text" :aria-expanded="workingTreeStagedOpen" @click="workingTreeStagedOpen = !workingTreeStagedOpen">
+                <span class="detail-git-file-group-label">
+                  <span class="detail-git-file-group-title">Staged</span>
+                  <span class="detail-git-file-group-count">({{ staged.length }})</span>
+                </span>
                 <span class="flex items-center gap-1 shrink-0">
-                  <button v-if="staged.length > 0" type="button" class="text-[10px] text-rm-warning hover:underline border-0 bg-transparent px-1.5 py-0.5 rounded border border-rm-warning/50 cursor-pointer" @click.stop="unstageAll">Unstage all</button>
+                  <button v-if="staged.length > 0" type="button" class="text-[10px] text-rm-warning hover:underline border-0 bg-transparent px-1.5 py-0.5 border border-rm-warning/50 cursor-pointer" @click.stop="unstageAll">Unstage all</button>
                   <svg class="w-3.5 h-3.5 text-rm-muted transition-transform" :class="{ 'rotate-180': workingTreeStagedOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                 </span>
               </button>
-              <div v-show="workingTreeStagedOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50 max-h-40 overflow-y-auto">
+              <div v-show="workingTreeStagedOpen" class="detail-git-file-group-content">
                 <template v-if="workingTreeView === 'path'">
                   <ul v-if="staged.length" class="m-0 mt-1 pl-0 list-none text-xs space-y-1">
                     <li v-for="f in staged" :key="'s-' + f" class="flex items-center gap-2 py-0.5" @contextmenu.prevent="openFilePathContextMenu($event, f)">
@@ -710,37 +716,64 @@
               </div>
             </div>
           </div>
-          <!-- Commit section: anchored at bottom of right panel so it stays in view -->
-          <div class="detail-git-commit-anchored border-t border-rm-border pt-4 px-2 pb-2 mt-2 shrink-0 bg-rm-bg-elevated/30">
-            <div class="flex flex-wrap gap-3 mb-2 text-sm">
-              <label class="checkbox-label cursor-pointer flex items-center gap-2">
-                <input v-model="amendCommit" type="checkbox" class="checkbox-input" />
-                <span>Amend previous commit</span>
-              </label>
-              <label class="checkbox-label cursor-pointer flex items-center gap-2">
-                <input v-model="signCommit" type="checkbox" class="checkbox-input" />
-                <span>Sign commit</span>
-              </label>
+          <!-- Commit section: card layout with clear structure -->
+          <div class="detail-git-commit-card mt-2 shrink-0">
+            <div class="detail-git-commit-card-head">Commit</div>
+            <div class="detail-git-commit-card-body">
+              <div class="detail-git-commit-row detail-git-commit-summary-row">
+                <label class="detail-git-commit-label">
+                  <span>Summary</span>
+                  <span class="detail-git-commit-count">{{ commitSummary.length }}/72</span>
+                </label>
+                <div class="detail-git-commit-summary-wrap">
+                  <textarea
+                    v-model="commitSummary"
+                    class="input-field detail-git-commit-summary-input"
+                    rows="2"
+                    placeholder="e.g. feat: add X"
+                    maxlength="72"
+                  ></textarea>
+                  <button v-if="aiGenerateAvailable" type="button" class="detail-git-commit-ai-btn" title="Generate commit message (AI)" @click="generateCommitMessage">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9z"/></svg>
+                  </button>
+                </div>
+              </div>
+              <div class="detail-git-commit-row">
+                <label class="detail-git-commit-label">Description <span class="text-rm-muted font-normal">(optional)</span></label>
+                <textarea
+                  v-model="commitDescription"
+                  class="input-field detail-git-commit-desc-input"
+                  rows="3"
+                  placeholder="Add more context…"
+                ></textarea>
+              </div>
+              <div class="detail-git-commit-options">
+                <label class="detail-git-commit-option">
+                  <input v-model="amendCommit" type="checkbox" class="checkbox-input" />
+                  <span>Amend</span>
+                </label>
+                <label class="detail-git-commit-option">
+                  <input v-model="signCommit" type="checkbox" class="checkbox-input" />
+                  <span>Sign</span>
+                </label>
+              </div>
+              <div class="detail-git-commit-actions">
+                <button
+                  type="button"
+                  class="btn-primary detail-git-commit-submit"
+                  :disabled="!canCommit"
+                  @click="commit"
+                >
+                  {{ staged.length > 0 ? `Commit ${staged.length} file${staged.length === 1 ? '' : 's'}` : 'Commit' }}
+                </button>
+                <button type="button" class="btn-secondary detail-git-commit-push" title="Push" @click="pushFromFooter">Push</button>
+              </div>
+              <p v-if="gitActionStatus" class="detail-git-commit-status">{{ gitActionStatus }}</p>
             </div>
-            <div class="flex gap-2 mb-1">
-              <textarea v-model="commitSummary" class="input-field flex-1 min-w-0 text-sm resize-none rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5" rows="2" placeholder="Commit summary (e.g. feat: add X)" maxlength="72"></textarea>
-              <button v-if="aiGenerateAvailable" type="button" class="btn-secondary btn-compact text-xs shrink-0 self-start" title="Generate commit message (AI)" @click="generateCommitMessage">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9z"/></svg>
-              </button>
-            </div>
-            <span class="text-[11px] text-rm-muted block mb-1">{{ commitSummary.length }}/72</span>
-            <textarea v-model="commitDescription" class="input-field w-full text-sm resize-none rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5 mb-3" rows="3" placeholder="Description (optional)"></textarea>
-            <div class="flex flex-wrap gap-2">
-              <button type="button" class="btn-primary flex-1 min-w-0 text-sm py-2" :disabled="!canCommit" @click="commit">
-                {{ staged.length > 0 ? `Commit changes to ${staged.length} file${staged.length === 1 ? '' : 's'}` : 'Commit' }}
-              </button>
-              <button type="button" class="btn-secondary btn-compact text-xs" title="Push" @click="pushFromFooter">Push</button>
-            </div>
-            <p v-if="gitActionStatus" class="m-0 mt-2 text-xs text-rm-muted">{{ gitActionStatus }}</p>
           </div>
         </div>
         </template>
-        <div v-else class="overflow-y-auto flex-1 min-h-0 rounded-rm border border-rm-border bg-rm-surface/20 p-3">
+        <div v-else class="overflow-y-auto flex-1 min-h-0 border border-rm-border bg-rm-surface/20 p-2">
           <GitBranchSyncCard v-if="gitRightSection === 'branch-sync'" @refresh="$emit('refresh')" />
           <GitMergeRebaseCard v-else-if="gitRightSection === 'merge-rebase'" :current-branch="currentBranch" @refresh="$emit('refresh')" />
           <GitStashCard v-else-if="gitRightSection === 'stash'" @refresh="onStashCardRefresh" />
@@ -763,7 +796,7 @@
     <Teleport to="body">
       <div
         v-if="branchContextMenu"
-        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 rounded-rm border border-rm-border bg-rm-surface shadow-lg text-sm"
+        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 border border-rm-border bg-rm-surface shadow-lg text-sm"
         :style="{ left: branchContextMenu.x + 'px', top: branchContextMenu.y + 'px' }"
         role="menu"
       >
@@ -786,7 +819,7 @@
           Checkout (track remote)
         </button>
         <template v-if="branchContextMenuBranchIsCurrent">
-          <div class="border-t border-rm-border/60 my-1" role="separator"></div>
+          <div class="border-t border-rm-border my-1" role="separator"></div>
           <button
             type="button"
             class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
@@ -813,7 +846,7 @@
             Set Upstream
           </button>
         </template>
-        <div class="border-t border-rm-border/60 my-1" role="separator"></div>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
         <button
           type="button"
           class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
@@ -893,7 +926,7 @@
         >
           Delete {{ branchContextMenu.branch }}
         </button>
-        <div class="border-t border-rm-border/60 my-1" role="separator"></div>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
         <button
           type="button"
           class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
@@ -919,10 +952,29 @@
         >
           Copy link to branch
         </button>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
+        <button
+          v-if="api.gitStashPush"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPush"
+        >
+          Stash
+        </button>
+        <button
+          v-if="api.gitStashPop"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPop"
+        >
+          Pop stash
+        </button>
       </div>
       <div
         v-if="remoteContextMenu"
-        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 rounded-rm border border-rm-border bg-rm-surface shadow-lg text-sm"
+        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 border border-rm-border bg-rm-surface shadow-lg text-sm"
         :style="{ left: remoteContextMenu.x + 'px', top: remoteContextMenu.y + 'px' }"
         role="menu"
       >
@@ -943,7 +995,7 @@
         >
           Prune remotes
         </button>
-        <div class="border-t border-rm-border/60 my-1" role="separator"></div>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
         <button
           type="button"
           class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
@@ -952,10 +1004,29 @@
         >
           Refresh list
         </button>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
+        <button
+          v-if="api.gitStashPush"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPush"
+        >
+          Stash
+        </button>
+        <button
+          v-if="api.gitStashPop"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPop"
+        >
+          Pop stash
+        </button>
       </div>
       <div
         v-if="tagContextMenu"
-        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 rounded-rm border border-rm-border bg-rm-surface shadow-lg text-sm"
+        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 border border-rm-border bg-rm-surface shadow-lg text-sm"
         :style="{ left: tagContextMenu.x + 'px', top: tagContextMenu.y + 'px' }"
         role="menu"
       >
@@ -983,10 +1054,29 @@
         >
           Delete tag
         </button>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
+        <button
+          v-if="api.gitStashPush"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPush"
+        >
+          Stash
+        </button>
+        <button
+          v-if="api.gitStashPop"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPop"
+        >
+          Pop stash
+        </button>
       </div>
       <div
         v-if="worktreeContextMenu"
-        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 rounded-rm border border-rm-border bg-rm-surface shadow-lg text-sm"
+        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 border border-rm-border bg-rm-surface shadow-lg text-sm"
         :style="{ left: worktreeContextMenu.x + 'px', top: worktreeContextMenu.y + 'px' }"
         role="menu"
       >
@@ -1007,10 +1097,29 @@
         >
           Remove worktree
         </button>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
+        <button
+          v-if="api.gitStashPush"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPush"
+        >
+          Stash
+        </button>
+        <button
+          v-if="api.gitStashPop"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPop"
+        >
+          Pop stash
+        </button>
       </div>
       <div
         v-if="submoduleContextMenu"
-        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 rounded-rm border border-rm-border bg-rm-surface shadow-lg text-sm"
+        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 border border-rm-border bg-rm-surface shadow-lg text-sm"
         :style="{ left: submoduleContextMenu.x + 'px', top: submoduleContextMenu.y + 'px' }"
         role="menu"
       >
@@ -1030,10 +1139,29 @@
         >
           Reveal in Finder
         </button>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
+        <button
+          v-if="api.gitStashPush"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPush"
+        >
+          Stash
+        </button>
+        <button
+          v-if="api.gitStashPop"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPop"
+        >
+          Pop stash
+        </button>
       </div>
       <div
         v-if="reflogContextMenu"
-        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 rounded-rm border border-rm-border bg-rm-surface shadow-lg text-sm"
+        class="git-branch-context-menu fixed z-[10000] min-w-[11rem] py-1 border border-rm-border bg-rm-surface shadow-lg text-sm"
         :style="{ left: reflogContextMenu.x + 'px', top: reflogContextMenu.y + 'px' }"
         role="menu"
       >
@@ -1069,10 +1197,29 @@
         >
           Copy ref (e.g. HEAD@&#123;1&#125;)
         </button>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
+        <button
+          v-if="api.gitStashPush"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPush"
+        >
+          Stash
+        </button>
+        <button
+          v-if="api.gitStashPop"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPop"
+        >
+          Pop stash
+        </button>
       </div>
       <div
         v-if="filePathContextMenu"
-        class="git-branch-context-menu fixed z-[10000] min-w-[12rem] py-1 rounded-rm border border-rm-border bg-rm-surface shadow-lg text-sm"
+        class="git-branch-context-menu fixed z-[10000] min-w-[12rem] py-1 border border-rm-border bg-rm-surface shadow-lg text-sm"
         :style="{ left: filePathContextMenu.x + 'px', top: filePathContextMenu.y + 'px' }"
         role="menu"
       >
@@ -1100,6 +1247,25 @@
           @click="contextMenuRevealFilePath"
         >
           Reveal in Finder
+        </button>
+        <div class="border-t border-rm-border my-1" role="separator"></div>
+        <button
+          v-if="api.gitStashPush"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPush"
+        >
+          Stash
+        </button>
+        <button
+          v-if="api.gitStashPop"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuStashPop"
+        >
+          Pop stash
         </button>
       </div>
     </Teleport>
@@ -2687,6 +2853,26 @@ function closeWorktreeContextMenu() {
   worktreeContextMenu.value = null;
 }
 
+function closeAllContextMenus() {
+  branchContextMenu.value = null;
+  remoteContextMenu.value = null;
+  tagContextMenu.value = null;
+  worktreeContextMenu.value = null;
+  submoduleContextMenu.value = null;
+  reflogContextMenu.value = null;
+  filePathContextMenu.value = null;
+}
+
+function contextMenuStashPush() {
+  closeAllContextMenus();
+  stashPush();
+}
+
+function contextMenuStashPop() {
+  closeAllContextMenus();
+  stashPop();
+}
+
 function contextMenuRevealWorktree() {
   const w = worktreeContextMenu.value?.worktree;
   closeWorktreeContextMenu();
@@ -3045,4 +3231,6 @@ async function discardAll() {
   margin-bottom: -2px;
   padding-bottom: 2px;
 }
+
+/* Commit card radius follows Settings > Appearance > Border radius (see input.css) */
 </style>

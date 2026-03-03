@@ -54,18 +54,138 @@ html[data-font-size="comfortable"] { font-size: 13px; }
 html[data-font-size="spacious"] { font-size: 14px; }
 html[data-font-size="relaxed"] { font-size: 15px; }
 
-/* Border radius */
+/* Border radius: sharp (0), rounded (6px), or pill (9999px) per Settings > Corner style. Missing = sharp. */
 html[data-radius="sharp"] .rounded-rm,
 html[data-radius="sharp"] .rounded-rm-lg,
-html[data-radius="sharp"] [class*="rounded"] { border-radius: 2px !important; }
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .rounded-rm,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .rounded-rm-lg { border-radius: 0 !important; }
+html[data-radius="rounded"] .rounded-rm,
+html[data-radius="rounded"] .rounded-rm-lg { border-radius: 6px !important; }
 html[data-radius="pill"] .rounded-rm { border-radius: 9999px !important; }
+
+/* Buttons and inputs: sharp = 0 (including when attribute missing) */
+html[data-radius="sharp"] .btn-primary,
+html[data-radius="sharp"] .btn-secondary,
+html[data-radius="sharp"] .input-field,
+html[data-radius="sharp"] textarea,
+html[data-radius="sharp"] input[type="text"],
+html[data-radius="sharp"] input[type="email"],
+html[data-radius="sharp"] input[type="password"],
+html[data-radius="sharp"] input[type="url"],
+html[data-radius="sharp"] input[type="number"],
+html[data-radius="sharp"] select.rounded-rm,
+html[data-radius="sharp"] .detail-git-toolbar-select,
+html[data-radius="sharp"] .release-notes-input,
+html[data-radius="sharp"] .commit-message-input,
+html[data-radius="sharp"] .filter-select { border-radius: 0 !important; }
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .btn-primary,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .btn-secondary,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .input-field,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) textarea,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="text"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="email"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="password"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="url"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="number"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) select.rounded-rm,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .detail-git-toolbar-select,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .release-notes-input,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .commit-message-input,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .filter-select { border-radius: 0 !important; }
+
+/* Buttons and inputs: rounded = 6px */
+html[data-radius="rounded"] .btn-primary,
+html[data-radius="rounded"] .btn-secondary,
+html[data-radius="rounded"] .input-field,
+html[data-radius="rounded"] textarea,
+html[data-radius="rounded"] input[type="text"],
+html[data-radius="rounded"] input[type="email"],
+html[data-radius="rounded"] input[type="password"],
+html[data-radius="rounded"] input[type="url"],
+html[data-radius="rounded"] input[type="number"],
+html[data-radius="rounded"] select.rounded-rm,
+html[data-radius="rounded"] .detail-git-toolbar-select,
+html[data-radius="rounded"] .release-notes-input,
+html[data-radius="rounded"] .commit-message-input,
+html[data-radius="rounded"] .filter-select { border-radius: 6px !important; }
+
+/* Buttons and inputs: pill = full rounded */
 html[data-radius="pill"] .btn-primary,
 html[data-radius="pill"] .btn-secondary,
-html[data-radius="pill"] .input-field { border-radius: 9999px !important; }
+html[data-radius="pill"] .input-field,
+html[data-radius="pill"] textarea { border-radius: 9999px !important; }
+html[data-radius="pill"] .detail-git-filter-input,
+html[data-radius="pill"] .detail-git-toolbar-select,
+html[data-radius="pill"] .detail-git-section-select-btn,
+html[data-radius="pill"] .detail-git-right-panel input,
+html[data-radius="pill"] .detail-git-right-panel select,
+html[data-radius="pill"] .detail-git-section-dropdown-menu,
+html[data-radius="pill"] .detail-git-toolbar-dropdown-menu { border-radius: 9999px !important; }
 
-/* Terminal panels: always modest corners, never pill */
+/* Terminal panels */
 .terminal-shape { border-radius: 6px; }
 html[data-radius="sharp"] .terminal-shape { border-radius: 2px; }
+
+/* Non-input buttons and UI: sharp = 0, rounded = 6px, pill = 9999px */
+html[data-radius="sharp"] button,
+html[data-radius="sharp"] [role="button"],
+html[data-radius="sharp"] .btn-primary,
+html[data-radius="sharp"] .btn-secondary,
+html[data-radius="sharp"] .icon-btn,
+html[data-radius="sharp"] .icon-btn-sm,
+html[data-radius="sharp"] .settings-nav-btn,
+html[data-radius="sharp"] .detail-tab-btn,
+html[data-radius="sharp"] .detail-git-toolbar-btn,
+html[data-radius="sharp"] .doc-trigger,
+html[data-radius="sharp"] .appearance-option-btn,
+html[data-radius="sharp"] .project-list-item,
+html[data-radius="sharp"] .btn-ghost,
+html[data-radius="sharp"] .modal-close,
+html[data-radius="sharp"] .collapsible-card-header,
+html[data-radius="sharp"] .card,
+html[data-radius="sharp"] .collapsible-card,
+html[data-radius="sharp"] .modal-card,
+html[data-radius="sharp"] .detail-git-section-dropdown-menu,
+html[data-radius="sharp"] .detail-git-toolbar-dropdown-menu,
+html[data-radius="sharp"] .detail-git-section-select-btn,
+html[data-radius="sharp"] .git-branch-context-menu {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] button,
+html[data-radius="rounded"] [role="button"],
+html[data-radius="rounded"] .icon-btn,
+html[data-radius="rounded"] .icon-btn-sm,
+html[data-radius="rounded"] .settings-nav-btn,
+html[data-radius="rounded"] .detail-tab-btn,
+html[data-radius="rounded"] .detail-git-toolbar-btn,
+html[data-radius="rounded"] .doc-trigger,
+html[data-radius="rounded"] .appearance-option-btn,
+html[data-radius="rounded"] .project-list-item,
+html[data-radius="rounded"] .btn-ghost,
+html[data-radius="rounded"] .modal-close,
+html[data-radius="rounded"] .collapsible-card-header,
+html[data-radius="rounded"] .card,
+html[data-radius="rounded"] .collapsible-card,
+html[data-radius="rounded"] .modal-card,
+html[data-radius="rounded"] .detail-git-section-dropdown-menu,
+html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu,
+html[data-radius="rounded"] .detail-git-section-select-btn,
+html[data-radius="rounded"] .git-branch-context-menu {
+  border-radius: 6px !important;
+}
+
+code.rounded,
+code[class*="rounded"] {
+  border-radius: 0 !important;
+}
+html[data-radius="sharp"] button[class*="rounded-rm"].border-transparent,
+html[data-radius="sharp"] button[class*="rounded-rm"].border-rm-accent,
+html[data-radius="sharp"] .detail-git-view-toggle {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-view-toggle {
+  border-radius: 6px !important;
+}
 
 /* Reduced motion */
 html[data-reduced-motion="true"] *,
@@ -117,9 +237,20 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
   }
 }
 
+.main-content-section {
+  background: rgb(var(--rm-bg-elevated));
+}
+html[data-theme="light"] .main-content-section {
+  background: rgb(var(--rm-bg));
+}
+.main-content-scroll {
+  padding-bottom: 1rem;
+}
+
 .nav-bar {
   -webkit-app-region: drag;
   border-bottom: 1px solid rgb(var(--rm-border));
+  background: rgb(var(--rm-bg));
 }
 .app-logo {
   object-fit: contain;
@@ -128,6 +259,364 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
 .nav-bar button,
 .nav-bar .no-drag {
   -webkit-app-region: no-drag;
+}
+
+/* Working tree & commit: modern, minimal layout */
+.detail-git-working-tree-bar {
+  background: rgb(var(--rm-bg));
+  border-bottom: 1px solid rgb(var(--rm-border));
+}
+.detail-git-view-row {
+  background: transparent;
+  border-bottom: 1px solid rgb(var(--rm-border));
+}
+.detail-git-files-panel {
+  background: transparent;
+}
+.detail-git-sidebar-group.detail-git-section-modern {
+  background: transparent;
+  border-bottom: none;
+  border-top: 1px solid rgb(var(--rm-border));
+}
+.detail-git-sidebar-group.detail-git-section-modern:first-child {
+  border-top: none;
+}
+.detail-git-sidebar-group-header-modern {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: rgb(var(--rm-muted));
+}
+.detail-git-commit-anchored {
+  background: rgb(var(--rm-bg));
+  border-top: 1px solid rgb(var(--rm-border));
+}
+.detail-git-commit-anchored .input-field,
+.detail-git-commit-anchored textarea {
+  border-color: rgb(var(--rm-border));
+  background: rgb(var(--rm-bg-elevated));
+}
+.detail-git-commit-anchored .input-field:focus,
+.detail-git-commit-anchored textarea:focus {
+  border-color: rgb(var(--rm-border-focus));
+  outline: none;
+}
+.detail-git-right-panel {
+  background: rgb(var(--rm-bg) / 0.5);
+  overflow: visible; /* allow section dropdown menu to show below the button */
+}
+
+/* Commit card: bordered block with heading, clear hierarchy */
+.detail-git-commit-card {
+  border: 1px solid rgb(var(--rm-border));
+  background: rgb(var(--rm-surface) / 0.5);
+}
+.detail-git-commit-card-head {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgb(var(--rm-muted));
+  padding: 6px 8px;
+  border-bottom: 1px solid rgb(var(--rm-border));
+}
+.detail-git-commit-card-body {
+  padding: 8px;
+}
+.detail-git-commit-row {
+  margin-bottom: 8px;
+}
+.detail-git-commit-row:last-of-type { margin-bottom: 0; }
+
+/* Git commit table: crisp grid with uniform borders */
+.detail-git-commit-table {
+  border-top: 1px solid rgb(var(--rm-border));
+  border-bottom: 1px solid rgb(var(--rm-border));
+}
+.detail-git-commit-table thead th,
+.detail-git-commit-table tbody td {
+  border-right: 1px solid rgb(var(--rm-border));
+}
+.detail-git-commit-table thead th:last-child,
+.detail-git-commit-table tbody td:last-child {
+  border-right: none;
+}
+.detail-git-commit-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgb(var(--rm-text));
+  margin-bottom: 4px;
+}
+.detail-git-commit-count {
+  font-weight: 400;
+  color: rgb(var(--rm-muted));
+}
+.detail-git-commit-summary-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.detail-git-commit-summary-input,
+.detail-git-commit-desc-input {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  resize: none;
+  border: 1px solid rgb(var(--rm-border));
+  background: rgb(var(--rm-bg));
+  color: rgb(var(--rm-text));
+  padding: 6px 8px;
+  border-radius: 0;
+}
+.detail-git-commit-ai-btn {
+  flex-shrink: 0;
+  padding: 6px;
+  border: 1px solid rgb(var(--rm-border));
+  background: transparent;
+  color: rgb(var(--rm-muted));
+  cursor: pointer;
+  border-radius: 0;
+}
+.detail-git-commit-ai-btn:hover {
+  color: rgb(var(--rm-accent));
+  background: rgb(var(--rm-accent) / 0.1);
+  border-color: rgb(var(--rm-accent) / 0.4);
+}
+.detail-git-commit-options {
+  display: flex;
+  gap: 12px;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgb(var(--rm-border));
+}
+.detail-git-commit-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgb(var(--rm-text));
+  cursor: pointer;
+}
+.detail-git-commit-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.detail-git-commit-submit {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 0;
+}
+.detail-git-commit-push {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  border-radius: 0;
+}
+.detail-git-commit-status {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: rgb(var(--rm-muted));
+}
+
+/* Working tree toolbar and view bar */
+.detail-git-toolbar-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgb(var(--rm-border));
+}
+.detail-git-view-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 0;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgb(var(--rm-border));
+}
+
+/* File groups: Unstaged vs Staged with distinct look */
+/* Unstaged and Staged: same layout so content aligns */
+.detail-git-file-group {
+  border: none;
+  border-bottom: 1px solid rgb(var(--rm-border));
+  margin: 0;
+  background: transparent;
+  padding-left: 0;
+}
+.detail-git-file-group:last-of-type {
+  border-bottom: none;
+}
+.detail-git-file-group-unstaged,
+.detail-git-file-group-staged {
+  border-left: 3px solid rgb(var(--rm-border));
+}
+.detail-git-file-group-staged {
+  border-left-color: rgb(var(--rm-accent));
+  background: rgb(var(--rm-accent) / 0.04);
+}
+.detail-git-file-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 4px 6px;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+.detail-git-file-group-header:hover {
+  background: rgb(var(--rm-surface-hover) / 0.3);
+}
+.detail-git-file-group-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+}
+.detail-git-file-group-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgb(var(--rm-text));
+}
+.detail-git-file-group-staged .detail-git-file-group-title {
+  color: rgb(var(--rm-accent));
+}
+.detail-git-file-group-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: rgb(var(--rm-muted));
+  flex-shrink: 0;
+}
+.detail-git-file-group-content {
+  padding: 2px 6px 4px 6px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+/* Force sharp corners in right panel */
+.detail-git-right-panel,
+.detail-git-right-panel .detail-git-files-panel,
+.detail-git-right-panel .detail-git-commit-card,
+.detail-git-right-panel .detail-git-section-select-btn,
+.detail-git-right-panel .input-field,
+.detail-git-right-panel textarea,
+.detail-git-right-panel .btn-primary,
+.detail-git-right-panel .btn-secondary,
+.detail-git-right-panel button,
+.detail-git-commit-card * {
+  border-radius: 0 !important;
+}
+.detail-git-right-panel code {
+  border-radius: 0 !important;
+}
+
+/* Commit card: sharp = 0, rounded = 6px (pill handled by global rules above) */
+html[data-radius="sharp"] .detail-git-commit-card textarea,
+html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-summary-input,
+html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-desc-input,
+html[data-radius="sharp"] .detail-git-commit-card .btn-primary,
+html[data-radius="sharp"] .detail-git-commit-card .btn-secondary,
+html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-ai-btn,
+html[data-radius="sharp"] .detail-git-commit-card input[type="text"],
+html[data-radius="sharp"] .detail-git-commit-card input[type="email"] {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-commit-card textarea,
+html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-summary-input,
+html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-desc-input,
+html[data-radius="rounded"] .detail-git-commit-card .btn-primary,
+html[data-radius="rounded"] .detail-git-commit-card .btn-secondary,
+html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-ai-btn,
+html[data-radius="rounded"] .detail-git-commit-card input[type="text"],
+html[data-radius="rounded"] .detail-git-commit-card input[type="email"] {
+  border-radius: 6px !important;
+}
+
+/* Uniform borders: same color everywhere (no opacity variants) */
+.border-rm-border,
+[class*="border-rm-border/"] {
+  border-color: rgb(var(--rm-border)) !important;
+}
+
+/* Git UI: same 1px solid border; radius follows Settings > Appearance > Border radius */
+.detail-git-toolbar input,
+.detail-git-toolbar select,
+.detail-git-sidebar-panel input,
+.detail-git-sidebar-panel select,
+.detail-git-right-panel input,
+.detail-git-right-panel select,
+.detail-git-right-panel textarea,
+.detail-git-filter-input,
+.detail-git-toolbar-select,
+.detail-git-section-select-btn,
+.detail-git-commit-card input,
+.detail-git-commit-card select,
+.detail-git-commit-card textarea,
+.detail-git-commit-card button[class*="border"] {
+  border: 1px solid rgb(var(--rm-border)) !important;
+}
+html[data-radius="sharp"] .detail-git-toolbar input,
+html[data-radius="sharp"] .detail-git-toolbar select,
+html[data-radius="sharp"] .detail-git-sidebar-panel input,
+html[data-radius="sharp"] .detail-git-sidebar-panel select,
+html[data-radius="sharp"] .detail-git-right-panel input,
+html[data-radius="sharp"] .detail-git-right-panel select,
+html[data-radius="sharp"] .detail-git-right-panel textarea,
+html[data-radius="sharp"] .detail-git-filter-input,
+html[data-radius="sharp"] .detail-git-toolbar-select,
+html[data-radius="sharp"] .detail-git-section-select-btn,
+html[data-radius="sharp"] .detail-git-commit-card input,
+html[data-radius="sharp"] .detail-git-commit-card select,
+html[data-radius="sharp"] .detail-git-commit-card textarea,
+html[data-radius="sharp"] .detail-git-commit-card button[class*="border"] {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-toolbar input,
+html[data-radius="rounded"] .detail-git-toolbar select,
+html[data-radius="rounded"] .detail-git-sidebar-panel input,
+html[data-radius="rounded"] .detail-git-sidebar-panel select,
+html[data-radius="rounded"] .detail-git-right-panel input,
+html[data-radius="rounded"] .detail-git-right-panel select,
+html[data-radius="rounded"] .detail-git-right-panel textarea,
+html[data-radius="rounded"] .detail-git-filter-input,
+html[data-radius="rounded"] .detail-git-toolbar-select,
+html[data-radius="rounded"] .detail-git-section-select-btn,
+html[data-radius="rounded"] .detail-git-commit-card input,
+html[data-radius="rounded"] .detail-git-commit-card select,
+html[data-radius="rounded"] .detail-git-commit-card textarea,
+html[data-radius="rounded"] .detail-git-commit-card button[class*="border"] {
+  border-radius: 6px !important;
+}
+.detail-git-right-panel .detail-git-section-dropdown-menu,
+.detail-git-toolbar-dropdown-menu {
+  border: 1px solid rgb(var(--rm-border)) !important;
+}
+html[data-radius="sharp"] .detail-git-right-panel .detail-git-section-dropdown-menu,
+html[data-radius="sharp"] .detail-git-toolbar-dropdown-menu {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-right-panel .detail-git-section-dropdown-menu,
+html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
+  border-radius: 6px !important;
 }
 
 @keyframes refresh-spin {
@@ -155,7 +644,7 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
   gap: 0.5rem;
   padding: 0.375rem 0.625rem;
   border: 1px solid rgb(var(--rm-border));
-  border-radius: 6px;
+  border-radius: 0;
   background: rgb(var(--rm-bg));
   transition: border-color 0.15s, background 0.15s;
 }
@@ -202,7 +691,7 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
   padding: 6px 0;
   background: rgb(var(--rm-surface));
   border: 1px solid rgb(var(--rm-border));
-  border-radius: 8px;
+  border-radius: 0;
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
   z-index: 50;
 }
@@ -307,10 +796,20 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
 
 @layer components {
   .btn-primary {
-    @apply py-2 px-4 rounded-rm bg-rm-accent text-white font-medium text-sm hover:bg-rm-accent-hover transition-colors;
+    @apply py-2 px-4 rounded-none text-white font-medium text-sm transition-colors;
+    background: rgb(var(--rm-accent));
+    border: none;
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: rgb(var(--rm-accent-hover));
   }
   .btn-secondary {
-    @apply py-2 px-4 rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm font-medium hover:bg-rm-surface-hover transition-colors;
+    @apply py-2 px-4 rounded-none text-rm-text text-sm font-medium transition-colors;
+  background: transparent;
+  border: 1px solid rgb(var(--rm-border));
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: rgb(var(--rm-surface-hover) / 0.6);
   }
   .theme-btn {
     @apply text-rm-muted hover:text-rm-text hover:bg-rm-surface-hover border-none cursor-pointer bg-transparent inline-flex items-center justify-center;
@@ -322,19 +821,25 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     display: block;
   }
   .card {
-    @apply bg-rm-surface border border-rm-border rounded-rm-lg overflow-hidden;
+    @apply overflow-hidden;
+    background: rgb(var(--rm-surface) / 0.4);
+    border: none;
+    box-shadow: none;
+  }
+  html[data-theme="light"] .card {
+    background: rgb(var(--rm-surface) / 0.6);
   }
   .collapsible-card-header-row {
     @apply flex items-center w-full;
-    border-bottom: 1px solid rgb(var(--rm-border));
+    border-bottom: none;
   }
   .collapsible-card-header-row .collapsible-card-header {
     border-bottom: none;
   }
   .collapsible-card .collapsible-card-header {
-    @apply flex items-center justify-between gap-2 flex-1 cursor-pointer p-5 text-left bg-transparent rounded-t-rm-lg hover:bg-rm-surface-hover transition-colors;
+    @apply flex items-center justify-between gap-2 flex-1 cursor-pointer px-4 py-3.5 text-left bg-transparent hover:bg-rm-surface-hover/50 transition-colors;
     border: none;
-    border-bottom: 1px solid rgb(var(--rm-border));
+    border-bottom: none;
     font: inherit;
     color: inherit;
   }
@@ -346,7 +851,8 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     @apply outline-none ring-2 ring-rm-accent/50 ring-inset;
   }
   .collapsible-card .collapsible-card-title {
-    @apply text-xs font-semibold text-rm-text uppercase tracking-wider m-0;
+    @apply text-xs font-medium text-rm-text m-0;
+    letter-spacing: 0.01em;
   }
   .collapsible-card .collapsible-card-chevron {
     @apply shrink-0 text-rm-muted transition-transform duration-200;
@@ -355,7 +861,8 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     transform: rotate(-90deg);
   }
   .collapsible-card .collapsible-card-body {
-    @apply border-t border-rm-border pt-1;
+    padding-top: 0;
+    border-top: 1px solid rgb(var(--rm-border));
   }
   .collapsible-card.is-collapsed .collapsible-card-body {
     display: none;
@@ -364,10 +871,10 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     @apply pt-5;
   }
   .card-sm {
-    @apply p-5;
+    @apply p-4;
   }
   .card-section {
-    @apply p-5;
+    @apply p-4;
   }
   .card-section-muted {
     @apply bg-rm-bg/40;
@@ -376,7 +883,7 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     @apply block text-xs font-semibold text-rm-text uppercase tracking-wider mb-3;
   }
   .icon-btn {
-    @apply p-2 rounded-rm border border-rm-border bg-rm-surface text-rm-muted hover:bg-rm-surface-hover hover:text-rm-text transition-colors inline-flex items-center justify-center flex-shrink-0;
+    @apply p-2 border border-rm-border bg-rm-surface text-rm-muted hover:bg-rm-surface-hover hover:text-rm-text transition-colors inline-flex items-center justify-center flex-shrink-0;
     min-width: 2.25rem;
     min-height: 2.25rem;
   }
@@ -412,25 +919,50 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     min-height: 12px;
   }
   .btn-ghost {
-    @apply border-none bg-transparent cursor-pointer font-medium py-1.5 px-2 rounded-rm hover:bg-rm-surface-hover transition-colors;
+    @apply border-none bg-transparent cursor-pointer font-medium py-1.5 px-2 hover:bg-rm-surface-hover transition-colors;
   }
   .copy-feedback {
     @apply text-xs font-medium text-rm-accent;
   }
   .release-notes-input {
-    @apply w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[5rem] focus:outline-none focus:border-rm-border-focus;
+    @apply w-full rounded-none border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[5rem] focus:outline-none focus:border-rm-border-focus;
   }
   .commit-message-input {
-    @apply w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[4.5rem] focus:outline-none focus:border-rm-border-focus;
+    @apply w-full rounded-none border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[4.5rem] focus:outline-none focus:border-rm-border-focus;
   }
   .input-field {
-    @apply w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-2.5 focus:outline-none focus:border-rm-border-focus;
+    @apply w-full rounded-none border border-rm-border bg-rm-surface text-rm-text text-sm p-2.5 focus:outline-none focus:border-rm-border-focus;
   }
   .checkbox-label {
     @apply flex items-center gap-2 cursor-pointer text-rm-text;
   }
   .checkbox-input {
     @apply rounded border-rm-border text-rm-accent focus:ring-rm-accent;
+  }
+  /* Checkbox + label on one line, description on second line (settings) */
+  .settings-checkbox-inline {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 0.75rem;
+    row-gap: 0.25rem;
+  }
+  .settings-checkbox-inline > .checkbox-input {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+  }
+  .settings-checkbox-inline > div {
+    display: contents;
+  }
+  .settings-checkbox-inline .settings-label {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .settings-checkbox-inline .settings-desc {
+    grid-column: 2;
+    grid-row: 2;
+    margin: 0;
   }
   .btn-prerelease {
     @apply border-rm-muted/50 text-rm-muted;
@@ -439,13 +971,15 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     @apply text-xs py-1.5 px-2.5;
   }
   .aside-panel {
-    @apply w-64 shrink-0 border-r border-rm-border bg-rm-bg-elevated flex flex-col overflow-hidden;
+    @apply w-64 shrink-0 flex flex-col overflow-hidden;
+    background: rgb(var(--rm-bg));
+    border-right: 1px solid rgb(var(--rm-border));
   }
   .aside-header {
     @apply px-3 py-3 border-b border-rm-border flex items-center gap-2 flex-shrink-0;
   }
   .aside-title {
-    @apply text-xs font-medium text-rm-muted uppercase tracking-wider;
+    @apply text-[11px] font-medium text-rm-muted uppercase tracking-wider;
   }
   .sidebar-resizer {
     min-width: 4px;
@@ -474,7 +1008,7 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     @apply flex-1 overflow-y-auto p-3;
   }
   .filter-select {
-    @apply w-full text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5;
+    @apply w-full text-sm rounded-none border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5;
   }
   .dashboard-view {
     @apply flex-1 flex flex-col min-h-0 overflow-hidden;
@@ -504,7 +1038,7 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     @apply text-left text-rm-muted font-medium pb-3.5 pr-5 border-b border-rm-border;
   }
   .dashboard-table tbody tr {
-    @apply border-b border-rm-border/70 transition-colors;
+    @apply border-b border-rm-border transition-colors;
   }
   .dashboard-table tbody tr:hover {
     @apply bg-rm-surface/50;
@@ -514,26 +1048,27 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
   }
   .modal-backdrop {
     @apply fixed inset-0 flex items-center justify-center z-20 p-4;
-    background: rgb(0 0 0 / 0.5);
-    backdrop-filter: blur(4px);
+    background: rgb(0 0 0 / 0.45);
+    backdrop-filter: blur(6px);
   }
   .modal-card {
-    @apply bg-rm-surface border border-rm-border rounded-rm-lg shadow-xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden;
+    @apply bg-rm-surface border border-rm-border shadow-xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden;
   }
   .modal-header {
-    @apply px-5 py-4 border-b border-rm-border flex items-center justify-between flex-shrink-0;
+    @apply px-4 py-3 border-b border-rm-border flex items-center justify-between flex-shrink-0;
   }
   .modal-title {
     @apply m-0 text-sm font-semibold text-rm-text;
   }
   .modal-body {
-    @apply p-5 overflow-auto flex-1 min-h-0;
+    @apply p-4 overflow-auto flex-1 min-h-0;
   }
   .modal-footer {
-    @apply flex-shrink-0 flex flex-wrap items-center gap-2 p-3 border-t border-rm-border;
+    @apply flex-shrink-0 flex flex-wrap items-center gap-2 px-4 py-3 border-t border-rm-border;
   }
   .modal-close {
-    @apply p-1 rounded border-none bg-transparent text-rm-muted hover:text-rm-text cursor-pointer text-lg leading-none;
+    @apply p-1 border-none bg-transparent text-rm-muted hover:text-rm-text cursor-pointer text-lg leading-none;
+    border-radius: 0;
   }
   .modal-status {
     @apply text-xs text-rm-muted mb-2;
@@ -543,7 +1078,7 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
   }
   .modal-list li,
   .modal-list-item {
-    @apply py-2 px-3 rounded-rm text-sm cursor-pointer text-rm-text hover:bg-rm-surface-hover;
+    @apply py-2 px-3 text-sm cursor-pointer text-rm-text hover:bg-rm-surface-hover;
   }
   .modal-card-wide {
     @apply max-w-2xl;
@@ -557,4 +1092,35 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
   .detail-tab-panels.detail-tabs-mode .detail-tab-panel.detail-tab-panel-visible {
     display: block;
   }
+}
+
+/* Final overrides: sharp only (rounded/pill set in Border radius section above) */
+html[data-radius="sharp"] .input-field,
+html[data-radius="sharp"] input[type="text"],
+html[data-radius="sharp"] input[type="email"],
+html[data-radius="sharp"] input[type="password"],
+html[data-radius="sharp"] input[type="url"],
+html[data-radius="sharp"] input[type="number"],
+html[data-radius="sharp"] textarea,
+html[data-radius="sharp"] select.input-field,
+html[data-radius="sharp"] select.rounded-rm,
+html[data-radius="sharp"] .detail-git-toolbar-select,
+html[data-radius="sharp"] .release-notes-input,
+html[data-radius="sharp"] .commit-message-input,
+html[data-radius="sharp"] .filter-select,
+html[data-radius="sharp"] button.btn-primary,
+html[data-radius="sharp"] button.btn-secondary {
+  border-radius: 0 !important;
+}
+html[data-radius="sharp"] .detail-git-commit-anchored .input-field,
+html[data-radius="sharp"] .detail-git-commit-anchored textarea,
+html[data-radius="sharp"] .detail-git-commit-anchored .btn-primary,
+html[data-radius="sharp"] .detail-git-commit-anchored .btn-secondary {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-commit-anchored .input-field,
+html[data-radius="rounded"] .detail-git-commit-anchored textarea,
+html[data-radius="rounded"] .detail-git-commit-anchored .btn-primary,
+html[data-radius="rounded"] .detail-git-commit-anchored .btn-secondary {
+  border-radius: 6px !important;
 }

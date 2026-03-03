@@ -5,7 +5,7 @@
       <button type="button" class="btn-primary btn-compact text-xs" @click="openAddWorktreeModal">Add worktree</button>
     </div>
     <ul v-if="worktrees.length" class="list-none m-0 p-0 space-y-1 text-sm max-h-48 overflow-y-auto">
-      <li v-for="w in worktrees" :key="w.path" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border/50">
+      <li v-for="w in worktrees" :key="w.path" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
         <span class="truncate text-rm-text" :title="w.path">{{ w.path }}</span>
         <span class="text-rm-muted text-xs shrink-0">{{ w.branch || w.head }}</span>
         <button type="button" class="text-xs text-rm-warning hover:underline border-none bg-transparent cursor-pointer p-0 shrink-0" @click="remove(w.path)">Remove</button>

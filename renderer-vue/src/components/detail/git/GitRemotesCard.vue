@@ -7,7 +7,7 @@
       <button type="button" class="btn-primary btn-compact text-xs" @click="addRemote">Add</button>
     </div>
     <ul v-if="remotes.length" class="list-none m-0 p-0 space-y-1 text-sm">
-      <li v-for="r in remotes" :key="r.name" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border/50">
+      <li v-for="r in remotes" :key="r.name" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
         <span class="font-medium text-rm-text shrink-0">{{ r.name }}</span>
         <span class="truncate text-rm-muted text-xs min-w-0" :title="r.url">{{ r.url }}</span>
         <span class="flex items-center gap-1 shrink-0">

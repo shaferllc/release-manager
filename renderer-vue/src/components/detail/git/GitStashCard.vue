@@ -14,7 +14,7 @@
       <span>Keep index</span>
     </label>
     <ul v-if="entries.length" class="list-none m-0 p-0 space-y-1 text-sm">
-      <li v-for="e in entries" :key="e.index" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border/50">
+      <li v-for="e in entries" :key="e.index" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
         <span class="truncate text-rm-text" :title="e.message">{{ e.index }} {{ e.message }}</span>
         <span class="flex gap-1 shrink-0">
           <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0" @click="stashApply(e.index)">Apply</button>

@@ -29,7 +29,7 @@
       <li
         v-for="s in submodules"
         :key="s.path"
-        class="py-2 px-2 rounded-rm border border-rm-border/50 bg-rm-surface/30 hover:bg-rm-surface/50"
+        class="py-2 px-2 rounded-rm border border-rm-border bg-rm-surface/30 hover:bg-rm-surface/50"
       >
         <div class="flex items-start justify-between gap-2">
           <div class="min-w-0 flex-1">
