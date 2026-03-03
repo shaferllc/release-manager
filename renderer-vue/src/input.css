@@ -233,6 +233,19 @@ html[data-theme="light"] {
 .prose-changelog code { @apply bg-rm-surface px-1 rounded text-xs font-mono; }
 .prose-changelog strong { @apply font-semibold text-rm-text; }
 
+/* In-app docs (markdown-rendered) */
+.prose-docs { @apply text-rm-text font-sans; }
+.prose-docs h1 { @apply text-lg font-semibold text-rm-text mt-6 mb-2 first:mt-0; }
+.prose-docs h2 { @apply text-sm font-semibold text-rm-text mt-5 mb-1.5; }
+.prose-docs h3 { @apply text-sm font-semibold text-rm-text mt-4 mb-1; }
+.prose-docs h4 { @apply text-sm font-semibold text-rm-text mt-4 mb-1; }
+.prose-docs p { @apply my-2 leading-relaxed text-sm; }
+.prose-docs ul { @apply my-2 pl-5 list-disc space-y-1 text-sm; }
+.prose-docs li { @apply leading-relaxed; }
+.prose-docs a { @apply text-rm-accent hover:underline cursor-pointer; }
+.prose-docs code { @apply bg-rm-surface px-1 py-0.5 rounded text-xs font-mono text-rm-text; }
+.prose-docs strong { @apply font-semibold text-rm-text; }
+
 @layer components {
   .btn-primary {
     @apply py-2 px-4 rounded-rm bg-rm-accent text-white font-medium text-sm hover:bg-rm-accent-hover transition-colors;
@@ -374,6 +387,15 @@ html[data-theme="light"] {
   }
   .aside-title {
     @apply text-xs font-medium text-rm-muted uppercase tracking-wider;
+  }
+  .sidebar-resizer {
+    min-width: 4px;
+    width: 4px;
+  }
+  .detail-sidebar-resizer {
+    min-width: 4px;
+    width: 4px;
+    cursor: col-resize;
   }
   .batch-bar {
     @apply px-4 py-4 border-b border-rm-border flex-shrink-0;

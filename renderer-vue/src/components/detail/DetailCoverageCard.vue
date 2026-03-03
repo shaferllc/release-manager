@@ -11,6 +11,12 @@
       <span class="card-label shrink-0">Coverage</span>
       <p class="m-0 mb-4 text-sm text-rm-muted shrink-0">Run coverage for this project (npm: typically <code class="bg-rm-surface px-1 rounded text-xs">test:coverage</code> or similar; PHP: Pest/PHPUnit).</p>
 
+      <!-- No coverage yet: suggest AI -->
+      <div v-if="showNoCoverageHint" class="mb-4 p-3 rounded-rm border border-rm-border bg-rm-surface/50 text-sm text-rm-muted">
+        <p class="m-0">If no coverage exists yet, you can use AI to help generate tests and coverage. Configure your AI provider and API keys in Settings, then use the Tests tab to run tests and get AI-suggested fixes.</p>
+        <button type="button" class="mt-2 text-sm text-rm-accent hover:underline border-0 bg-transparent cursor-pointer p-0 font-medium" @click="goToAiSettings">Open AI settings</button>
+      </div>
+
       <!-- Last / previous run + trend + goal -->
       <div v-if="history.length" class="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4 shrink-0 text-sm">
         <span class="inline-flex items-center gap-1.5">
@@ -308,6 +314,13 @@ const compareDelta = computed(() => {
   if (last == null || prev == null) return 0;
   return last - prev;
 });
+
+/** Show hint to use AI when there is no coverage data yet. */
+const showNoCoverageHint = computed(() => !running.value && history.value.length === 0 && !output.value && !lastOutput.value);
+
+function goToAiSettings() {
+  store.setViewMode('settings');
+}
 
 /** Branch options: from Git (getBranches) plus any in history not in the list. */
 const branchOptions = computed(() => {

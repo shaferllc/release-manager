@@ -32,10 +32,13 @@ function parseRemoteBranches(stdout) {
     .filter((ref) => !/^\s*origin\/HEAD\s*/.test(ref) && ref.indexOf('->') === -1);
 }
 
+const COMMIT_LOG_RECORD_SEP = '\x1e';
+const BODY_MAX_LENGTH = 400;
+
 /**
- * Parse "git log --pretty=format:%h%x00%s%x00%an%x00%ad" output.
+ * Parse "git log --pretty=format:%h%x00%s%x00%an%x00%ad%x00%ae" output.
  * @param {string} stdout
- * @returns {{ sha: string, subject: string, author: string, date: string }[]}
+ * @returns {{ sha: string, subject: string, author: string, date: string, authorEmail: string }[]}
  */
 function parseCommitLog(stdout) {
   if (stdout == null || typeof stdout !== 'string') return [];
@@ -47,7 +50,30 @@ function parseCommitLog(stdout) {
       subject: parts[1] || '',
       author: parts[2] || '',
       date: parts[3] || '',
+      authorEmail: parts[4] || '',
     };
+  });
+}
+
+/**
+ * Parse "git log --pretty=format:...%x00%ae%x00body%x1e" output that includes email and body (for search).
+ * Each record is sha%x00subject%x00author%x00date%x00email%x00body; body may contain newlines.
+ * @param {string} stdout
+ * @returns {{ sha: string, subject: string, author: string, date: string, authorEmail: string, body: string }[]}
+ */
+function parseCommitLogWithBody(stdout) {
+  if (stdout == null || typeof stdout !== 'string') return [];
+  const records = stdout.trim().split(COMMIT_LOG_RECORD_SEP).map((r) => r.trim()).filter(Boolean);
+  return records.map((record) => {
+    const parts = record.split('\0');
+    const sha = parts[0] || '';
+    const subject = parts[1] || '';
+    const author = parts[2] || '';
+    const date = parts[3] || '';
+    const authorEmail = parts[4] || '';
+    const bodyRaw = parts.slice(5).join('\0').replace(/\r?\n/g, ' ').trim();
+    const body = bodyRaw.length > BODY_MAX_LENGTH ? bodyRaw.slice(0, BODY_MAX_LENGTH) + '…' : bodyRaw;
+    return { sha, subject, author, date, authorEmail, body };
   });
 }
 
@@ -89,6 +115,7 @@ module.exports = {
   parseStashList,
   parseRemoteBranches,
   parseCommitLog,
+  parseCommitLogWithBody,
   parseRemotes,
   parseLocalBranches,
 };

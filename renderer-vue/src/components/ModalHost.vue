@@ -52,10 +52,30 @@
     />
     <BisectRefPickerModal
       v-else-if="activeModal === 'bisectRefPicker' && modalPayload"
+      :dir-path="modalPayload.dirPath"
       :default-bad="modalPayload.defaultBad"
       :default-good="modalPayload.defaultGood"
       @close="onModalClose"
       @confirm="onBisectConfirm"
+    />
+    <CreateTagModal
+      v-else-if="activeModal === 'createTag' && modalPayload"
+      :dir-path="modalPayload.dirPath"
+      @close="onModalClose"
+      @created="onCreateTagCreated"
+    />
+    <AddWorktreeModal
+      v-else-if="activeModal === 'addWorktree' && modalPayload"
+      :dir-path="modalPayload.dirPath"
+      @close="onModalClose"
+      @added="onAddWorktreeAdded"
+    />
+    <GitattributesWizardModal
+      v-else-if="activeModal === 'gitattributesWizard' && modalPayload"
+      :initial-content="modalPayload.initialContent || ''"
+      :baseline-content="modalPayload.baselineContent ?? ''"
+      @close="onModalClose"
+      @apply-and-save="onGitattributesApplyAndSave"
     />
   </template>
 </template>
@@ -73,6 +93,9 @@ import ChooseVersionModal from './modals/ChooseVersionModal.vue';
 import PickAssetModal from './modals/PickAssetModal.vue';
 import DocsModal from './modals/DocsModal.vue';
 import BisectRefPickerModal from './modals/BisectRefPickerModal.vue';
+import CreateTagModal from './modals/CreateTagModal.vue';
+import AddWorktreeModal from './modals/AddWorktreeModal.vue';
+import GitattributesWizardModal from './modals/GitattributesWizardModal.vue';
 
 const { activeModal: activeModalRef, modalPayload: modalPayloadRef, closeModal, openModal } = useModals();
 const api = useApi();
@@ -141,6 +164,24 @@ function onPickAssetSelect(asset) {
 function onBisectConfirm({ badRef, goodRef }) {
   modalPayloadRef.value?.onConfirm?.({ badRef, goodRef });
   emit('bisect-confirm', { badRef, goodRef });
+  closeModal();
+}
+
+function onCreateTagCreated() {
+  modalPayloadRef.value?.onCreated?.();
+  emit('refresh');
+  closeModal();
+}
+
+function onAddWorktreeAdded() {
+  modalPayloadRef.value?.onAdded?.();
+  emit('refresh');
+  closeModal();
+}
+
+function onGitattributesApplyAndSave(content) {
+  modalPayloadRef.value?.onApplyAndSave?.(content);
+  emit('refresh');
   closeModal();
 }
 </script>

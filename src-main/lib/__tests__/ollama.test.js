@@ -4,6 +4,7 @@ const {
   modelSupportsGenerate,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTagMessagePrompt,
   buildTestFixPrompt,
   formatOllamaError,
   DEFAULT_BASE_URL,
@@ -54,6 +55,19 @@ describe('ollama', () => {
     it('handles single commit', () => {
       const out = buildReleaseNotesPrompt(['fix: bug']);
       expect(out).toContain('fix: bug');
+    });
+  });
+
+  describe('buildTagMessagePrompt', () => {
+    it('joins commits and asks for one line', () => {
+      const out = buildTagMessagePrompt(['feat: one', 'fix: two']);
+      expect(out).toContain('feat: one');
+      expect(out).toContain('fix: two');
+      expect(out).toContain('One line');
+    });
+    it('handles empty or non-array', () => {
+      expect(buildTagMessagePrompt([])).toContain('No commits');
+      expect(buildTagMessagePrompt(null)).toContain('No commits');
     });
   });
 

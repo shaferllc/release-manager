@@ -183,6 +183,19 @@ ${list}`;
 }
 
 /**
+ * Build a prompt for generating a one-line tag message from commit subjects.
+ * @param {string[]} commits - list of commit subject lines
+ * @returns {string}
+ */
+function buildTagMessagePrompt(commits) {
+  const list = Array.isArray(commits) && commits.length ? commits.join('\n') : 'No commits';
+  return `Generate a single line tag message (for an annotated git tag) summarizing these commits. One line only, no title.
+
+Commits:
+${list}`;
+}
+
+/**
  * Build a prompt for suggesting a fix when tests fail.
  * @param {string} testScriptName - e.g. "test"
  * @param {string} stdout - test command stdout
@@ -216,6 +229,7 @@ module.exports = {
   modelSupportsGenerate,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTagMessagePrompt,
   buildTestFixPrompt,
   formatOllamaError,
   DEFAULT_BASE_URL,

@@ -4,11 +4,17 @@
       <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Settings</h2>
       <section class="card mb-6">
         <div class="card-section">
-          <span class="card-label">GitHub token (default)</span>
-          <p class="m-0 mb-4 text-sm text-rm-muted">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="card-label mb-0">GitHub token (default)</span>
+            <button type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal" title="Documentation" aria-label="Documentation" @click="openDocs('settings-github-token')">(i)</button>
+          </div>
+          <p class="m-0 mb-2 text-sm text-rm-muted">
             Optional. Higher API limits and ability to create or update releases. Stored locally.
           </p>
-          <input v-model="githubToken" type="password" class="input-field" placeholder="ghp_..." autocomplete="off" @blur="saveToken" />
+          <div class="flex flex-wrap items-center gap-2 mb-2">
+            <input v-model="githubToken" type="password" class="input-field flex-1 min-w-0" placeholder="ghp_..." autocomplete="off" @blur="saveToken" />
+            <a href="#" class="text-xs text-rm-accent hover:underline" @click.prevent="openUrl('https://github.com/settings/tokens')">Create token</a>
+          </div>
         </div>
       </section>
       <section class="card mb-6">
@@ -22,19 +28,27 @@
       </section>
       <section class="card mb-6">
         <div class="card-section">
-          <span class="card-label">AI for generation</span>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="card-label mb-0">AI for generation</span>
+            <button type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal" title="Documentation" aria-label="Documentation" @click="openDocs('settings-ai')">(i)</button>
+          </div>
           <p class="m-0 mb-4 text-sm text-rm-muted">Choose which provider to use for commit messages, release notes, and test-fix suggestions.</p>
           <label class="block text-xs font-medium text-rm-muted mb-1">Provider</label>
           <select v-model="aiProvider" class="input-field mb-4 max-w-xs" @change="saveAiProvider">
             <option value="ollama">Ollama (local)</option>
             <option value="claude">Claude (Anthropic API)</option>
+            <option value="openai">OpenAI (OpenAI API)</option>
           </select>
         </div>
       </section>
       <section class="card mb-6">
         <div class="card-section">
-          <span class="card-label">Ollama (optional)</span>
-          <p class="m-0 mb-4 text-sm text-rm-muted">Local models. Used when AI provider is Ollama.</p>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="card-label mb-0">Ollama (optional)</span>
+            <button type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal" title="Documentation" aria-label="Documentation" @click="openDocs('settings-ollama')">(i)</button>
+            <a href="#" class="text-xs text-rm-accent hover:underline" @click.prevent="openUrl('https://ollama.com')">Download Ollama</a>
+          </div>
+          <p class="m-0 mb-4 text-sm text-rm-muted">Local models. Used when AI provider is Ollama. No API key required.</p>
           <label class="block text-xs font-medium text-rm-muted mb-1">Base URL</label>
           <input v-model="ollamaBaseUrl" type="text" class="input-field mb-4" placeholder="http://localhost:11434" autocomplete="off" @blur="saveOllama" />
           <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
@@ -48,12 +62,30 @@
       </section>
       <section class="card mb-6">
         <div class="card-section">
-          <span class="card-label">Claude (optional)</span>
-          <p class="m-0 mb-4 text-sm text-rm-muted">Anthropic API. Used when AI provider is Claude. Get an API key from console.anthropic.com.</p>
+          <div class="flex items-center gap-2 mb-2">
+            <span class="card-label mb-0">Claude (optional)</span>
+            <button type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal" title="Documentation" aria-label="Documentation" @click="openDocs('settings-claude')">(i)</button>
+            <a href="#" class="text-xs text-rm-accent hover:underline" @click.prevent="openUrl('https://console.anthropic.com/')">Get API key</a>
+          </div>
+          <p class="m-0 mb-4 text-sm text-rm-muted">Anthropic API. Used when AI provider is Claude.</p>
           <label class="block text-xs font-medium text-rm-muted mb-1">API key</label>
           <input v-model="claudeApiKey" type="password" class="input-field mb-4" placeholder="sk-ant-..." autocomplete="off" @blur="saveClaude" />
           <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
           <input v-model="claudeModel" type="text" class="input-field" placeholder="claude-sonnet-4-20250514" autocomplete="off" @blur="saveClaude" />
+        </div>
+      </section>
+      <section class="card mb-6">
+        <div class="card-section">
+          <div class="flex items-center gap-2 mb-2">
+            <span class="card-label mb-0">OpenAI (optional)</span>
+            <button type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal" title="Documentation" aria-label="Documentation" @click="openDocs('settings-openai')">(i)</button>
+            <a href="#" class="text-xs text-rm-accent hover:underline" @click.prevent="openUrl('https://platform.openai.com/api-keys')">Get API key</a>
+          </div>
+          <p class="m-0 mb-4 text-sm text-rm-muted">OpenAI API. Used when AI provider is OpenAI.</p>
+          <label class="block text-xs font-medium text-rm-muted mb-1">API key</label>
+          <input v-model="openaiApiKey" type="password" class="input-field mb-4" placeholder="sk-..." autocomplete="off" @blur="saveOpenAI" />
+          <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
+          <input v-model="openaiModel" type="text" class="input-field" placeholder="gpt-4o-mini" autocomplete="off" @blur="saveOpenAI" />
         </div>
       </section>
       <section class="card mb-6">
@@ -102,10 +134,12 @@
 import { ref, onMounted } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
+import { useModals } from '../composables/useModals';
 import * as debug from '../utils/debug';
 
 const store = useAppStore();
 const api = useApi();
+const modals = useModals();
 const githubToken = ref('');
 const signCommits = ref(false);
 const aiProvider = ref('ollama');
@@ -113,6 +147,8 @@ const ollamaBaseUrl = ref('');
 const ollamaModel = ref('');
 const claudeApiKey = ref('');
 const claudeModel = ref('');
+const openaiApiKey = ref('');
+const openaiModel = ref('');
 const preferredEditor = ref('');
 const phpPath = ref('');
 const useDetailTabs = ref(true);
@@ -123,10 +159,11 @@ const ollamaListError = ref('');
 
 onMounted(async () => {
   try {
-    const [token, ollama, claude, provider, editor, php, sign, tabs, debugLoad] = await Promise.all([
+    const [token, ollama, claude, openai, provider, editor, php, sign, tabs, debugLoad] = await Promise.all([
       api.getGitHubToken?.() ?? '',
       api.getOllamaSettings?.() ?? {},
       api.getClaudeSettings?.() ?? {},
+      api.getOpenAISettings?.() ?? {},
       api.getAiProvider?.().catch(() => 'ollama'),
       api.getPreference?.('preferredEditor').catch(() => ''),
       api.getPreference?.('phpPath').catch(() => ''),
@@ -139,7 +176,9 @@ onMounted(async () => {
     ollamaModel.value = ollama?.model || '';
     claudeApiKey.value = claude?.apiKey || '';
     claudeModel.value = claude?.model || '';
-    aiProvider.value = provider === 'claude' ? 'claude' : 'ollama';
+    openaiApiKey.value = openai?.apiKey || '';
+    openaiModel.value = openai?.model || '';
+    aiProvider.value = provider === 'claude' ? 'claude' : provider === 'openai' ? 'openai' : 'ollama';
     preferredEditor.value = editor === 'cursor' || editor === 'code' ? editor : '';
     phpPath.value = php || '';
     signCommits.value = !!sign;
@@ -166,9 +205,19 @@ function saveClaude() {
   debug.log('settings', 'save Claude');
   api.setClaudeSettings?.(claudeApiKey.value?.trim() ?? '', claudeModel.value?.trim() ?? '');
 }
+function saveOpenAI() {
+  debug.log('settings', 'save OpenAI');
+  api.setOpenAISettings?.(openaiApiKey.value?.trim() ?? '', openaiModel.value?.trim() ?? '');
+}
 function saveAiProvider() {
   debug.log('settings', 'save aiProvider', aiProvider.value);
   api.setAiProvider?.(aiProvider.value);
+}
+function openDocs(docKey) {
+  modals.openModal('docs', { docKey });
+}
+function openUrl(url) {
+  if (url && api.openUrl) api.openUrl(url);
 }
 function savePreferredEditor() {
   debug.log('settings', 'save preferredEditor', preferredEditor.value || '');

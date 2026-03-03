@@ -42,6 +42,7 @@ import LoadingOverlay from './components/LoadingOverlay.vue';
 import LoadingBar from './components/LoadingBar.vue';
 import { useLongActionOverlay } from './composables/useLongActionOverlay';
 import * as debug from './utils/debug';
+import { toPlainProjects } from './utils/plainProjects';
 
 const store = useAppStore();
 const api = useApi();
@@ -104,11 +105,19 @@ async function loadProjects() {
 
     const savedPath = await api.getPreference?.('selectedProjectPath').catch(() => null);
     const savedView = await api.getPreference?.('state.viewMode').catch(() => null);
-    const pathStillInList = typeof savedPath === 'string' && savedPath && store.projects.some((p) => p.path === savedPath);
+    const savedDetailTab = await api.getPreference?.('state.detailTab').catch(() => null);
+    const normPath = (p) => (p && typeof p === 'string' ? p.trim().replace(/[/\\]+$/, '') : '');
+    const pathStillInList = typeof savedPath === 'string' && savedPath && store.projects.some((p) => normPath(p.path) === normPath(savedPath));
     if (pathStillInList) store.setSelectedPath(savedPath);
     else if (store.projects.length > 0 && !store.selectedPath) store.setSelectedPath(store.projects[0].path);
     else store.setSelectedPath(null);
     if (savedView && ['detail', 'dashboard', 'settings', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
+    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'wordpress'];
+    if (typeof savedDetailTab === 'string' && validDetailTabs.includes(savedDetailTab)) store.setDetailTab(savedDetailTab);
+    if (store.selectedPath) {
+      const current = store.projects.find((p) => p.path === store.selectedPath);
+      if (current) store.setCurrentInfo(current);
+    }
     debug.log('project', 'loadProjects done', { projectsLength: store.projects.length, selectedPath: store.selectedPath });
   } catch (e) {
     debug.warn('project', 'loadProjects FAILED', e?.message ?? e, e);
@@ -155,7 +164,7 @@ function addProject() {
     return;
   }
   dialogPromise
-    .then((result) => {
+    .then(async (result) => {
       const selectedPath =
         typeof result === 'string'
           ? result
@@ -175,18 +184,24 @@ function addProject() {
         debug.log('project', 'addProject path already in list, skip');
         return;
       }
-      const next = [...store.projects, { path, name: path.split(/[/\\]/).pop(), tags: [], starred: false }];
+      const newEntry = { path, name: path.split(/[/\\]/).pop(), tags: [], starred: false };
+      const next = [...store.projects, newEntry];
       debug.log('project', 'addProject optimistic update', { nextLength: next.length, path });
       store.setProjects(next);
       store.setSelectedPath(path);
       if (typeof api.setProjects === 'function') {
         debug.log('project', 'addProject calling api.setProjects', next.length);
-        api.setProjects(next).then(() => {
-          debug.log('project', 'addProject setProjects resolved, loadProjects');
-          loadProjects();
-        }).catch((e) => {
+        try {
+          const result = await api.setProjects(toPlainProjects(next));
+          const persisted = result && result.ok !== false && result.saved != null;
+          if (persisted) debug.log('project', 'addProject setProjects persisted', result.saved, 'projects');
+          if (typeof api.setPreference === 'function') {
+            await api.setPreference('selectedProjectPath', path).catch(() => {});
+          }
+          await loadProjects();
+        } catch (e) {
           debug.warn('project', 'addProject setProjects failed', e?.message ?? e);
-        });
+        }
       } else {
         debug.warn('project', 'addProject api.setProjects not available');
       }
@@ -198,6 +213,10 @@ function addProject() {
 
 watch(() => store.selectedPath, (path) => {
   if (path && api.setPreference) api.setPreference('selectedProjectPath', path);
+}, { immediate: false });
+
+watch(() => store.detailTab, (tab) => {
+  if (tab && api.setPreference) api.setPreference('state.detailTab', tab);
 }, { immediate: false });
 
 function isInputFocused() {

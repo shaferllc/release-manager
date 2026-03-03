@@ -48,6 +48,9 @@
           <template v-else-if="store.detailTab === 'pull-requests'">
             <DetailPullRequestsCard :info="info" @refresh="load" />
           </template>
+          <template v-else-if="store.detailTab === 'wordpress'">
+            <DetailWordPressCard :info="info" />
+          </template>
         </div>
       </div>
     </template>
@@ -59,7 +62,7 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { computed } from 'vue';
@@ -72,6 +75,7 @@ import DetailTestsCard from '../components/detail/DetailTestsCard.vue';
 import DetailCoverageCard from '../components/detail/DetailCoverageCard.vue';
 import DetailApiCard from '../components/detail/DetailApiCard.vue';
 import DetailPullRequestsCard from '../components/detail/DetailPullRequestsCard.vue';
+import DetailWordPressCard from '../components/detail/DetailWordPressCard.vue';
 
 defineEmits(['refresh']);
 
@@ -93,6 +97,7 @@ const tabIcons = {
   coverage: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>',
   api: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d=\"M4 4h7v7H4z\"/><path d=\"M13 4h7v7h-7z\"/><path d=\"M4 13h7v7H4z\"/><path d=\"M13 13h7v7h-7z\"/></svg>',
   pullRequests: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h5a2 2 0 0 1 2 2v7"/><path d="M6 9v6a2 2 0 0 0 2 2h7"/></svg>',
+  wordpress: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"/><path d="M8.5 9.5 12 17l2-4 2.5-5"/><path d="M7 14h10"/></svg>',
 };
 const baseTabs = [
   { id: 'dashboard', label: 'Dashboard', icon: tabIcons.dashboard },
@@ -102,10 +107,11 @@ const baseTabs = [
 ];
 const visibleTabs = computed(() => {
   const t = [...baseTabs];
+  if (info.value?.hasWordPress) t.push({ id: 'wordpress', label: 'WordPress', icon: tabIcons.wordpress });
   if (info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: tabIcons.composer });
   if (showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: tabIcons.tests });
   if (showCoverageTab.value) t.push({ id: 'coverage', label: 'Coverage', icon: tabIcons.coverage });
-   t.push({ id: 'api', label: 'API', icon: tabIcons.api });
+  t.push({ id: 'api', label: 'API', icon: tabIcons.api });
   return t;
 });
 
@@ -132,8 +138,24 @@ async function load() {
   }
 }
 
-onMounted(load);
-watch(() => store.selectedPath, load);
+const AUTO_REFRESH_MS = 2000;
+let autoRefreshTimer = null;
+
+onMounted(() => {
+  load();
+  if (store.selectedPath) {
+    autoRefreshTimer = setInterval(() => load(), AUTO_REFRESH_MS);
+  }
+});
+watch(() => store.selectedPath, (path) => {
+  load();
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = path ? setInterval(() => load(), AUTO_REFRESH_MS) : null;
+});
+onUnmounted(() => {
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
+  autoRefreshTimer = null;
+});
 </script>
 
 <style scoped>

@@ -28,16 +28,19 @@ const {
   listModels: ollamaListModels,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTagMessagePrompt,
   buildTestFixPrompt,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
 } = require('./lib/ollama');
 const { generate: claudeGenerate, DEFAULT_MODEL: CLAUDE_DEFAULT_MODEL } = require('./lib/claude');
+const { generate: openaiGenerate, DEFAULT_MODEL: OPENAI_DEFAULT_MODEL } = require('./lib/openai');
 const { getGitDiffForCommit: getGitDiffForCommitLib } = require('./lib/gitDiff');
 const {
   parseStashList: parseStashListLib,
   parseRemoteBranches: parseRemoteBranchesLib,
   parseCommitLog: parseCommitLogLib,
+  parseCommitLogWithBody: parseCommitLogWithBodyLib,
   parseRemotes: parseRemotesLib,
   parseLocalBranches: parseLocalBranchesLib,
 } = require('./lib/gitOutputParsers');
@@ -86,12 +89,25 @@ function getProjects() {
 
 function setProjects(projects) {
   const list = Array.isArray(projects) ? projects : [];
+  const normalized = list.map((p) => {
+    if (!p || typeof p.path !== 'string') return null;
+    const rawPath = p.path.trim();
+    if (!rawPath) return null;
+    const normalizedPath = path.normalize(rawPath).replace(/[/\\]+$/, '') || rawPath;
+    return {
+      path: normalizedPath,
+      name: p.name || path.basename(normalizedPath) || normalizedPath,
+      tags: Array.isArray(p.tags) ? p.tags : [],
+      starred: !!p.starred,
+    };
+  }).filter(Boolean);
   const current = getStore().get('projects') || [];
-  const skipped = list.length === 0 && current.length > 1;
-  debug.log(getStore, 'project', 'setProjects', { incoming: list.length, current: current.length, skipped });
-  if (skipped) return;
-  getStore().set('projects', list);
-  debug.log(getStore, 'project', 'setProjects saved', list.length, 'projects');
+  const skipped = normalized.length === 0 && current.length > 1;
+  debug.log(getStore, 'project', 'setProjects', { incoming: list.length, normalized: normalized.length, current: current.length, skipped });
+  if (skipped) return { ok: false, saved: current.length, skipped: true };
+  getStore().set('projects', normalized);
+  debug.log(getStore, 'project', 'setProjects saved', normalized.length, 'projects');
+  return { ok: true, saved: normalized.length };
 }
 
 function getThemeSetting() {
@@ -293,6 +309,7 @@ async function getProjectInfoAsync(dirPath) {
   if (!resolved.ok) return { ok: false, error: resolved.error, path: resolved.path };
   const { name, version, projectType } = resolved;
   const hasComposer = fs.existsSync(path.join(dirPath, 'composer.json'));
+  const hasWordPress = fs.existsSync(path.join(dirPath, 'wp-config.php')) || fs.existsSync(path.join(dirPath, 'wp-includes', 'version.php'));
   let latestTag = null;
   let gitRemote = null;
   const gitDir = path.join(dirPath, '.git');
@@ -308,11 +325,12 @@ async function getProjectInfoAsync(dirPath) {
 
   if (hasGit) {
     try {
-      const [tagOut, remoteName, statusOut, porcelainOut] = await Promise.all([
+      const [tagOut, remoteName, statusOut, porcelainOut, currentBranchOut] = await Promise.all([
         runInDir(dirPath, 'git', ['tag', '-l', '--sort=-version:refname']).catch(() => ({ stdout: '' })),
         getPushRemote(dirPath),
         runInDir(dirPath, 'git', ['status', '-sb']).catch(() => ({ stdout: '' })),
         runInDir(dirPath, 'git', ['status', '--porcelain', '-uall']).catch(() => ({ stdout: '' })),
+        runInDir(dirPath, 'git', ['branch', '--show-current']).catch(() => ({ stdout: '' })),
       ]);
       const tags = (tagOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
       latestTag = tags[0] || null;
@@ -330,8 +348,12 @@ async function getProjectInfoAsync(dirPath) {
       }
       const statusLines = (statusOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
       const statusLine = statusLines[0] || '';
-      const branchMatch = statusLine.match(/^##\s+(.+?)(?:\.\.\.|$)/);
-      if (branchMatch) branch = branchMatch[1].trim();
+      const currentFromBranch = (currentBranchOut.stdout || '').trim();
+      if (currentFromBranch) branch = currentFromBranch;
+      else {
+        const branchMatch = statusLine.match(/^##\s+(.+?)(?:\.\.\.|$)/);
+        if (branchMatch) branch = branchMatch[1].trim();
+      }
       const aheadMatch = statusLine.match(/ahead\s+(\d+)/);
       if (aheadMatch) ahead = parseInt(aheadMatch[1], 10);
       const behindMatch = statusLine.match(/behind\s+(\d+)/);
@@ -350,6 +372,7 @@ async function getProjectInfoAsync(dirPath) {
     version,
     projectType,
     hasComposer,
+    hasWordPress,
     latestTag,
     commitsSinceLatestTag,
     allTags,
@@ -452,6 +475,17 @@ async function getGitStatus(dirPath) {
     return { clean: trimmed.length === 0, output: trimmed || null };
   } catch (e) {
     return { clean: false, output: e.message || null };
+  }
+}
+
+/** List all tracked files (git ls-files). For tree view "View all files". */
+async function getTrackedFiles(dirPath) {
+  try {
+    const out = await runInDir(dirPath, 'git', ['ls-files']);
+    const files = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
+    return { ok: true, files };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to list files', files: [] };
   }
 }
 
@@ -770,6 +804,19 @@ async function createTag(dirPath, tagName, message, ref) {
   }
 }
 
+/** Initialize a new Git repository in the given directory. */
+async function gitInit(dirPath) {
+  if (!dirPath || typeof dirPath !== 'string') return { ok: false, error: 'Directory path is required' };
+  const gitDir = path.join(dirPath, '.git');
+  if (fs.existsSync(gitDir)) return { ok: false, error: 'Repository already exists' };
+  try {
+    await runInDir(dirPath, 'git', ['init']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'git init failed' };
+  }
+}
+
 /** Commit log entries: { sha, subject, author, date }. */
 async function getCommitLog(dirPath, n = 30) {
   const limit = Math.max(1, Math.min(100, n));
@@ -778,11 +825,30 @@ async function getCommitLog(dirPath, n = 30) {
       'log',
       '-n',
       String(limit),
-      '--pretty=format:%h%x00%s%x00%an%x00%ad',
+      '--pretty=format:%h%x00%s%x00%an%x00%ad%x00%ae',
       '--date=short',
       '--no-merges',
     ]);
     const commits = parseCommitLogLib(out.stdout || '');
+    return { ok: true, commits };
+  } catch (e) {
+    return { ok: false, error: e.message || 'git log failed', commits: [] };
+  }
+}
+
+/** Commit log with body for search (hash, subject, author, date, body). */
+async function getCommitLogWithBody(dirPath, n = 30) {
+  const limit = Math.max(1, Math.min(100, n));
+  try {
+    const out = await runInDir(dirPath, 'git', [
+      'log',
+      '-n',
+      String(limit),
+      '--pretty=format:%h%x00%s%x00%an%x00%ad%x00%ae%x00%b%x1e',
+      '--date=short',
+      '--no-merges',
+    ]);
+    const commits = parseCommitLogWithBodyLib(out.stdout || '');
     return { ok: true, commits };
   } catch (e) {
     return { ok: false, error: e.message || 'git log failed', commits: [] };
@@ -1067,7 +1133,11 @@ function parseUnifiedDiffToRows(diffText) {
 
 /**
  * Get structured diff for one file: aligned rows for side-by-side view.
- * options: { commitSha?: string } — if set, diff is commit vs parent; else working tree vs HEAD.
+ * options: { commitSha?: string, staged?: boolean }
+ *   - commitSha: diff is commit vs parent.
+ *   - staged === true: index vs HEAD (staged changes only).
+ *   - staged === false: working tree vs index (unstaged changes only).
+ *   - staged undefined: working tree vs HEAD, then fallback to --cached if empty.
  */
 async function getFileDiffStructured(dirPath, filePath, options = {}) {
   try {
@@ -1075,13 +1145,42 @@ async function getFileDiffStructured(dirPath, filePath, options = {}) {
     if (options.commitSha) {
       const out = await runInDir(dirPath, 'git', ['show', '--no-color', options.commitSha, '--', filePath]).catch(() => ({ stdout: '' }));
       diff = (out.stdout || '').trim();
+    } else if (options.staged === true) {
+      const result = await runInDirCapture(dirPath, 'git', ['diff', '--cached', 'HEAD', '--', filePath]);
+      diff = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+    } else if (options.staged === false) {
+      const result = await runInDirCapture(dirPath, 'git', ['diff', '--', filePath]);
+      diff = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
     } else {
       const result = await runInDirCapture(dirPath, 'git', ['diff', 'HEAD', '--', filePath]);
       diff = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
+      if (!diff) {
+        const resultCached = await runInDirCapture(dirPath, 'git', ['diff', '--cached', 'HEAD', '--', filePath]);
+        diff = [resultCached.stdout, resultCached.stderr].filter(Boolean).join('\n').trim();
+      }
     }
-    if (!diff) return { ok: true, filePath, rows: [], diff: '' };
-    const rows = parseUnifiedDiffToRows(diff);
-    return { ok: true, filePath, rows, diff };
+    if (diff) {
+      const rows = parseUnifiedDiffToRows(diff);
+      return { ok: true, filePath, rows, diff };
+    }
+    if (!options.commitSha) {
+      const fullPath = path.join(dirPath, filePath);
+      if (fs.existsSync(fullPath)) {
+        try {
+          const content = fs.readFileSync(fullPath, 'utf8');
+          const lines = content.split(/\r?\n/);
+          const rows = lines.map((line, i) => ({
+            oldLineNum: null,
+            newLineNum: i + 1,
+            oldContent: null,
+            newContent: line,
+            type: 'add',
+          }));
+          return { ok: true, filePath, rows, diff: '' };
+        } catch (_) {}
+      }
+    }
+    return { ok: true, filePath, rows: [], diff: '' };
   } catch (e) {
     return { ok: false, error: e.message || 'Diff failed', filePath, rows: [] };
   }
@@ -1281,6 +1380,17 @@ async function getGitignore(dirPath) {
 }
 
 /** Read .gitattributes (first 8KB). */
+/** Get file content at a ref (e.g. HEAD). Returns { ok, content } or { ok: false, error }. */
+async function getFileAtRef(dirPath, filePath, ref = 'HEAD') {
+  try {
+    const out = await runInDir(dirPath, 'git', ['show', `${ref}:${filePath}`]).catch((e) => ({ stdout: null, stderr: e?.message }));
+    if (out.stdout == null) return { ok: false, error: 'File not at ref or not found', content: '' };
+    return { ok: true, content: out.stdout };
+  } catch (e) {
+    return { ok: false, error: e?.message || 'Failed to read file at ref', content: '' };
+  }
+}
+
 async function getGitattributes(dirPath) {
   const p = path.join(dirPath, '.gitattributes');
   try {
@@ -1303,6 +1413,91 @@ async function writeGitignore(dirPath, content) {
   }
 }
 
+/**
+ * Common paths/files that are typically gitignored. We scan the project root for these
+ * and suggest adding them if not already in .gitignore. Based on common templates
+ * (e.g. github/gitignore, GitLab, etc.).
+ * name: exact dir or file name to look for at top level
+ * pattern: the .gitignore pattern to add
+ * label: short label for UI
+ * category: group for display (Dependencies, Build, Env, etc.)
+ */
+const COMMON_IGNORABLES = [
+  { name: 'node_modules', pattern: 'node_modules/', label: 'Node dependencies', category: 'Dependencies' },
+  { name: 'vendor', pattern: 'vendor/', label: 'Composer / PHP deps', category: 'Dependencies' },
+  { name: 'dist', pattern: 'dist/', label: 'Build output (dist)', category: 'Build' },
+  { name: 'build', pattern: 'build/', label: 'Build output (build)', category: 'Build' },
+  { name: 'out', pattern: 'out/', label: 'Build output (out)', category: 'Build' },
+  { name: 'target', pattern: 'target/', label: 'Rust/Cargo build', category: 'Build' },
+  { name: '.next', pattern: '.next/', label: 'Next.js build', category: 'Build' },
+  { name: '.nuxt', pattern: '.nuxt/', label: 'Nuxt build', category: 'Build' },
+  { name: '.output', pattern: '.output/', label: 'Nuxt output', category: 'Build' },
+  { name: '__pycache__', pattern: '__pycache__/', label: 'Python cache', category: 'Build' },
+  { name: '.venv', pattern: '.venv/', label: 'Python venv', category: 'Environment' },
+  { name: 'venv', pattern: 'venv/', label: 'Python venv', category: 'Environment' },
+  { name: '.env', pattern: '.env', label: 'Environment / secrets', category: 'Environment' },
+  { name: '.env.local', pattern: '.env.local', label: 'Local env overrides', category: 'Environment' },
+  { name: '.idea', pattern: '.idea/', label: 'JetBrains IDE', category: 'IDE' },
+  { name: '.vscode', pattern: '.vscode/', label: 'VS Code', category: 'IDE' },
+  { name: '.cache', pattern: '.cache', label: 'Cache directory', category: 'Cache' },
+  { name: '.parcel-cache', pattern: '.parcel-cache/', label: 'Parcel cache', category: 'Cache' },
+  { name: '.vite', pattern: '.vite/', label: 'Vite cache', category: 'Cache' },
+  { name: '.pytest_cache', pattern: '.pytest_cache/', label: 'Pytest cache', category: 'Cache' },
+  { name: '.mypy_cache', pattern: '.mypy_cache/', label: 'mypy cache', category: 'Cache' },
+  { name: 'coverage', pattern: 'coverage/', label: 'Coverage reports', category: 'Test' },
+  { name: 'htmlcov', pattern: 'htmlcov/', label: 'Python coverage html', category: 'Test' },
+  { name: '.nyc_output', pattern: '.nyc_output/', label: 'Istanbul/nyc output', category: 'Test' },
+  { name: '.DS_Store', pattern: '.DS_Store', label: 'macOS folder metadata', category: 'OS' },
+  { name: 'Thumbs.db', pattern: 'Thumbs.db', label: 'Windows thumbnails', category: 'OS' },
+  { name: 'logs', pattern: 'logs/', label: 'Logs directory', category: 'Logs' },
+  { name: 'tmp', pattern: 'tmp/', label: 'Temporary files', category: 'Temp' },
+  { name: 'temp', pattern: 'temp/', label: 'Temporary files', category: 'Temp' },
+];
+
+/** Check if .gitignore content already effectively covers this pattern (exact or broader). */
+function gitignoreCoversPattern(existingLines, pattern) {
+  const normalized = pattern.replace(/\/$/, '');
+  for (const line of existingLines) {
+    const t = line.trim();
+    if (!t || t.startsWith('#')) continue;
+    const lineNorm = t.replace(/\/$/, '');
+    if (lineNorm === normalized || lineNorm === pattern || t === pattern) return true;
+    if (pattern.endsWith('/') && lineNorm === normalized) return true;
+    if (t.includes('*') && normalized.includes(lineNorm.replace(/\*/g, ''))) return true;
+    if (lineNorm.length > 0 && pattern.startsWith(lineNorm)) return true;
+  }
+  return false;
+}
+
+/** Scan project root for common ignorable paths and return suggestions not already in .gitignore. */
+async function scanProjectForGitignore(dirPath) {
+  try {
+    if (!dirPath || !fs.existsSync(dirPath)) return { ok: true, suggestions: [] };
+    let existingContent = '';
+    const gitignorePath = path.join(dirPath, '.gitignore');
+    if (fs.existsSync(gitignorePath)) {
+      existingContent = fs.readFileSync(gitignorePath, 'utf8').slice(0, 8192);
+    }
+    const existingLines = existingContent.split(/\r?\n/);
+    const topLevel = fs.readdirSync(dirPath, { withFileTypes: true });
+    const names = new Set(topLevel.map((d) => d.name));
+
+    const suggestions = [];
+    for (const entry of COMMON_IGNORABLES) {
+      if (!names.has(entry.name)) continue;
+      if (gitignoreCoversPattern(existingLines, entry.pattern)) continue;
+      suggestions.push({
+        pattern: entry.pattern,
+        label: entry.label,
+        category: entry.category,
+      });
+    }
+    return { ok: true, suggestions };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Scan failed', suggestions: [] };
+  }
+}
+
 /** Write .gitattributes content. Creates file if missing. */
 async function writeGitattributes(dirPath, content) {
   const p = path.join(dirPath, '.gitattributes');
@@ -1311,6 +1506,19 @@ async function writeGitattributes(dirPath, content) {
     return { ok: true, path: p };
   } catch (e) {
     return { ok: false, error: e.message || 'Failed to write .gitattributes', path: p };
+  }
+}
+
+/** Create a test file in the project for testing git actions (stage, diff, discard, etc.). */
+async function createTestFile(dirPath, relativePath, content) {
+  const name = (relativePath && typeof relativePath === 'string' && relativePath.trim()) ? relativePath.trim() : 'test-file.txt';
+  const body = (content && typeof content === 'string') ? content : `Test file created at ${new Date().toISOString()}\n`;
+  const fullPath = path.join(dirPath, name);
+  try {
+    fs.writeFileSync(fullPath, body, 'utf8');
+    return { ok: true, path: fullPath, relativePath: name };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to create file', path: fullPath };
   }
 }
 
@@ -1358,6 +1566,21 @@ async function getGitState(dirPath) {
   return { ok: true, rebasing, cherryPicking, merging };
 }
 
+/** Get configured git user (committer) for the repo: user.name and user.email. */
+async function getGitUser(dirPath) {
+  try {
+    const [nameOut, emailOut] = await Promise.all([
+      runInDir(dirPath, 'git', ['config', '--get', 'user.name']).catch(() => ({ stdout: '' })),
+      runInDir(dirPath, 'git', ['config', '--get', 'user.email']).catch(() => ({ stdout: '' })),
+    ]);
+    const name = (nameOut.stdout || '').trim();
+    const email = (emailOut.stdout || '').trim();
+    return { ok: true, name, email };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to get git user', name: '', email: '' };
+  }
+}
+
 /** List worktrees: [{ path, head, branch }]. */
 async function getWorktrees(dirPath) {
   try {
@@ -1367,7 +1590,7 @@ async function getWorktrees(dirPath) {
     let current = {};
     for (const line of lines) {
       if (line.startsWith('worktree ')) {
-        if (current.worktree) worktrees.push(current);
+        if (current.path) worktrees.push(current);
         current = { path: line.slice(9).trim(), head: '', branch: '' };
       } else if (line.startsWith('HEAD ')) current.head = line.slice(5).trim();
       else if (line.startsWith('branch ')) current.branch = line.slice(7).trim().replace(/^refs\/heads\//, '');
@@ -1466,6 +1689,22 @@ async function bisectBad(dirPath) {
   }
 }
 
+async function bisectSkip(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['bisect', 'skip']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Bisect skip failed' };
+  }
+}
+
+/** Run automated bisect: git bisect run <cmd...>. commandArgs e.g. ['npm', 'run', 'test']. Exit 0 = good, non-zero = bad. */
+async function bisectRun(dirPath, commandArgs) {
+  const args = Array.isArray(commandArgs) && commandArgs.length > 0 ? commandArgs : ['true'];
+  const result = await runInDirCapture(dirPath, 'git', ['bisect', 'run', ...args]);
+  return { ok: true, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
+}
+
 async function bisectReset(dirPath) {
   try {
     await runInDir(dirPath, 'git', ['bisect', 'reset']);
@@ -1486,6 +1725,17 @@ async function getCommitsSinceTag(dirPath, sinceTag) {
     return { ok: true, commits: lines };
   } catch (e) {
     return { ok: false, error: e.message || 'git log failed', commits: [] };
+  }
+}
+
+/** Get the one-line commit subject at the given ref (default HEAD). */
+async function getCommitSubject(dirPath, ref) {
+  const r = (ref || 'HEAD').trim();
+  try {
+    const out = await runInDir(dirPath, 'git', ['log', '-1', '--pretty=format:%s', r]);
+    return { ok: true, subject: (out.stdout || '').trim() };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to get commit', subject: '' };
   }
 }
 
@@ -1805,6 +2055,27 @@ app.whenReady().then(() => {
     if (typeof fn !== 'function') throw new Error('Unknown method: ' + method);
     return fn(...params);
   }
+  async function generateWithProvider(prompt) {
+    const provider = getStore().get('aiProvider') || 'ollama';
+    if (provider === 'ollama') {
+      const baseUrl = getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
+      const model = getStore().get('ollamaModel') || DEFAULT_MODEL;
+      return ollamaGenerate(baseUrl, model, prompt);
+    }
+    if (provider === 'claude') {
+      const apiKey = getStore().get('claudeApiKey') || '';
+      const model = getStore().get('claudeModel') || CLAUDE_DEFAULT_MODEL;
+      return claudeGenerate(apiKey, model, prompt);
+    }
+    if (provider === 'openai') {
+      const apiKey = getStore().get('openaiApiKey') || '';
+      const model = getStore().get('openaiModel') || OPENAI_DEFAULT_MODEL;
+      return openaiGenerate(apiKey, model, prompt);
+    }
+    const baseUrl = getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
+    const model = getStore().get('ollamaModel') || DEFAULT_MODEL;
+    return ollamaGenerate(baseUrl, model, prompt);
+  }
   const apiRegistry = {
     getProjects: () => getProjects(),
     getAllProjectsInfo: async () => {
@@ -1818,8 +2089,7 @@ app.whenReady().then(() => {
       return results;
     },
     setProjects: (projects) => {
-      setProjects(projects);
-      return null;
+      return setProjects(projects);
     },
     showDirectoryDialog: () => showDirectoryDialog(),
     getProjectInfo: (dirPath) => getProjectInfoAsync(dirPath),
@@ -1908,6 +2178,7 @@ app.whenReady().then(() => {
     gitTagAndPush: (dirPath, tagMessage) => gitTagAndPush(dirPath, tagMessage),
     release: async (dirPath, bump, force, options = {}) => runReleaseImpl(dirPath, bump, force, options),
     getCommitsSinceTag: (dirPath, sinceTag) => getCommitsSinceTag(dirPath, sinceTag),
+    getCommitSubject: (dirPath, ref) => getCommitSubject(dirPath, ref),
     getRecentCommits: (dirPath, n) => getRecentCommits(dirPath, n),
     getSuggestedBump: (commits) => suggestBumpFromCommits(commits),
     getShortcutAction: (viewMode, selectedPath, key, metaKey, ctrlKey, inInput) =>
@@ -1936,16 +2207,50 @@ app.whenReady().then(() => {
       getStore().set('claudeModel', model || '');
       return null;
     },
+    getOpenAISettings: () => ({
+      apiKey: getStore().get('openaiApiKey') || '',
+      model: getStore().get('openaiModel') || OPENAI_DEFAULT_MODEL,
+    }),
+    setOpenAISettings: (apiKey, model) => {
+      getStore().set('openaiApiKey', apiKey || '');
+      getStore().set('openaiModel', model || '');
+      return null;
+    },
     getAiProvider: () => getStore().get('aiProvider') || 'ollama',
     setAiProvider: (provider) => {
       getStore().set('aiProvider', provider || 'ollama');
       return null;
     },
+    getAiGenerateAvailable: () => {
+      const provider = getStore().get('aiProvider') || 'ollama';
+      if (provider === 'openai') return !!((getStore().get('openaiApiKey') || '').trim());
+      if (provider === 'claude') return !!((getStore().get('claudeApiKey') || '').trim());
+      return true;
+    },
     ollamaListModels: async (baseUrl) => ollamaListModels(baseUrl || getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL),
-    ollamaGenerateCommitMessage: async (dirPath) => ollamaGenerate(dirPath, buildCommitMessagePrompt, 'commit'),
-    ollamaGenerateReleaseNotes: async (dirPath, sinceTag) => ollamaGenerate(dirPath, (d, t) => buildReleaseNotesPrompt(d, t), 'release', sinceTag),
-    ollamaSuggestTestFix: async (testScriptName, stdout, stderr) => ollamaGenerate(null, () => buildTestFixPrompt(testScriptName, stdout, stderr), 'test'),
+    ollamaGenerateCommitMessage: async (dirPath) => {
+      const diff = await getGitDiffForCommit(dirPath);
+      const prompt = buildCommitMessagePrompt(diff);
+      return generateWithProvider(prompt);
+    },
+    ollamaGenerateReleaseNotes: async (dirPath, sinceTag) => {
+      const res = await getCommitsSinceTag(dirPath, sinceTag);
+      const commits = res.ok ? res.commits : [];
+      const prompt = buildReleaseNotesPrompt(commits);
+      return generateWithProvider(prompt);
+    },
+    ollamaGenerateTagMessage: async (dirPath, ref) => {
+      const res = await getCommitsSinceTag(dirPath, ref || null);
+      const commits = res.ok ? res.commits : [];
+      const prompt = buildTagMessagePrompt(commits);
+      return generateWithProvider(prompt);
+    },
+    ollamaSuggestTestFix: async (testScriptName, stdout, stderr) => {
+      const prompt = buildTestFixPrompt(testScriptName, stdout, stderr);
+      return generateWithProvider(prompt);
+    },
     getGitStatus: (dirPath) => getGitStatus(dirPath),
+    getTrackedFiles: (dirPath) => getTrackedFiles(dirPath),
     gitPull: (dirPath) => gitPull(dirPath),
     getBranches: (dirPath) => getBranches(dirPath),
     checkoutBranch: (dirPath, branchName) => checkoutBranch(dirPath, branchName),
@@ -1968,6 +2273,7 @@ app.whenReady().then(() => {
     getTags: (dirPath) => getTags(dirPath),
     checkoutTag: (dirPath, tagName) => checkoutTag(dirPath, tagName),
     getCommitLog: (dirPath, n) => getCommitLog(dirPath, n),
+    getCommitLogWithBody: (dirPath, n) => getCommitLogWithBody(dirPath, n),
     getCommitDetail: (dirPath, sha) => getCommitDetail(dirPath, sha),
     deleteBranch: (dirPath, branchName, force) => deleteBranch(dirPath, branchName, force),
     deleteRemoteBranch: (dirPath, remoteName, branchName) => deleteRemoteBranch(dirPath, remoteName, branchName),
@@ -1986,8 +2292,10 @@ app.whenReady().then(() => {
     gitCherryPickContinue: (dirPath) => gitCherryPickContinue(dirPath),
     renameBranch: (dirPath, oldName, newName) => renameBranch(dirPath, oldName, newName),
     createTag: (dirPath, tagName, message, ref) => createTag(dirPath, tagName, message, ref),
+    gitInit: (dirPath) => gitInit(dirPath),
     writeGitignore: (dirPath, content) => writeGitignore(dirPath, content),
     writeGitattributes: (dirPath, content) => writeGitattributes(dirPath, content),
+    createTestFile: (dirPath, relativePath, content) => createTestFile(dirPath, relativePath, content),
     gitRebaseInteractive: (dirPath, ref) => gitRebaseInteractive(dirPath, ref),
     gitReset: (dirPath, ref, mode) => gitReset(dirPath, ref, mode),
     getDiffBetween: (dirPath, refA, refB) => getDiffBetween(dirPath, refA, refB),
@@ -2008,10 +2316,13 @@ app.whenReady().then(() => {
     gitFetchRemote: (dirPath, remoteName, ref) => gitFetchRemote(dirPath, remoteName, ref),
     gitPullRebase: (dirPath) => gitPullRebase(dirPath),
     getGitignore: (dirPath) => getGitignore(dirPath),
+    scanProjectForGitignore: (dirPath) => scanProjectForGitignore(dirPath),
+    getFileAtRef: (dirPath, filePath, ref) => getFileAtRef(dirPath, filePath, ref),
     getGitattributes: (dirPath) => getGitattributes(dirPath),
     getSubmodules: (dirPath) => getSubmodules(dirPath),
     submoduleUpdate: (dirPath, init) => submoduleUpdate(dirPath, init),
     getGitState: (dirPath) => getGitState(dirPath),
+    getGitUser: (dirPath) => getGitUser(dirPath),
     getWorktrees: (dirPath) => getWorktrees(dirPath),
     worktreeAdd: (dirPath, worktreePath, branch) => worktreeAdd(dirPath, worktreePath, branch),
     worktreeRemove: (dirPath, worktreePath) => worktreeRemove(dirPath, worktreePath),
@@ -2019,7 +2330,9 @@ app.whenReady().then(() => {
     bisectStart: (dirPath, badRef, goodRef) => bisectStart(dirPath, badRef, goodRef),
     bisectGood: (dirPath) => bisectGood(dirPath),
     bisectBad: (dirPath) => bisectBad(dirPath),
+    bisectSkip: (dirPath) => bisectSkip(dirPath),
     bisectReset: (dirPath) => bisectReset(dirPath),
+    bisectRun: (dirPath, commandArgs) => bisectRun(dirPath, commandArgs),
     copyToClipboard: (text) => {
       if (text != null && typeof text === 'string') clipboard.writeText(text);
       return null;
@@ -2473,6 +2786,7 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-git-tag-and-push': 'gitTagAndPush',
     'rm-release': 'release',
     'rm-get-commits-since-tag': 'getCommitsSinceTag',
+    'rm-get-commit-subject': 'getCommitSubject',
     'rm-get-recent-commits': 'getRecentCommits',
     'rm-get-suggested-bump': 'getSuggestedBump',
     'rm-get-shortcut-action': 'getShortcutAction',
@@ -2483,13 +2797,18 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-set-ollama-settings': 'setOllamaSettings',
     'rm-get-claude-settings': 'getClaudeSettings',
     'rm-set-claude-settings': 'setClaudeSettings',
+    'rm-get-openai-settings': 'getOpenAISettings',
+    'rm-set-openai-settings': 'setOpenAISettings',
     'rm-get-ai-provider': 'getAiProvider',
     'rm-set-ai-provider': 'setAiProvider',
+    'rm-get-ai-generate-available': 'getAiGenerateAvailable',
     'rm-ollama-list-models': 'ollamaListModels',
     'rm-ollama-generate-commit-message': 'ollamaGenerateCommitMessage',
     'rm-ollama-generate-release-notes': 'ollamaGenerateReleaseNotes',
+    'rm-ollama-generate-tag-message': 'ollamaGenerateTagMessage',
     'rm-ollama-suggest-test-fix': 'ollamaSuggestTestFix',
     'rm-get-git-status': 'getGitStatus',
+    'rm-get-tracked-files': 'getTrackedFiles',
     'rm-git-pull': 'gitPull',
     'rm-get-branches': 'getBranches',
     'rm-checkout-branch': 'checkoutBranch',
@@ -2512,6 +2831,7 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-get-tags': 'getTags',
     'rm-checkout-tag': 'checkoutTag',
     'rm-get-commit-log': 'getCommitLog',
+    'rm-get-commit-log-with-body': 'getCommitLogWithBody',
     'rm-get-commit-detail': 'getCommitDetail',
     'rm-delete-branch': 'deleteBranch',
     'rm-delete-remote-branch': 'deleteRemoteBranch',
@@ -2530,8 +2850,10 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-git-cherry-pick-continue': 'gitCherryPickContinue',
     'rm-rename-branch': 'renameBranch',
     'rm-create-tag': 'createTag',
+    'rm-git-init': 'gitInit',
     'rm-write-gitignore': 'writeGitignore',
     'rm-write-gitattributes': 'writeGitattributes',
+    'rm-create-test-file': 'createTestFile',
     'rm-git-rebase-interactive': 'gitRebaseInteractive',
     'rm-git-reset': 'gitReset',
     'rm-get-diff-between': 'getDiffBetween',
@@ -2552,10 +2874,13 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-git-fetch-remote': 'gitFetchRemote',
     'rm-git-pull-rebase': 'gitPullRebase',
     'rm-get-gitignore': 'getGitignore',
+    'rm-scan-project-gitignore': 'scanProjectForGitignore',
+    'rm-get-file-at-ref': 'getFileAtRef',
     'rm-get-gitattributes': 'getGitattributes',
     'rm-get-submodules': 'getSubmodules',
     'rm-submodule-update': 'submoduleUpdate',
     'rm-get-git-state': 'getGitState',
+    'rm-get-git-user': 'getGitUser',
     'rm-get-worktrees': 'getWorktrees',
     'rm-worktree-add': 'worktreeAdd',
     'rm-worktree-remove': 'worktreeRemove',
@@ -2563,7 +2888,9 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-bisect-start': 'bisectStart',
     'rm-bisect-good': 'bisectGood',
     'rm-bisect-bad': 'bisectBad',
+    'rm-bisect-skip': 'bisectSkip',
     'rm-bisect-reset': 'bisectReset',
+    'rm-bisect-run': 'bisectRun',
     'rm-copy-to-clipboard': 'copyToClipboard',
     'rm-open-path-in-finder': 'openPathInFinder',
     'rm-open-in-terminal': 'openInTerminal',

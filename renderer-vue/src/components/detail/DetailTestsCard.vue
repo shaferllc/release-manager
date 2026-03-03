@@ -22,6 +22,7 @@
           {{ s }}{{ running === s ? '…' : '' }}
         </button>
         <button
+          v-if="aiGenerateAvailable"
           type="button"
           class="btn-primary btn-compact text-xs"
           :disabled="running !== '' || suggestingFix || !api.ollamaSuggestTestFix"
@@ -44,6 +45,7 @@ import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
+import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
 
 const props = defineProps({ info: { type: Object, default: null } });
 
@@ -52,6 +54,7 @@ const api = useApi();
 const modals = useModals();
 const { runWithOverlay } = useLongActionOverlay();
 const { collapsed, toggle } = useCollapsible('tests');
+const { aiGenerateAvailable } = useAiGenerateAvailable();
 const scripts = ref([]);
 const running = ref('');
 const suggestingFix = ref(false);

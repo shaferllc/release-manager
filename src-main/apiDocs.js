@@ -71,14 +71,22 @@ const API_DOCS = [
   { name: 'setOllamaSettings', category: 'AI', description: 'Set Ollama base URL and model.', params: [{ name: 'baseUrl', type: 'string' }, { name: 'model', type: 'string' }], returns: 'null' },
   { name: 'getClaudeSettings', category: 'AI', description: 'Get Claude API key and model.', params: [], returns: '{ apiKey, model }' },
   { name: 'setClaudeSettings', category: 'AI', description: 'Set Claude API key and model.', params: [{ name: 'apiKey', type: 'string' }, { name: 'model', type: 'string' }], returns: 'null' },
-  { name: 'getAiProvider', category: 'AI', description: 'Get current AI provider: ollama or claude.', params: [], returns: 'string' },
-  { name: 'setAiProvider', category: 'AI', description: 'Set AI provider to ollama or claude.', params: [{ name: 'provider', type: 'string', description: 'ollama or claude' }], returns: 'null' },
+  { name: 'getOpenAISettings', category: 'AI', description: 'Get OpenAI API key and model.', params: [], returns: '{ apiKey, model }' },
+  { name: 'setOpenAISettings', category: 'AI', description: 'Set OpenAI API key and model.', params: [{ name: 'apiKey', type: 'string' }, { name: 'model', type: 'string' }], returns: 'null' },
+  { name: 'getAiProvider', category: 'AI', description: 'Get current AI provider: ollama, claude, or openai.', params: [], returns: 'string' },
+  { name: 'setAiProvider', category: 'AI', description: 'Set AI provider to ollama, claude, or openai.', params: [{ name: 'provider', type: 'string', description: 'ollama, claude, or openai' }], returns: 'null' },
+  { name: 'getAiGenerateAvailable', category: 'AI', description: 'Whether the current AI provider is configured for generate (commit message, release notes, test fix). Ollama is always true; OpenAI and Claude require a non-empty API key.', params: [], returns: 'boolean' },
   { name: 'ollamaListModels', category: 'AI', description: 'List models available at an Ollama base URL.', params: [{ name: 'baseUrl', type: 'string', description: 'Ollama server URL (optional; uses saved if omitted)' }], returns: 'Array of model names' },
-  { name: 'ollamaGenerateCommitMessage', category: 'AI', description: 'Generate a commit message using Ollama from staged changes.', params: [{ name: 'dirPath', type: 'string', description: 'Project directory' }], returns: 'Promise<{ ok, message? } | { ok: false, error }>' },
-  { name: 'ollamaGenerateReleaseNotes', category: 'AI', description: 'Generate release notes using Ollama from commits since a tag.', params: [{ name: 'dirPath', type: 'string' }, { name: 'sinceTag', type: 'string' }], returns: 'Promise<{ ok, content? } | { ok: false, error }>' },
-  { name: 'ollamaSuggestTestFix', category: 'AI', description: 'Suggest a test fix using Ollama from script name and stdout/stderr.', params: [{ name: 'testScriptName', type: 'string' }, { name: 'stdout', type: 'string' }, { name: 'stderr', type: 'string' }], returns: 'Promise<{ ok, suggestion? } | { ok: false, error }>' },
+  { name: 'ollamaGenerateCommitMessage', category: 'AI', description: 'Generate a commit message using the selected AI provider (Ollama, Claude, or OpenAI) from staged changes.', params: [{ name: 'dirPath', type: 'string', description: 'Project directory' }], returns: 'Promise<{ ok, text? } | { ok: false, error }>' },
+  { name: 'ollamaGenerateReleaseNotes', category: 'AI', description: 'Generate release notes using the selected AI provider from commits since a tag.', params: [{ name: 'dirPath', type: 'string' }, { name: 'sinceTag', type: 'string' }], returns: 'Promise<{ ok, text? } | { ok: false, error }>' },
+  { name: 'ollamaGenerateTagMessage', category: 'AI', description: 'Generate a one-line tag message using the selected AI provider from commits since a ref.', params: [{ name: 'dirPath', type: 'string' }, { name: 'ref', type: 'string', description: 'Ref or tag; commits from ref..HEAD are used' }], returns: 'Promise<{ ok, text? } | { ok: false, error }>' },
+  { name: 'ollamaSuggestTestFix', category: 'AI', description: 'Suggest a test fix using the selected AI provider from script name and stdout/stderr.', params: [{ name: 'testScriptName', type: 'string' }, { name: 'stdout', type: 'string' }, { name: 'stderr', type: 'string' }], returns: 'Promise<{ ok, text? } | { ok: false, error }>' },
 
   // Git – status, pull, branches
+  { name: 'getGitUser', category: 'Git', description: 'Get configured git user (committer) for the repo: user.name and user.email from git config.', params: [{ name: 'dirPath', type: 'string', description: 'Project directory' }], returns: '{ ok, name, email }', sampleResponse: `{
+  "ok": true,
+  "result": { "ok": true, "name": "Jane Doe", "email": "jane@example.com" }
+}` },
   { name: 'getGitStatus', category: 'Git', description: 'Get git status (branch, ahead/behind, dirty, untracked).', params: [{ name: 'dirPath', type: 'string', description: 'Project directory' }], returns: 'Object with branch, clean, ahead, behind, etc.', sampleResponse: `{
   "ok": true,
   "result": {
@@ -88,6 +96,10 @@ const API_DOCS = [
     "behind": 0,
     "hasUntracked": true
   }
+}` },
+  { name: 'getTrackedFiles', category: 'Git', description: 'List all tracked files (git ls-files). Used for working tree "View all files" tree mode.', params: [{ name: 'dirPath', type: 'string', description: 'Project directory' }], returns: '{ ok, files: string[] }', sampleResponse: `{
+  "ok": true,
+  "result": { "ok": true, "files": ["src/main.js", "package.json"] }
 }` },
   { name: 'gitPull', category: 'Git', description: 'Run git pull.', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
   { name: 'getBranches', category: 'Git', description: 'List local branch names.', params: [{ name: 'dirPath', type: 'string' }], returns: 'Array of branch names', sampleResponse: `{
@@ -116,6 +128,8 @@ const API_DOCS = [
   { name: 'getTags', category: 'Git', description: 'List git tags.', params: [{ name: 'dirPath', type: 'string' }], returns: 'Array of tag names' },
   { name: 'checkoutTag', category: 'Git', description: 'Check out a tag (detached HEAD).', params: [{ name: 'dirPath', type: 'string' }, { name: 'tagName', type: 'string' }], returns: 'void' },
   { name: 'getCommitLog', category: 'Git', description: 'Get commit log (last N commits).', params: [{ name: 'dirPath', type: 'string' }, { name: 'n', type: 'number' }], returns: 'Array of commit objects' },
+  { name: 'getCommitLogWithBody', category: 'Git', description: 'Get commit log with body (for search). Same as getCommitLog but each commit includes a body field (truncated).', params: [{ name: 'dirPath', type: 'string' }, { name: 'n', type: 'number' }], returns: 'Array of commit objects with sha, subject, author, date, body' },
+  { name: 'getCommitSubject', category: 'Git', description: 'Get the one-line commit subject at a ref (default HEAD).', params: [{ name: 'dirPath', type: 'string' }, { name: 'ref', type: 'string', description: 'e.g. HEAD or tag name' }], returns: '{ ok, subject }' },
   { name: 'getCommitDetail', category: 'Git', description: 'Get full detail for one commit (message, diff, etc.).', params: [{ name: 'dirPath', type: 'string' }, { name: 'sha', type: 'string', description: 'Commit SHA' }], returns: 'Commit detail object' },
   { name: 'deleteBranch', category: 'Git', description: 'Delete a local branch. Optionally force.', params: [{ name: 'dirPath', type: 'string' }, { name: 'branchName', type: 'string' }, { name: 'force', type: 'boolean' }], returns: 'void' },
   { name: 'deleteRemoteBranch', category: 'Git', description: 'Delete a branch on the remote.', params: [{ name: 'dirPath', type: 'string' }, { name: 'remoteName', type: 'string', description: 'e.g. origin' }, { name: 'branchName', type: 'string' }], returns: 'void' },
@@ -138,6 +152,7 @@ const API_DOCS = [
   { name: 'gitCherryPickContinue', category: 'Git', description: 'Continue after resolving cherry-pick conflicts.', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
   { name: 'renameBranch', category: 'Git', description: 'Rename a branch.', params: [{ name: 'dirPath', type: 'string' }, { name: 'oldName', type: 'string' }, { name: 'newName', type: 'string' }], returns: 'void' },
   { name: 'createTag', category: 'Git', description: 'Create a tag. Optionally with message and ref.', params: [{ name: 'dirPath', type: 'string' }, { name: 'tagName', type: 'string' }, { name: 'message', type: 'string' }, { name: 'ref', type: 'string', description: 'Ref to tag (default HEAD)' }], returns: 'void' },
+  { name: 'gitInit', category: 'Git', description: 'Initialize a new Git repository in the directory. Fails if .git already exists.', params: [{ name: 'dirPath', type: 'string' }], returns: '{ ok } | { ok: false, error }' },
   { name: 'writeGitignore', category: 'Git', description: 'Overwrite .gitignore with given content.', params: [{ name: 'dirPath', type: 'string' }, { name: 'content', type: 'string' }], returns: 'void' },
   { name: 'writeGitattributes', category: 'Git', description: 'Overwrite .gitattributes with given content.', params: [{ name: 'dirPath', type: 'string' }, { name: 'content', type: 'string' }], returns: 'void' },
   { name: 'gitRebaseInteractive', category: 'Git', description: 'Start interactive rebase from a ref.', params: [{ name: 'dirPath', type: 'string' }, { name: 'ref', type: 'string' }], returns: 'void' },
@@ -162,7 +177,10 @@ const API_DOCS = [
   { name: 'gitFetchRemote', category: 'Git', description: 'Fetch from a specific remote (and optional ref).', params: [{ name: 'dirPath', type: 'string' }, { name: 'remoteName', type: 'string' }, { name: 'ref', type: 'string' }], returns: 'void' },
   { name: 'gitPullRebase', category: 'Git', description: 'Pull with rebase (pull --rebase).', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
   { name: 'getGitignore', category: 'Git', description: 'Read .gitignore content.', params: [{ name: 'dirPath', type: 'string' }], returns: 'string' },
+  { name: 'scanProjectForGitignore', category: 'Git', description: 'Scan project root for common ignorable paths (node_modules, dist, .env, etc.) and return suggestions not already in .gitignore.', params: [{ name: 'dirPath', type: 'string' }], returns: '{ ok, suggestions: [{ pattern, label, category }] }' },
+  { name: 'getFileAtRef', category: 'Git', description: 'Read file content at a ref (e.g. HEAD).', params: [{ name: 'dirPath', type: 'string' }, { name: 'filePath', type: 'string' }, { name: 'ref', type: 'string', description: 'e.g. HEAD' }], returns: '{ ok, content } | { ok: false, error }' },
   { name: 'getGitattributes', category: 'Git', description: 'Read .gitattributes content.', params: [{ name: 'dirPath', type: 'string' }], returns: 'string' },
+  { name: 'createTestFile', category: 'Git', description: 'Create a test file in the project for testing git actions (stage, diff, discard, etc.).', params: [{ name: 'dirPath', type: 'string' }, { name: 'relativePath', type: 'string', description: 'Optional; default test-file.txt' }, { name: 'content', type: 'string', description: 'Optional file content' }], returns: '{ ok, path?, relativePath?, error? }' },
   { name: 'getSubmodules', category: 'Git', description: 'List submodules.', params: [{ name: 'dirPath', type: 'string' }], returns: 'Array of submodule info' },
   { name: 'submoduleUpdate', category: 'Git', description: 'Update submodules. Optionally init.', params: [{ name: 'dirPath', type: 'string' }, { name: 'init', type: 'boolean' }], returns: 'void' },
   { name: 'getGitState', category: 'Git', description: 'Get high-level git state (branch, rebase/merge in progress, etc.).', params: [{ name: 'dirPath', type: 'string' }], returns: 'State object' },
@@ -175,7 +193,9 @@ const API_DOCS = [
   { name: 'bisectStart', category: 'Git', description: 'Start bisect (bad and good refs).', params: [{ name: 'dirPath', type: 'string' }, { name: 'badRef', type: 'string' }, { name: 'goodRef', type: 'string' }], returns: 'void' },
   { name: 'bisectGood', category: 'Git', description: 'Mark current commit as good.', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
   { name: 'bisectBad', category: 'Git', description: 'Mark current commit as bad.', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
+  { name: 'bisectSkip', category: 'Git', description: 'Skip current commit (e.g. does not build or cannot be tested).', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
   { name: 'bisectReset', category: 'Git', description: 'Reset bisect session.', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
+  { name: 'bisectRun', category: 'Git', description: 'Run automated bisect: git bisect run <cmd...>. commandArgs e.g. [\'npm\', \'run\', \'test\']. Exit 0 = good, non-zero = bad.', params: [{ name: 'dirPath', type: 'string' }, { name: 'commandArgs', type: 'array', description: 'Command and args, e.g. [\'npm\', \'run\', \'test\']' }], returns: 'void' },
 
   // System & UI
   { name: 'copyToClipboard', category: 'System & UI', description: 'Copy text to the system clipboard.', params: [{ name: 'text', type: 'string' }], returns: 'null' },

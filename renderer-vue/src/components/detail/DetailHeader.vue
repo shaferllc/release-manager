@@ -44,18 +44,20 @@
         </div>
       </div>
       <div class="flex items-center gap-1.5 shrink-0">
-        <button type="button" class="icon-btn p-2" title="Open in Terminal" aria-label="Open in Terminal" @click="openTerminal">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
-        </button>
-        <button type="button" class="icon-btn p-2" title="Open in Cursor / VS Code" aria-label="Open in editor" @click="openEditor">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
-        </button>
-        <button type="button" class="icon-btn p-2" title="Open in Finder" aria-label="Open in Finder" @click="openFinder">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        </button>
-        <button type="button" class="icon-btn p-2" title="Copy path" aria-label="Copy path" @click="copyPath">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        </button>
+        <div class="detail-header-actions flex items-center gap-1.5">
+          <button type="button" class="icon-btn p-2 rounded-rm border border-transparent hover:border-rm-border" title="Open in Terminal" aria-label="Open in Terminal" @click="openTerminal">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          </button>
+          <button type="button" class="icon-btn p-2 rounded-rm border border-transparent hover:border-rm-border" title="Open in Cursor / VS Code" aria-label="Open in editor" @click="openEditor">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          </button>
+          <button type="button" class="icon-btn p-2 rounded-rm border border-transparent hover:border-rm-border" title="Open in Finder" aria-label="Open in Finder" @click="openFinder">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          <button type="button" class="icon-btn p-2 rounded-rm border border-transparent hover:border-rm-border" title="Copy path" aria-label="Copy path" @click="copyPath">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          </button>
+        </div>
         <span v-if="copyFeedback" class="copy-feedback text-xs font-medium text-rm-accent">Copied!</span>
         <button type="button" class="btn-ghost inline-flex items-center gap-x-1.5 shrink-0 text-rm-muted hover:text-rm-text text-sm" title="Remove from list" @click="removeProject">
           <svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
@@ -71,6 +73,7 @@ import { ref, watch, computed } from 'vue';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import * as debug from '../../utils/debug';
+import { toPlainProjects } from '../../utils/plainProjects';
 
 const props = defineProps({ info: { type: Object, default: null } });
 const emit = defineEmits(['remove']);
@@ -105,7 +108,7 @@ async function updateProjectsPhpPath(newPath) {
   if (!path || !api.setProjects) return;
   const list = store.projects.map((p) => (p.path === path ? { ...p, phpPath: newPath } : p));
   try {
-    await api.setProjects(list);
+    await api.setProjects(toPlainProjects(list));
     store.setProjects(list);
   } catch (_) {}
 }
@@ -161,7 +164,7 @@ function saveTags() {
   if (!path || !api.setProjects) return;
   const tags = tagsInput.value.split(',').map((t) => t.trim()).filter(Boolean);
   const list = store.projects.map((p) => (p.path === path ? { ...p, tags } : p));
-  api.setProjects(list);
+  api.setProjects(toPlainProjects(list));
 }
 
 async function savePhpPath() {
@@ -219,6 +222,6 @@ function removeProject() {
   const path = store.selectedPath;
   if (!path || !api.setProjects) return;
   const list = store.projects.filter((p) => p.path !== path);
-  api.setProjects(list).then(() => emit('remove'));
+  api.setProjects(toPlainProjects(list)).then(() => emit('remove'));
 }
 </script>

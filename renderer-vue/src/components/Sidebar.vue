@@ -1,5 +1,6 @@
 <template>
-  <aside class="aside-panel">
+  <div class="sidebar-wrapper flex shrink-0 h-full">
+  <aside class="aside-panel" :style="sidebarStyle">
     <div class="aside-header">
       <span class="aside-title">Projects</span>
     </div>
@@ -71,16 +72,26 @@
       </ul>
     </div>
   </aside>
+  <button type="button" class="sidebar-resizer w-1 shrink-0 border-0 cursor-col-resize bg-transparent hover:bg-rm-accent/20 active:bg-rm-accent/30 transition-colors self-stretch" aria-label="Resize sidebar" @pointerdown="onResizerPointerDown" />
+  </div>
 </template>
 
 <script setup>
 import { computed } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
+import { useResizableSidebar } from '../composables/useResizableSidebar';
 import * as debug from '../utils/debug';
+import { toPlainProjects } from '../utils/plainProjects';
 
 const store = useAppStore();
 const api = useApi();
+const { sidebarStyle, onResizerPointerDown } = useResizableSidebar({
+  preferenceKey: 'mainSidebarWidth',
+  defaultWidth: 256,
+  minWidth: 180,
+  maxWidth: 420,
+});
 const batchCount = computed(() => store.selectedPaths?.size ?? 0);
 
 function isSelected(path) {
@@ -135,7 +146,7 @@ function selectProject(path) {
 async function toggleStar(p) {
   debug.log('project', 'toggleStar', p.path);
   store.toggleStar(p.path);
-  await api.setProjects?.(store.projects);
+  await api.setProjects?.(toPlainProjects(store.projects));
 }
 
 async function removeProject(p) {
@@ -143,6 +154,6 @@ async function removeProject(p) {
   if (!window.confirm(`Remove "${name}" from the list?`)) return;
   debug.log('project', 'removeProject', p.path);
   store.removeProject(p.path);
-  await api.setProjects?.(store.projects);
+  await api.setProjects?.(toPlainProjects(store.projects));
 }
 </script>

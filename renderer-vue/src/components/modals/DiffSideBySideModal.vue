@@ -149,8 +149,9 @@ function rowTypeClass(row) {
   return 'diff-row-context';
 }
 
-function canRevertRow(row) {
-  if (!props.dirPath || !props.filePath) return false;
+/** Show "Use old" when this line has new content and we can set file to old (and not already reverted). Only for working tree diff. */
+function canUseOld(row) {
+  if (props.commitSha || !props.dirPath || !props.filePath || row.revertedToOld) return false;
   if (row.type === 'add') return true;
   if (row.type === 'remove') return true;
   if (row.type === 'context' && row.oldContent !== row.newContent) return false;
@@ -158,18 +159,73 @@ function canRevertRow(row) {
   return row.newLineNum != null && (row.oldContent != null || row.type === 'add');
 }
 
-async function revertRow(row) {
+/** Show "Use new" when we previously reverted this line to old and can re-apply new. Only for working tree diff. */
+function canUseNew(row) {
+  if (props.commitSha || !props.dirPath || !props.filePath || !row.revertedToOld) return false;
+  return row.originalNewContent !== undefined;
+}
+
+async function useOld(row) {
   revertStatus.value = null;
   try {
     if (row.type === 'add') {
       const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'delete', row.newLineNum, null);
       revertStatus.value = res;
+      if (res?.ok) {
+        row.originalNewContent = row.newContent;
+        row.newContent = null;
+        row.revertedToOld = true;
+      }
     } else if (row.type === 'remove' && row.insertBeforeNewLine != null) {
       const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'insert', row.insertBeforeNewLine, row.oldContent);
       revertStatus.value = res;
+      if (res?.ok) {
+        row.originalNewContent = row.newContent;
+        row.newContent = row.oldContent;
+        row.revertedToOld = true;
+      }
     } else if (row.newLineNum != null && row.oldContent != null) {
       const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'replace', row.newLineNum, row.oldContent);
       revertStatus.value = res;
+      if (res?.ok) {
+        row.originalNewContent = row.newContent;
+        row.newContent = row.oldContent;
+        row.revertedToOld = true;
+      }
+    }
+    if (revertStatus.value?.ok) {
+      emit('refresh');
+      setTimeout(() => { revertStatus.value = null; }, 3000);
+    }
+  } catch (e) {
+    revertStatus.value = { ok: false, error: e?.message || String(e) };
+  }
+}
+
+async function useNew(row) {
+  revertStatus.value = null;
+  try {
+    if (row.type === 'add') {
+      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'insert', row.newLineNum, row.originalNewContent ?? row.newContent);
+      revertStatus.value = res;
+      if (res?.ok) {
+        row.newContent = row.originalNewContent;
+        row.revertedToOld = false;
+      }
+    } else if (row.type === 'remove' && row.insertBeforeNewLine != null) {
+      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'delete', row.insertBeforeNewLine, null);
+      revertStatus.value = res;
+      if (res?.ok) {
+        row.newContent = null;
+        row.revertedToOld = false;
+      }
+    } else if (row.newLineNum != null && row.originalNewContent !== undefined) {
+      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'replace', row.newLineNum, row.originalNewContent);
+      revertStatus.value = res;
+      if (res?.ok) {
+        row.newContent = row.originalNewContent;
+        row.revertedToOld = false;
+      }
     }
     if (revertStatus.value?.ok) {
       emit('refresh');
@@ -211,7 +267,12 @@ async function load() {
       error.value = result.error;
       rows.value = [];
     } else if (result?.ok) {
-      rows.value = result.rows || [];
+      const raw = result.rows || [];
+      rows.value = raw.map((r) => ({
+        ...r,
+        originalNewContent: r.newContent,
+        revertedToOld: false,
+      }));
     } else {
       rows.value = [];
     }
@@ -269,21 +330,33 @@ function close() {
   opacity: 1;
 }
 .diff-copy-btn,
-.diff-revert-btn {
+.diff-use-old-btn,
+.diff-use-new-btn {
   padding: 1px 6px;
   font-size: 10px;
   border: none;
   border-radius: 2px;
   cursor: pointer;
   background: rgb(var(--rm-surface));
+}
+.diff-copy-btn {
+  color: rgb(var(--rm-muted));
+}
+.diff-copy-btn:hover {
+  background: rgb(var(--rm-surface-hover));
+  color: rgb(var(--rm-text));
+}
+.diff-use-old-btn {
+  color: rgb(var(--rm-warning));
+}
+.diff-use-old-btn:hover {
+  background: rgb(var(--rm-warning) / 0.2);
+}
+.diff-use-new-btn {
   color: rgb(var(--rm-accent));
 }
-.diff-copy-btn:hover,
-.diff-revert-btn:hover {
+.diff-use-new-btn:hover {
   background: rgb(var(--rm-accent) / 0.2);
-}
-.diff-revert-btn {
-  color: rgb(var(--rm-warning));
 }
 .diff-row-add .diff-cell-old {
   background: rgb(var(--rm-bg));

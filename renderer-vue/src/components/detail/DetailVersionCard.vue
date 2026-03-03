@@ -55,13 +55,31 @@
           <p v-if="suggestedBump" class="m-0 mt-2 text-xs text-rm-muted">Suggested bump: {{ suggestedBump }} (from conventional commits)</p>
         </div>
 
+        <!-- Changelog (commits since last tag) -->
+        <div v-if="info?.hasGit" class="mb-5">
+          <div class="flex flex-wrap items-center gap-2 mb-1">
+            <span class="card-label text-rm-muted text-xs">Changelog (since {{ info?.latestTag || 'start' }})</span>
+            <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer" :disabled="changelogLoading" @click="previewChangelog">
+              {{ changelogLoading ? 'Loading…' : (changelogPreview.length ? 'Refresh' : 'Preview') }}
+            </button>
+            <button v-if="changelogPreview.length" type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer" @click="useChangelogForReleaseNotes">Use for release notes</button>
+            <button v-if="changelogPreview.length" type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer" @click="copyChangelog">Copy</button>
+          </div>
+          <div v-if="changelogPreview.length" class="mt-2 p-3 rounded-rm border border-rm-border bg-rm-surface/50 max-h-40 overflow-y-auto">
+            <ul class="m-0 pl-4 text-sm text-rm-muted list-disc space-y-0.5">
+              <li v-for="(line, i) in changelogPreview" :key="i" class="truncate" :title="line">{{ line }}</li>
+            </ul>
+          </div>
+          <p v-else-if="changelogError" class="m-0 mt-1 text-xs text-rm-warning">{{ changelogError }}</p>
+        </div>
+
         <!-- Release notes row -->
         <div v-if="canBump" class="release-notes-row mb-5">
           <div class="flex items-center justify-between gap-2 mb-2 flex-wrap">
             <label class="text-xs font-medium text-rm-text">Release notes</label>
             <div class="flex items-center gap-3 flex-wrap">
               <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer" @click="loadFromCommits">Load from commits</button>
-              <button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer" @click="generateWithOllama">Generate with Ollama</button>
+              <button v-if="aiGenerateAvailable" type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent p-0 cursor-pointer" @click="generateWithOllama">Generate with Ollama</button>
               <button type="button" class="icon-btn icon-btn-sm" title="Copy to clipboard" aria-label="Copy release notes" @click="copyReleaseNotes">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
               </button>
@@ -109,6 +127,8 @@ import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
 import { useCollapsible } from '../../composables/useCollapsible';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
+import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
+import { toPlainProjects } from '../../utils/plainProjects';
 
 const props = defineProps({ info: { type: Object, default: null } });
 const emit = defineEmits(['refresh']);
@@ -118,6 +138,7 @@ const api = useApi();
 const modals = useModals();
 const { runWithOverlay } = useLongActionOverlay();
 const { collapsed, toggle } = useCollapsible('version');
+const { aiGenerateAvailable } = useAiGenerateAvailable();
 
 function openDocs(docKey) {
   modals.openModal('docs', { docKey });
@@ -135,6 +156,9 @@ const releasedTags = ref([]);
 const releasesUrl = ref('');
 const projectToken = ref('');
 const copyFeedback = ref(false);
+const changelogPreview = ref([]);
+const changelogLoading = ref(false);
+const changelogError = ref('');
 
 const canBump = computed(() => (props.info?.projectType || '').toLowerCase() === 'npm');
 const releaseHint = computed(() => {
@@ -223,6 +247,42 @@ async function loadFromCommits() {
   }
 }
 
+async function previewChangelog() {
+  const path = store.selectedPath;
+  const sinceTag = props.info?.latestTag || null;
+  if (!path || !api.getCommitsSinceTag) return;
+  changelogLoading.value = true;
+  changelogError.value = '';
+  try {
+    const result = await api.getCommitsSinceTag(path, sinceTag);
+    if (result?.ok && result?.commits?.length) {
+      changelogPreview.value = result.commits;
+    } else {
+      changelogPreview.value = [];
+      changelogError.value = result?.error || 'No commits or git failed.';
+    }
+  } catch (_) {
+    changelogPreview.value = [];
+    changelogError.value = 'Could not load commits.';
+  } finally {
+    changelogLoading.value = false;
+  }
+}
+
+function useChangelogForReleaseNotes() {
+  if (changelogPreview.value.length) {
+    releaseNotes.value = changelogPreview.value.join('\n');
+  }
+}
+
+async function copyChangelog() {
+  if (changelogPreview.value.length) {
+    const text = changelogPreview.value.join('\n');
+    await api.copyToClipboard?.(text);
+    showCopyFeedback();
+  }
+}
+
 async function generateWithOllama() {
   const path = store.selectedPath;
   const sinceTag = props.info?.latestTag || null;
@@ -290,7 +350,7 @@ function saveProjectToken() {
   const proj = store.projects.find((p) => p.path === store.selectedPath);
   if (!proj) return;
   proj.githubToken = projectToken.value?.trim() || undefined;
-  api.setProjects?.(store.projects);
+  api.setProjects?.(toPlainProjects(store.projects));
 }
 
 function release(bump) {

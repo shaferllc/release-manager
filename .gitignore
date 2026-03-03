@@ -4,3 +4,28 @@ dist-renderer/
 coverage/
 *.log
 .DS_Store
+.env
+.vscode/
+__pycache__/
+
+
+# --- General (logs, env, tmp) ---
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
