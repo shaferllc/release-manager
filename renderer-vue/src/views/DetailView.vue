@@ -51,6 +51,15 @@
           <template v-else-if="store.detailTab === 'wordpress'">
             <DetailWordPressCard :info="info" />
           </template>
+          <template v-else-if="store.detailTab === 'processes'">
+            <DetailProcessesCard :info="info" />
+          </template>
+          <template v-else-if="store.detailTab === 'email'">
+            <DetailEmailCard />
+          </template>
+          <template v-else-if="store.detailTab === 'tunnels'">
+            <DetailTunnelsCard />
+          </template>
         </div>
       </div>
     </template>
@@ -76,6 +85,9 @@ import DetailCoverageCard from '../components/detail/DetailCoverageCard.vue';
 import DetailApiCard from '../components/detail/DetailApiCard.vue';
 import DetailPullRequestsCard from '../components/detail/DetailPullRequestsCard.vue';
 import DetailWordPressCard from '../components/detail/DetailWordPressCard.vue';
+import DetailProcessesCard from '../components/detail/DetailProcessesCard.vue';
+import DetailEmailCard from '../components/detail/DetailEmailCard.vue';
+import DetailTunnelsCard from '../components/detail/DetailTunnelsCard.vue';
 
 defineEmits(['refresh']);
 
@@ -98,12 +110,18 @@ const tabIcons = {
   api: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d=\"M4 4h7v7H4z\"/><path d=\"M13 4h7v7h-7z\"/><path d=\"M4 13h7v7H4z\"/><path d=\"M13 13h7v7h-7z\"/></svg>',
   pullRequests: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h5a2 2 0 0 1 2 2v7"/><path d="M6 9v6a2 2 0 0 0 2 2h7"/></svg>',
   wordpress: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2z"/><path d="M8.5 9.5 12 17l2-4 2.5-5"/><path d="M7 14h10"/></svg>',
+  processes: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="4" rx="1"/><rect x="2" y="10" width="20" height="4" rx="1"/><rect x="2" y="16" width="20" height="4" rx="1"/></svg>',
+  email: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
+  tunnels: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/><circle cx="12" cy="12" r="3"/></svg>',
 };
 const baseTabs = [
   { id: 'dashboard', label: 'Dashboard', icon: tabIcons.dashboard },
   { id: 'git', label: 'Git', icon: tabIcons.git },
   { id: 'version', label: 'Version & release', icon: tabIcons.version },
   { id: 'pull-requests', label: 'Pull requests', icon: tabIcons.pullRequests },
+  { id: 'processes', label: 'Dev stack', icon: tabIcons.processes },
+  { id: 'email', label: 'Email', icon: tabIcons.email },
+  { id: 'tunnels', label: 'Tunnels', icon: tabIcons.tunnels },
 ];
 const visibleTabs = computed(() => {
   const t = [...baseTabs];

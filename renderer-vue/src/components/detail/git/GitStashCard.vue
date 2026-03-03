@@ -42,13 +42,23 @@ const keepIndex = ref(false);
 
 async function load() {
   const path = store.selectedPath;
-  if (!path || !api.getStashList) return;
+  if (!path || !api.getStashList) {
+    entries.value = [];
+    error.value = '';
+    return;
+  }
   error.value = '';
   try {
     const r = await api.getStashList(path);
-    entries.value = r?.ok ? (r.entries || []) : [];
-  } catch {
+    if (r?.ok) {
+      entries.value = r.entries || [];
+    } else {
+      entries.value = [];
+      error.value = r?.error || 'Failed to load stash list';
+    }
+  } catch (e) {
     entries.value = [];
+    error.value = e?.message || 'Failed to load stash list';
   }
 }
 
@@ -57,12 +67,18 @@ watch(() => store.selectedPath, load, { immediate: true });
 async function stashPush() {
   const path = store.selectedPath;
   if (!path || !api.gitStashPush) return;
-  const msg = window.prompt('Stash message (optional)') || '';
+  const msgRaw = window.prompt('Stash message (optional)');
+  if (msgRaw === null) return; // user cancelled
+  const msg = (msgRaw || '').trim();
   error.value = '';
   try {
-    await api.gitStashPush(path, msg, { includeUntracked: includeUntracked.value, keepIndex: keepIndex.value });
-    emit('refresh');
-    load();
+    const result = await api.gitStashPush(path, msg, { includeUntracked: includeUntracked.value, keepIndex: keepIndex.value });
+    if (result?.ok) {
+      emit('refresh');
+      load();
+    } else {
+      error.value = result?.error || 'Stash failed.';
+    }
   } catch (e) {
     error.value = e?.message || 'Stash failed.';
   }
@@ -74,9 +90,13 @@ async function stashPop() {
   if (!window.confirm('Pop top stash?')) return;
   error.value = '';
   try {
-    await api.gitStashPop(path);
-    emit('refresh');
-    load();
+    const result = await api.gitStashPop(path);
+    if (result?.ok) {
+      emit('refresh');
+      load();
+    } else {
+      error.value = result?.error || 'Pop failed.';
+    }
   } catch (e) {
     error.value = e?.message || 'Pop failed.';
   }
@@ -87,9 +107,13 @@ async function stashApply(index) {
   if (!path || !api.stashApply) return;
   error.value = '';
   try {
-    await api.stashApply(path, index);
-    emit('refresh');
-    load();
+    const result = await api.stashApply(path, index);
+    if (result?.ok) {
+      emit('refresh');
+      load();
+    } else {
+      error.value = result?.error || 'Apply failed.';
+    }
   } catch (e) {
     error.value = e?.message || 'Apply failed.';
   }
@@ -101,9 +125,13 @@ async function stashDrop(index) {
   if (!window.confirm(`Drop stash ${index}?`)) return;
   error.value = '';
   try {
-    await api.stashDrop(path, index);
-    load();
-    emit('refresh');
+    const result = await api.stashDrop(path, index);
+    if (result?.ok) {
+      load();
+      emit('refresh');
+    } else {
+      error.value = result?.error || 'Drop failed.';
+    }
   } catch (e) {
     error.value = e?.message || 'Drop failed.';
   }

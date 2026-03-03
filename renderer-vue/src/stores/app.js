@@ -14,7 +14,7 @@ export const useAppStore = defineStore('app', () => {
   const gitSectionsMovedToRightPanel = ref(false);
   const isRefreshingAfterCheckout = ref(false);
   const theme = ref('dark');
-  const detailTab = ref('dashboard'); // 'dashboard' | 'git' | 'version' | 'sync' | 'composer' | 'tests' | 'coverage' | 'api'
+  const detailTab = ref('dashboard'); // 'dashboard' | 'git' | 'version' | ... | 'processes' | 'email'
   const useDetailTabs = ref(true);
   const loadingOverlayVisible = ref(false);
   const loadingBarVisible = ref(false);

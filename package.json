@@ -1,6 +1,6 @@
 {
   "name": "shipwell",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "productName": "Shipwell",
   "description": "Desktop app to manage releases for all your app projects",
   "main": "src-main/main.js",
@@ -103,9 +103,13 @@
     }
   },
   "dependencies": {
+    "basic-ftp": "^5.2.0",
     "electron-store": "^8.1.0",
+    "localtunnel": "^2.0.2",
+    "mailparser": "^3.6.5",
     "marked": "^15.0.0",
-    "sanitize-html": "^2.13.0"
+    "sanitize-html": "^2.13.0",
+    "smtp-server": "^3.13.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

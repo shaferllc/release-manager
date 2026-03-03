@@ -44,24 +44,37 @@
       </div>
       <div class="detail-git-toolbar-actions flex flex-wrap items-end gap-1 sm:gap-2">
         <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Discard all uncommitted changes" @click="undoDiscard">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10h10a5 5 0 0 1 5 5v2"/><path d="M3 10 7 6 3 2"/></svg>
-          <span class="text-[10px] font-medium">Undo</span>
-        </button>
-        <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-not-allowed opacity-50" title="Redo (not available)" disabled>
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10H11a5 5 0 0 0-5 5v2"/><path d="m21 10-4 4 4 4"/></svg>
-          <span class="text-[10px] font-medium">Redo</span>
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
+          <span class="text-[10px] font-medium">Discard</span>
         </button>
         <div class="detail-git-toolbar-dropdown relative flex flex-col items-center gap-0.5">
-          <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover min-w-[2.5rem]" title="Pull" @click="pullDropdownOpen = !pullDropdownOpen">
-            <span class="flex items-center gap-0.5">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+          <div class="flex items-stretch rounded-rm border-0 overflow-hidden">
+            <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-r-none border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover min-w-[2rem]" title="Pull (run default)" @click="runDefaultPull">
+              <span class="flex items-center gap-0.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+              </span>
+              <span class="text-[10px] font-medium">Pull</span>
+            </button>
+            <button type="button" class="detail-git-toolbar-btn flex flex-col items-center justify-center p-1 rounded-l-none border-0 border-l border-rm-border/50 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Pull options" aria-haspopup="true" :aria-expanded="pullDropdownOpen" @click="pullDropdownOpen = !pullDropdownOpen">
               <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-            </span>
-            <span class="text-[10px] font-medium">Pull</span>
-          </button>
-          <div v-if="pullDropdownOpen" class="detail-git-toolbar-dropdown-menu absolute left-0 top-full mt-0.5 z-30 py-1 rounded-rm border border-rm-border bg-rm-bg shadow-lg min-w-[8rem]">
-            <button type="button" class="w-full text-left text-xs px-2 py-1.5 hover:bg-rm-surface-hover" @click="pull('merge'); pullDropdownOpen = false">Pull (merge)</button>
-            <button type="button" class="w-full text-left text-xs px-2 py-1.5 hover:bg-rm-surface-hover" @click="pull('rebase'); pullDropdownOpen = false">Pull (rebase)</button>
+            </button>
+          </div>
+          <div v-if="pullDropdownOpen" class="detail-git-toolbar-dropdown-menu absolute left-0 top-full mt-0.5 z-30 py-2 px-0 rounded-rm border border-rm-border bg-rm-bg shadow-lg min-w-[16rem] max-w-[20rem]">
+            <p class="text-[11px] text-rm-muted px-3 py-1.5 mb-1 border-b border-rm-border/60">Select a default pull/fetch operation to execute when clicking the Pull button.</p>
+            <button
+              v-for="opt in pullOptions"
+              :key="opt.mode"
+              type="button"
+              class="w-full text-left text-xs px-3 py-2 flex items-center gap-2 hover:bg-rm-surface-hover"
+              :class="{ 'bg-rm-accent/10 text-rm-accent': defaultPullMode === opt.mode }"
+              @click="setDefaultPullAndRun(opt.mode)"
+            >
+              <span class="shrink-0 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center" :class="defaultPullMode === opt.mode ? 'border-rm-accent bg-rm-accent/20' : 'border-rm-border'">
+                <span v-if="defaultPullMode === opt.mode" class="w-1.5 h-1.5 rounded-full bg-rm-accent"></span>
+              </span>
+              <span>{{ opt.label }}</span>
+            </button>
           </div>
         </div>
         <button type="button" class="detail-git-toolbar-btn flex flex-col items-center gap-0.5 p-1.5 rounded-rm border-0 bg-transparent cursor-pointer text-rm-text hover:bg-rm-surface-hover" title="Push" @click="push">
@@ -116,17 +129,33 @@
             </button>
             <div v-show="sidebarLocalOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
               <ul class="py-1 px-0 list-none m-0 text-xs text-rm-text space-y-0.5">
-                <li class="cursor-pointer hover:text-rm-accent truncate py-0.5 flex items-center gap-1 text-rm-accent font-medium" @click="createBranch">
-                  <span class="shrink-0" aria-hidden="true">+</span>
-                  New branch
+                <li class="py-0.5">
+                  <button
+                    type="button"
+                    class="w-full text-left cursor-pointer hover:text-rm-accent truncate flex items-center gap-1 text-rm-accent font-medium border-0 bg-transparent p-0 text-inherit text-xs"
+                    @click.stop="createBranch"
+                  >
+                    <span class="shrink-0" aria-hidden="true">+</span>
+                    New branch
+                  </button>
                 </li>
                 <li
                   v-for="b in filteredBranches"
                   :key="b"
-                  class="cursor-pointer hover:text-rm-accent truncate py-0.5"
-                  :class="{ 'font-medium text-rm-accent': b === currentBranch }"
+                  class="cursor-pointer hover:text-rm-accent truncate py-0.5 rounded px-0.5 -mx-0.5"
+                  :class="[
+                    { 'font-medium text-rm-accent': b === currentBranch },
+                    { 'ring-1 ring-rm-accent rounded bg-rm-accent/10': branchDropTarget === b }
+                  ]"
+                  draggable="true"
+                  title="Drag to another branch to merge"
                   @click="checkoutBranch(b)"
                   @contextmenu.prevent="openBranchContextMenu($event, b, false)"
+                  @dragstart="onBranchDragStart($event, b, false)"
+                  @dragend="onBranchDragEnd"
+                  @dragover.prevent="onBranchDragOver($event, b)"
+                  @dragleave="onBranchDragLeave($event, b)"
+                  @drop="onBranchDrop($event, b)"
                 >
                   {{ b }}
                 </li>
@@ -155,7 +184,19 @@
             </button>
             <div v-show="sidebarRemoteOpen" class="px-2.5 pb-2 pt-0 border-t border-rm-border/50">
               <ul class="max-h-28 overflow-y-auto py-1 px-0 list-none m-0 text-xs text-rm-text space-y-0.5">
-                <li v-for="r in filteredRemoteBranches" :key="r" class="cursor-pointer hover:text-rm-accent truncate py-0.5" @click="checkoutRemoteBranch(r)" @contextmenu.prevent="openBranchContextMenu($event, r, true)">{{ r }}</li>
+                <li
+                v-for="r in filteredRemoteBranches"
+                :key="r"
+                class="cursor-pointer hover:text-rm-accent truncate py-0.5 rounded px-0.5 -mx-0.5"
+                draggable="true"
+                title="Drag onto a local branch to merge"
+                @click="checkoutRemoteBranch(r)"
+                @contextmenu.prevent="openBranchContextMenu($event, r, true)"
+                @dragstart="onBranchDragStart($event, r, true)"
+                @dragend="onBranchDragEnd"
+              >
+                {{ r }}
+              </li>
                 <li v-if="!remoteBranchesLoading && remoteBranches.length === 0 && remoteBranchesLoaded" class="text-xs text-rm-muted py-0.5">None</li>
               </ul>
             </div>
@@ -1117,6 +1158,14 @@ const remoteBranches = ref([]);
 const remoteBranchesLoaded = ref(false);
 const remoteBranchesLoading = ref(false);
 const pullDropdownOpen = ref(false);
+const DEFAULT_PULL_MODE_KEY = 'defaultPullMode';
+const defaultPullMode = ref('merge');
+const pullOptions = [
+  { mode: 'fetch', label: 'Fetch All' },
+  { mode: 'merge', label: 'Pull (fast-forward if possible)' },
+  { mode: 'ff-only', label: 'Pull (fast-forward only)' },
+  { mode: 'rebase', label: 'Pull (rebase)' },
+];
 const branchSelectRef = ref(null);
 const inlineTerminalOpen = ref(false);
 const worktrees = ref([]);
@@ -1479,12 +1528,12 @@ async function loadGitSidebarWidgetPrefs() {
 }
 
 function saveGitSidebarWidgetOrder() {
-  if (api.setPreference) api.setPreference(GIT_SIDEBAR_WIDGET_ORDER_KEY, sidebarWidgetOrder.value);
+  if (api.setPreference) api.setPreference(GIT_SIDEBAR_WIDGET_ORDER_KEY, JSON.parse(JSON.stringify(sidebarWidgetOrder.value)));
 }
 
 function saveGitSidebarWidgetVisibility() {
   if (api.setPreference && sidebarWidgetVisible.value != null) {
-    api.setPreference(GIT_SIDEBAR_WIDGET_VISIBLE_KEY, sidebarWidgetVisible.value);
+    api.setPreference(GIT_SIDEBAR_WIDGET_VISIBLE_KEY, JSON.parse(JSON.stringify(sidebarWidgetVisible.value)));
   }
 }
 
@@ -1562,6 +1611,101 @@ function onWidgetDrop(e, targetWidgetId) {
 function onWidgetDragEnd() {
   draggedWidgetId.value = null;
   widgetDropTarget.value = { id: null, position: 'before' };
+}
+
+const BRANCH_DRAG_TYPE = 'application/x-rm-branch';
+
+function onBranchDragStart(e, ref, isRemote) {
+  branchDragPayload.value = { ref, isRemote };
+  e.dataTransfer.effectAllowed = 'copy';
+  e.dataTransfer.setData(BRANCH_DRAG_TYPE, JSON.stringify({ ref, isRemote }));
+  e.dataTransfer.setData('text/plain', ref);
+}
+
+function onBranchDragOver(e, targetBranch) {
+  if (!e.dataTransfer.types.includes(BRANCH_DRAG_TYPE)) return;
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'copy';
+  const payload = branchDragPayload.value;
+  if (!payload) return;
+  const draggedRef = payload.ref;
+  const isSame = payload.isRemote ? (targetBranch === draggedRef.replace(/^[^/]+\//, '')) : (targetBranch === draggedRef);
+  if (isSame) return;
+  branchDropTarget.value = targetBranch;
+}
+
+function onBranchDragLeave(e, targetBranch) {
+  if (!e.currentTarget.contains(e.relatedTarget)) {
+    if (branchDropTarget.value === targetBranch) branchDropTarget.value = null;
+  }
+}
+
+async function onBranchDrop(e, targetBranch) {
+  const raw = e.dataTransfer.getData(BRANCH_DRAG_TYPE);
+  e.preventDefault();
+  e.stopPropagation();
+  branchDropTarget.value = null;
+  branchDragPayload.value = null;
+  if (!raw) return;
+  let payload;
+  try {
+    payload = JSON.parse(raw);
+  } catch {
+    return;
+  }
+  const { ref: mergeRef, isRemote } = payload;
+  if (!mergeRef || !targetBranch) return;
+  const path = store.selectedPath;
+  if (!path || !api.gitMerge) return;
+  const isSame = isRemote ? (targetBranch === mergeRef.replace(/^[^/]+\//, '')) : (targetBranch === mergeRef);
+  if (isSame) return;
+  const confirmMessage =
+    currentBranch.value === targetBranch
+      ? `Merge ${mergeRef} into ${targetBranch}?`
+      : `Check out ${targetBranch} and merge ${mergeRef} into it?`;
+  if (!window.confirm(confirmMessage)) return;
+  if (currentBranch.value !== targetBranch) {
+    if (hasUncommitted.value) {
+      runCheckoutWithStashOption(
+        async () => {
+          await api.checkoutBranch?.(path, targetBranch);
+          const result = await api.gitMerge(path, mergeRef);
+          if (result?.ok) {
+            gitActionStatus.value = `Merged ${mergeRef} into ${targetBranch}.`;
+            await refetchBranches();
+            emit('refresh');
+          } else {
+            gitActionStatus.value = result?.error || 'Merge failed.';
+          }
+        },
+        () => {}
+      );
+      return;
+    }
+    try {
+      await api.checkoutBranch?.(path, targetBranch);
+    } catch (err) {
+      gitActionStatus.value = err?.message || 'Checkout failed.';
+      return;
+    }
+  }
+  try {
+    const result = await api.gitMerge(path, mergeRef);
+    if (result?.ok) {
+      gitActionStatus.value = `Merged ${mergeRef} into ${targetBranch}.`;
+      await refetchBranches();
+      emit('refresh');
+    } else {
+      gitActionStatus.value = result?.error || 'Merge failed.';
+    }
+  } catch (err) {
+    gitActionStatus.value = err?.message || 'Merge failed.';
+  }
+}
+
+function onBranchDragEnd() {
+  branchDragPayload.value = null;
+  branchDropTarget.value = null;
 }
 
 function isWidgetDropBefore(widgetId) {
@@ -1848,10 +1992,14 @@ function closeWidgetDropdownOnClickOutside(e) {
     widgetDropdownOpen.value = false;
   }
 }
-onMounted(() => {
+onMounted(async () => {
   document.addEventListener('click', closeSectionDropdownOnClickOutside);
   document.addEventListener('click', closeWidgetDropdownOnClickOutside);
   loadGitSidebarWidgetPrefs();
+  try {
+    const saved = await api.getPreference?.(DEFAULT_PULL_MODE_KEY);
+    if (saved && ['fetch', 'merge', 'ff-only', 'rebase'].includes(saved)) defaultPullMode.value = saved;
+  } catch {}
 });
 onUnmounted(() => {
   document.removeEventListener('click', closeSectionDropdownOnClickOutside);
@@ -1980,12 +2128,20 @@ async function checkoutRemoteBranch(ref) {
 }
 
 async function pull(mode = 'merge') {
-  if (!window.confirm(GIT_ACTION_CONFIRMS.pull)) return;
   const path = store.selectedPath;
+  if (!path) return;
+  if (mode !== 'fetch' && !window.confirm(GIT_ACTION_CONFIRMS.pull)) return;
+  if (mode === 'fetch' && !window.confirm('Fetch downloads new commits from the remote without merging. Continue?')) return;
   try {
-    if (mode === 'rebase' && api.gitPullRebase) {
+    if (mode === 'fetch' && api.gitFetch) {
+      await api.gitFetch(path);
+      gitActionStatus.value = GIT_ACTION_SUCCESS.fetch;
+    } else if (mode === 'rebase' && api.gitPullRebase) {
       await api.gitPullRebase(path);
       gitActionStatus.value = 'Pulled (rebase).';
+    } else if (mode === 'ff-only' && api.gitPullFFOnly) {
+      await api.gitPullFFOnly(path);
+      gitActionStatus.value = 'Pulled (fast-forward).';
     } else {
       await api.gitPull?.(path);
       gitActionStatus.value = GIT_ACTION_SUCCESS.pull;
@@ -1994,6 +2150,17 @@ async function pull(mode = 'merge') {
   } catch (e) {
     gitActionStatus.value = e?.message || 'Pull failed.';
   }
+}
+
+function runDefaultPull() {
+  pull(defaultPullMode.value);
+}
+
+async function setDefaultPullAndRun(mode) {
+  defaultPullMode.value = mode;
+  if (api.setPreference) api.setPreference(DEFAULT_PULL_MODE_KEY, mode);
+  pullDropdownOpen.value = false;
+  await pull(mode);
 }
 
 function focusBranchSelect() {
@@ -2062,7 +2229,14 @@ function toggleInlineTerminal() {
 
 async function createBranch() {
   const path = store.selectedPath;
-  if (!path || !api.createBranch) return;
+  if (!path) {
+    gitActionStatus.value = 'Select a project first.';
+    return;
+  }
+  if (!api.createBranch) {
+    gitActionStatus.value = 'Create branch not available.';
+    return;
+  }
   const name = window.prompt('New branch name');
   if (!name?.trim()) return;
   try {
@@ -2689,11 +2863,7 @@ async function checkoutReflogEntry(entry) {
 async function stashPush() {
   const path = store.selectedPath;
   if (!path || !api.gitStashPush) return;
-  if (!hasChanges) {
-    gitActionStatus.value = 'No changes to stash.';
-    return;
-  }
-  if (!window.confirm('Stash your current changes? You can restore them later with Pop or Apply.')) return;
+  if (!window.confirm('Stash your current changes (staged and unstaged)? You can restore them later with Pop or Apply.')) return;
   const messageRaw = window.prompt('Stash message (optional)');
   if (messageRaw === null) return; // user cancelled prompt
   const message = messageRaw || '';

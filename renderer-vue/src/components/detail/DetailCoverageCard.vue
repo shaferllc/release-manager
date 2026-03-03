@@ -441,7 +441,7 @@ async function saveGoal() {
     } else {
       delete map[path];
     }
-    await api.setPreference(COVERAGE_GOAL_KEY, map);
+    await api.setPreference(COVERAGE_GOAL_KEY, JSON.parse(JSON.stringify(map)));
   } catch (_) {}
 }
 
@@ -579,12 +579,12 @@ async function saveHistoryEntry(entry, fullOutput) {
     const trimmed = trimHistoryByRetention(list);
     if (trimmed.length > MAX_HISTORY) trimmed.splice(0, trimmed.length - MAX_HISTORY);
     map[path] = trimmed;
-    await api.setPreference(COVERAGE_HISTORY_KEY, map);
+    await api.setPreference(COVERAGE_HISTORY_KEY, JSON.parse(JSON.stringify(map)));
     history.value = trimmed;
     if (typeof fullOutput === 'string' && api.setPreference) {
       const outByPath = typeof outMap === 'object' && outMap !== null ? { ...outMap } : {};
       outByPath[path] = stripAnsiLocal(fullOutput);
-      await api.setPreference(COVERAGE_LAST_OUTPUT_KEY, outByPath);
+      await api.setPreference(COVERAGE_LAST_OUTPUT_KEY, JSON.parse(JSON.stringify(outByPath)));
       lastOutput.value = stripAnsiLocal(fullOutput);
     }
   } catch (_) {}
@@ -600,7 +600,7 @@ async function saveRetentionAndTrim() {
     const list = Array.isArray(map[path]) ? [...map[path]] : [];
     const trimmed = trimHistoryByRetention(list);
     map[path] = trimmed;
-    await api.setPreference(COVERAGE_HISTORY_KEY, map);
+    await api.setPreference(COVERAGE_HISTORY_KEY, JSON.parse(JSON.stringify(map)));
     history.value = trimmed;
   } catch (_) {}
 }

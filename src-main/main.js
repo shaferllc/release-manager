@@ -59,6 +59,10 @@ const {
 } = require('./lib/projectTestScripts');
 const { createApiServer } = require('./apiServer');
 const { getApiDocs: getApiDocsFromModule, getApiMethodDoc: getApiMethodDocFromModule, getSampleResponseForMethod } = require('./apiDocs');
+const { SMTPServer } = require(path.join(appRoot, 'node_modules', 'smtp-server'));
+const { simpleParser } = require(path.join(appRoot, 'node_modules', 'mailparser'));
+const localtunnel = require(path.join(appRoot, 'node_modules', 'localtunnel'));
+const { Client: FtpClient } = require(path.join(appRoot, 'node_modules', 'basic-ftp'));
 
 // Use same app name in dev and prod so userData is shared (dev no longer uses "Electron")
 const pkg = require(path.join(__dirname, '..', 'package.json'));
@@ -303,6 +307,534 @@ function runShellCommand(dirPath, command) {
     });
   });
 }
+
+// ——— Dev stack / process manager (SoloTerm-style) ———
+const runningProcesses = new Map(); // key: projectPath + \0 + processId
+const MAX_OUTPUT_LINES = 500;
+
+function getProcessesConfig() {
+  const prefs = getStore().get('preferences') || {};
+  return prefs.processesConfig || {};
+}
+
+function setProcessesConfig(config) {
+  const prefs = getStore().get('preferences') || {};
+  prefs.processesConfig = config && typeof config === 'object' ? config : {};
+  getStore().set('preferences', prefs);
+  return null;
+}
+
+function processKey(projectPath, processId) {
+  return `${(projectPath || '').trim()}\0${(processId || '').trim()}`;
+}
+
+function notifyProcessStatus() {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win && !win.isDestroyed()) win.webContents.send('rm-process-status-changed');
+}
+
+function startProcess(projectPath, processId, name, command) {
+  const key = processKey(projectPath, processId);
+  if (runningProcesses.has(key)) return { ok: false, error: 'Process already running' };
+  const dir = (projectPath || '').trim();
+  if (!dir || !fs.existsSync(dir)) return { ok: false, error: 'Project path invalid or missing' };
+  const cmd = (command || '').trim();
+  if (!cmd) return { ok: false, error: 'Command is required' };
+  const isWin = process.platform === 'win32';
+  const child = spawn(isWin ? 'cmd.exe' : process.env.SHELL || '/bin/sh', isWin ? ['/c', cmd] : ['-c', cmd], {
+    cwd: dir,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: process.env,
+  });
+  const outputLines = [];
+  function push(line) {
+    if (line == null || line === '') return;
+    outputLines.push(String(line).slice(0, 2000));
+    if (outputLines.length > MAX_OUTPUT_LINES) outputLines.shift();
+  }
+  child.stdout?.on('data', (d) => { push(d.toString()); });
+  child.stderr?.on('data', (d) => { push(d.toString()); });
+  const entry = {
+    child,
+    projectPath: dir,
+    processId,
+    name: name || processId,
+    command: cmd,
+    outputLines,
+    status: 'running',
+    exitCode: null,
+  };
+  child.on('exit', (code, signal) => {
+    entry.status = code === 0 ? 'stopped' : 'error';
+    entry.exitCode = code;
+    entry.child = null;
+    runningProcesses.delete(key);
+    notifyProcessStatus();
+  });
+  child.on('error', (err) => {
+    push(err.message || 'Spawn failed');
+    entry.status = 'error';
+    entry.exitCode = -1;
+    entry.child = null;
+    runningProcesses.delete(key);
+    notifyProcessStatus();
+  });
+  runningProcesses.set(key, entry);
+  notifyProcessStatus();
+  return { ok: true, pid: child.pid };
+}
+
+function stopProcess(projectPath, processId) {
+  const key = processKey(projectPath, processId);
+  const entry = runningProcesses.get(key);
+  if (!entry || !entry.child) return { ok: true, wasRunning: false };
+  try {
+    entry.child.kill('SIGTERM');
+    return { ok: true, wasRunning: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Failed to stop' };
+  }
+}
+
+function getProcessStatus() {
+  const config = getProcessesConfig();
+  const result = [];
+  for (const [projectPath, projectConfig] of Object.entries(config)) {
+    const processes = projectConfig?.processes;
+    if (!Array.isArray(processes)) continue;
+    for (const p of processes) {
+      const id = p.id != null ? String(p.id) : (p.name || '').trim();
+      const key = processKey(projectPath, id);
+      const entry = runningProcesses.get(key);
+      result.push({
+        projectPath,
+        processId: id,
+        name: p.name || id,
+        command: p.command || '',
+        status: entry ? entry.status : 'stopped',
+        pid: entry?.child?.pid,
+        exitCode: entry?.exitCode,
+      });
+    }
+  }
+  return result;
+}
+
+function getProcessOutput(projectPath, processId, lines) {
+  const key = processKey(projectPath, processId);
+  const entry = runningProcesses.get(key);
+  if (!entry || !entry.outputLines) return { lines: [] };
+  const n = Math.min(Math.max(0, lines || 50), MAX_OUTPUT_LINES);
+  const start = Math.max(0, entry.outputLines.length - n);
+  return { lines: entry.outputLines.slice(start) };
+}
+
+async function startAllProcesses(projectPath) {
+  const config = getProcessesConfig();
+  const projectConfig = config[(projectPath || '').trim()];
+  if (!projectConfig || !Array.isArray(projectConfig.processes)) return { ok: true, started: 0, errors: [] };
+  const errors = [];
+  let started = 0;
+  for (const p of projectConfig.processes) {
+    const id = p.id != null ? String(p.id) : (p.name || '').trim();
+    const r = startProcess(projectPath, id, p.name, p.command);
+    if (r.ok) started += 1; else errors.push({ processId: id, error: r.error });
+  }
+  return { ok: true, started, errors };
+}
+
+async function stopAllProcesses(projectPath) {
+  const statuses = getProcessStatus().filter((s) => s.projectPath === (projectPath || '').trim());
+  let stopped = 0;
+  for (const s of statuses) {
+    if (s.status !== 'running') continue;
+    const r = stopProcess(s.projectPath, s.processId);
+    if (r.wasRunning) stopped += 1;
+  }
+  return { ok: true, stopped };
+}
+
+/** Build suggested dev processes from package.json, composer.json, and Laravel artisan. */
+function getSuggestedProcesses(dirPath) {
+  const dir = (dirPath || '').trim();
+  if (!dir || !fs.existsSync(dir)) return { suggested: [] };
+  const suggested = [];
+  const seen = new Set();
+
+  function add(id, name, command) {
+    const key = (id || name || command || '').toLowerCase().replace(/\s+/g, '-');
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    suggested.push({ id: id || key, name: name || id, command: command || '' });
+  }
+
+  // package.json scripts
+  const pkgPath = path.join(dir, 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    try {
+      const content = fs.readFileSync(pkgPath, 'utf8');
+      const { ok, scripts } = getNpmScriptNames(content);
+      if (ok && scripts && scripts.length) {
+        const labels = { dev: 'Dev server', start: 'Start', serve: 'Serve', watch: 'Watch', build: 'Build', test: 'Test' };
+        const prefer = ['dev', 'start', 'serve', 'watch', 'build', 'test'];
+        for (const name of prefer) {
+          if (scripts.includes(name)) add(name, labels[name] || name, name === 'start' ? 'npm start' : `npm run ${name}`);
+        }
+        for (const name of scripts) {
+          if (!prefer.includes(name)) add(name, name, `npm run ${name}`);
+        }
+      }
+    } catch (_) {}
+  }
+
+  // composer.json scripts + Laravel artisan
+  const composerPath = path.join(dir, 'composer.json');
+  const artisanPath = path.join(dir, 'artisan');
+  if (fs.existsSync(composerPath)) {
+    try {
+      const manifest = getComposerManifestInfo(dir, fs);
+      if (manifest.ok && manifest.scripts && manifest.scripts.length) {
+        const prefer = ['dev', 'start', 'serve', 'watch', 'test', 'cs-fix'];
+        for (const name of prefer) {
+          if (manifest.scripts.includes(name)) add(`composer-${name}`, name, `composer run ${name}`);
+        }
+        for (const name of manifest.scripts) {
+          if (!prefer.includes(name)) add(`composer-${name}`, name, `composer run ${name}`);
+        }
+      }
+    } catch (_) {}
+  }
+  if (fs.existsSync(artisanPath)) {
+    add('artisan-serve', 'Laravel serve', 'php artisan serve');
+    add('artisan-queue', 'Queue worker', 'php artisan queue:work');
+  }
+
+  return { suggested };
+}
+
+// ——— Email / SMTP inbox (Helo-style) ———
+const EMAIL_INBOX_MAX = 500;
+const DEFAULT_SMTP_PORT = 1025;
+
+let smtpServerInstance = null;
+let smtpServerPort = DEFAULT_SMTP_PORT;
+
+function getEmailInbox() {
+  try {
+    const raw = getStore().get('emailInbox');
+    return Array.isArray(raw) ? raw : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveEmailInbox(inbox) {
+  const list = Array.isArray(inbox) ? inbox.slice(0, EMAIL_INBOX_MAX) : [];
+  getStore().set('emailInbox', list);
+}
+
+function getEmailSmtpStatus() {
+  const running = smtpServerInstance != null;
+  return {
+    running,
+    port: running ? smtpServerPort : null,
+    defaultPort: DEFAULT_SMTP_PORT,
+  };
+}
+
+function notifyEmailReceived() {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win && !win.isDestroyed()) win.webContents.send('rm-email-received');
+}
+
+function startEmailSmtpServer(port) {
+  if (smtpServerInstance) {
+    return Promise.resolve({ ok: true, port: smtpServerPort, alreadyRunning: true });
+  }
+  const p = Math.max(1, Math.min(65535, parseInt(port, 10) || DEFAULT_SMTP_PORT));
+  return new Promise((resolve) => {
+    try {
+      const server = new SMTPServer({
+        disabledCommands: ['AUTH', 'STARTTLS'],
+        size: 25 * 1024 * 1024,
+        onConnect(session, callback) {
+          callback();
+        },
+        onMailFrom(address, session, callback) {
+          callback();
+        },
+        onRcptTo(address, session, callback) {
+          callback();
+        },
+        onData(stream, session, callback) {
+          const chunks = [];
+          stream.on('data', (chunk) => chunks.push(chunk));
+          stream.on('end', async () => {
+            try {
+              const raw = Buffer.concat(chunks);
+              const parsed = await simpleParser(raw);
+              const fromText = parsed.from?.text || (parsed.from?.value?.[0]?.address) || '';
+              const toText = parsed.to?.text || (parsed.to?.value?.map((v) => v.address).join(', ')) || '';
+              const headers = {};
+              if (parsed.headers && typeof parsed.headers.forEach === 'function') {
+                parsed.headers.forEach((v, k) => { headers[k] = v; });
+              }
+              const rawHtml = parsed.html || null;
+              const sanitizedHtml = rawHtml
+                ? sanitizeHtml(rawHtml, {
+                    allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'b', 'i', 'u', 'code', 'pre', 'br', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img', 'div', 'span'],
+                    allowedAttributes: { a: ['href', 'target'], img: ['src', 'alt', 'width', 'height'], td: ['colspan', 'rowspan'], th: ['colspan', 'rowspan'] },
+                    allowedSchemes: ['http', 'https', 'cid', 'data'],
+                  })
+                : null;
+              const email = {
+                id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+                from: fromText,
+                to: toText,
+                subject: parsed.subject || '(no subject)',
+                date: parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
+                html: rawHtml,
+                sanitizedHtml,
+                text: parsed.text || null,
+                headers: JSON.stringify(headers, null, 2),
+                raw: raw.length > 100000 ? raw.slice(0, 100000).toString('utf8') + '\n...[truncated]' : raw.toString('utf8'),
+              };
+              const inbox = getEmailInbox();
+              inbox.unshift(email);
+              saveEmailInbox(inbox);
+              notifyEmailReceived();
+              callback(null, 'OK');
+            } catch (err) {
+              debug.log(getStore, 'email', 'parse failed', err?.message || err);
+              callback(err);
+            }
+          });
+          stream.on('error', (err) => callback(err));
+        },
+      });
+      server.on('error', (err) => {
+        debug.log(getStore, 'email', 'smtp server error', err?.message || err);
+      });
+      server.listen(p, '127.0.0.1', () => {
+        smtpServerInstance = server;
+        smtpServerPort = p;
+        resolve({ ok: true, port: p });
+      });
+      server.once('error', (err) => {
+        if (!smtpServerInstance) resolve({ ok: false, error: err.message || 'SMTP server failed to start' });
+      });
+    } catch (e) {
+      resolve({ ok: false, error: e.message || 'Failed to start SMTP server' });
+    }
+  });
+}
+
+function stopEmailSmtpServer() {
+  if (!smtpServerInstance) return Promise.resolve({ ok: true, wasRunning: false });
+  return new Promise((resolve) => {
+    try {
+      const server = smtpServerInstance;
+      smtpServerInstance = null;
+      server.close(() => resolve({ ok: true, wasRunning: true }));
+    } catch (e) {
+      smtpServerInstance = null;
+      resolve({ ok: false, error: e.message || 'Failed to stop' });
+    }
+  });
+}
+
+function getEmails() {
+  return getEmailInbox();
+}
+
+function clearEmails() {
+  saveEmailInbox([]);
+  notifyEmailReceived();
+  return null;
+}
+
+// ——— Web tunnels (Expose-style, localtunnel) ———
+const activeTunnels = new Map(); // id -> { id, port, subdomain, url, tunnel }
+
+function notifyTunnelsChanged() {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win && !win.isDestroyed()) win.webContents.send('rm-tunnels-changed');
+}
+
+function startTunnel(port, subdomain) {
+  const portNum = Math.max(1, Math.min(65535, parseInt(port, 10) || 0));
+  if (!portNum) return Promise.resolve({ ok: false, error: 'Invalid port' });
+  return new Promise((resolve) => {
+    const opts = {};
+    if (subdomain && typeof subdomain === 'string' && subdomain.trim()) opts.subdomain = subdomain.trim();
+    localtunnel(portNum, opts, (err, tunnel) => {
+      if (err) {
+        resolve({ ok: false, error: err.message || 'Tunnel failed to start' });
+        return;
+      }
+      const id = `tunnel-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+      const entry = { id, port: portNum, subdomain: opts.subdomain || null, url: tunnel.url, tunnel };
+      tunnel.once('close', () => {
+        activeTunnels.delete(id);
+        notifyTunnelsChanged();
+      });
+      tunnel.once('error', () => {
+        activeTunnels.delete(id);
+        notifyTunnelsChanged();
+      });
+      activeTunnels.set(id, entry);
+      notifyTunnelsChanged();
+      resolve({ ok: true, id, port: portNum, url: tunnel.url });
+    });
+  });
+}
+
+function stopTunnel(id) {
+  const entry = activeTunnels.get(id);
+  if (!entry) return Promise.resolve({ ok: true, wasRunning: false });
+  return new Promise((resolve) => {
+    try {
+      entry.tunnel.close();
+      activeTunnels.delete(id);
+      notifyTunnelsChanged();
+      resolve({ ok: true, wasRunning: true });
+    } catch (e) {
+      activeTunnels.delete(id);
+      notifyTunnelsChanged();
+      resolve({ ok: false, error: e.message || 'Failed to close tunnel' });
+    }
+  });
+}
+
+function getTunnels() {
+  return Array.from(activeTunnels.values()).map(({ id, port, subdomain, url }) => ({ id, port, subdomain, url }));
+}
+
+// ——— FTP client ———
+let ftpClient = null;
+let ftpConfig = null;
+
+function getFtpStatus() {
+  const connected = ftpClient != null && !ftpClient.closed;
+  return {
+    connected,
+    host: connected && ftpConfig ? ftpConfig.host : null,
+  };
+}
+
+async function ftpConnect(config) {
+  if (ftpClient && !ftpClient.closed) {
+    try { ftpClient.close(); } catch (_) {}
+    ftpClient = null;
+  }
+  const host = (config?.host || '').trim() || 'localhost';
+  const port = Math.max(1, Math.min(65535, parseInt(config?.port, 10) || 21));
+  const user = config?.user != null ? String(config.user) : 'anonymous';
+  const password = config?.password != null ? String(config.password) : 'guest';
+  const secure = !!config?.secure;
+  ftpClient = new FtpClient(30000);
+  try {
+    await ftpClient.access({
+      host,
+      port,
+      user,
+      password,
+      secure: secure ? true : false,
+    });
+    ftpConfig = { host, port, user, secure };
+    return { ok: true };
+  } catch (e) {
+    ftpClient = null;
+    ftpConfig = null;
+    return { ok: false, error: e.message || 'FTP connection failed' };
+  }
+}
+
+function ftpDisconnect() {
+  if (!ftpClient) return Promise.resolve({ ok: true });
+  try {
+    ftpClient.close();
+  } catch (_) {}
+  ftpClient = null;
+  ftpConfig = null;
+  return Promise.resolve({ ok: true });
+}
+
+async function ftpList(remotePath) {
+  if (!ftpClient || ftpClient.closed) return { ok: false, error: 'Not connected', list: [] };
+  try {
+    const path = (remotePath || '').trim() || '.';
+    const list = await ftpClient.list(path);
+    const items = list.map((f) => ({
+      name: f.name,
+      size: f.size,
+      isDirectory: f.isDirectory,
+      modifiedAt: f.modifiedAt ? new Date(f.modifiedAt).toISOString() : null,
+    }));
+    return { ok: true, list: items };
+  } catch (e) {
+    return { ok: false, error: e.message || 'List failed', list: [] };
+  }
+}
+
+async function ftpDownload(remotePath, localPath) {
+  if (!ftpClient || ftpClient.closed) return { ok: false, error: 'Not connected' };
+  const remote = (remotePath || '').trim();
+  const local = (localPath || '').trim();
+  if (!remote || !local) return { ok: false, error: 'Invalid path' };
+  try {
+    await ftpClient.downloadTo(local, remote);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Download failed' };
+  }
+}
+
+async function ftpUpload(localPath, remotePath) {
+  if (!ftpClient || ftpClient.closed) return { ok: false, error: 'Not connected' };
+  const local = (localPath || '').trim();
+  const remote = (remotePath || '').trim();
+  if (!local || !remote) return { ok: false, error: 'Invalid path' };
+  if (!fs.existsSync(local)) return { ok: false, error: 'Local file not found' };
+  try {
+    await ftpClient.uploadFrom(local, remote);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Upload failed' };
+  }
+}
+
+async function ftpRemove(remotePath) {
+  if (!ftpClient || ftpClient.closed) return { ok: false, error: 'Not connected' };
+  const remote = (remotePath || '').trim();
+  if (!remote) return { ok: false, error: 'Invalid path' };
+  try {
+    await ftpClient.remove(remote);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Remove failed' };
+  }
+}
+
+async function showSaveDialog(options) {
+  const win = BrowserWindow.getAllWindows()[0] || null;
+  const { canceled, filePath } = await dialog.showSaveDialog(win || undefined, {
+    defaultPath: options?.defaultPath,
+    title: options?.title || 'Save file',
+  });
+  return { canceled: !!canceled, filePath: canceled ? null : filePath };
+}
+
+async function showOpenDialog(options) {
+  const win = BrowserWindow.getAllWindows()[0] || null;
+  const { canceled, filePaths } = await dialog.showOpenDialog(win || undefined, {
+    properties: options?.multiSelect ? ['openFile', 'multiSelections'] : ['openFile'],
+    title: options?.title || 'Open file',
+  });
+  return { canceled: !!canceled, filePaths: canceled ? [] : (filePaths || []) };
+}
+
+// ——— end FTP ———
 
 async function getProjectInfoAsync(dirPath) {
   const resolved = getProjectNameVersionAndType(dirPath, path, fs);
@@ -582,12 +1114,19 @@ async function gitMergeAbort(dirPath) {
 
 /** options: { includeUntracked?: boolean, keepIndex?: boolean } */
 async function gitStashPush(dirPath, message, options = {}) {
+  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
+    return { ok: false, error: 'Project path is required' };
+  }
+  const cwd = path.resolve(dirPath.trim());
+  if (!fs.existsSync(path.join(cwd, '.git'))) {
+    return { ok: false, error: 'Not a Git repository' };
+  }
   try {
     const args = ['stash', 'push'];
-    if (options.includeUntracked) args.push('--include-untracked');
-    if (options.keepIndex) args.push('--keep-index');
-    if (message && message.trim()) args.push('-m', message.trim());
-    await runInDir(dirPath, 'git', args);
+    if (options && options.includeUntracked) args.push('--include-untracked');
+    if (options && options.keepIndex) args.push('--keep-index');
+    if (message && typeof message === 'string' && message.trim()) args.push('-m', message.trim());
+    await runInDir(cwd, 'git', args);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'git stash failed' };
@@ -595,8 +1134,15 @@ async function gitStashPush(dirPath, message, options = {}) {
 }
 
 async function gitStashPop(dirPath) {
+  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
+    return { ok: false, error: 'Project path is required' };
+  }
+  const cwd = path.resolve(dirPath.trim());
+  if (!fs.existsSync(path.join(cwd, '.git'))) {
+    return { ok: false, error: 'Not a Git repository' };
+  }
   try {
-    await runInDir(dirPath, 'git', ['stash', 'pop']);
+    await runInDir(cwd, 'git', ['stash', 'pop']);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'git stash pop failed' };
@@ -781,8 +1327,15 @@ async function gitPushWithUpstream(dirPath) {
 
 /** List stash entries: [{ index, message }]. */
 async function getStashList(dirPath) {
+  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
+    return { ok: false, error: 'Project path is required', entries: [] };
+  }
+  const cwd = path.resolve(dirPath.trim());
+  if (!fs.existsSync(path.join(cwd, '.git'))) {
+    return { ok: false, error: 'Not a Git repository', entries: [] };
+  }
   try {
-    const out = await runInDir(dirPath, 'git', ['stash', 'list', '--pretty=format:%gd %s']);
+    const out = await runInDir(cwd, 'git', ['stash', 'list', '--pretty=format:%gd %s']);
     const entries = parseStashListLib(out.stdout || '');
     return { ok: true, entries };
   } catch (e) {
@@ -791,9 +1344,16 @@ async function getStashList(dirPath) {
 }
 
 async function stashApply(dirPath, index) {
+  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
+    return { ok: false, error: 'Project path is required' };
+  }
+  const cwd = path.resolve(dirPath.trim());
+  if (!fs.existsSync(path.join(cwd, '.git'))) {
+    return { ok: false, error: 'Not a Git repository' };
+  }
   try {
-    const args = index ? ['stash', 'apply', index] : ['stash', 'apply'];
-    await runInDir(dirPath, 'git', args);
+    const args = index ? ['stash', 'apply', String(index)] : ['stash', 'apply'];
+    await runInDir(cwd, 'git', args);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Stash apply failed' };
@@ -801,9 +1361,16 @@ async function stashApply(dirPath, index) {
 }
 
 async function stashDrop(dirPath, index) {
+  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
+    return { ok: false, error: 'Project path is required' };
+  }
+  const cwd = path.resolve(dirPath.trim());
+  if (!fs.existsSync(path.join(cwd, '.git'))) {
+    return { ok: false, error: 'Not a Git repository' };
+  }
   try {
-    const args = index ? ['stash', 'drop', index] : ['stash', 'drop'];
-    await runInDir(dirPath, 'git', args);
+    const args = index ? ['stash', 'drop', String(index)] : ['stash', 'drop'];
+    await runInDir(cwd, 'git', args);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Stash drop failed' };
@@ -1582,8 +2149,19 @@ async function writeGitattributes(dirPath, content) {
 
 /** Create a test file in the project for testing git actions (stage, diff, discard, etc.). */
 async function createTestFile(dirPath, relativePath, content) {
-  const name = (relativePath && typeof relativePath === 'string' && relativePath.trim()) ? relativePath.trim() : 'test-file.txt';
   const body = (content && typeof content === 'string') ? content : `Test file created at ${new Date().toISOString()}\n`;
+  let name;
+  if (relativePath && typeof relativePath === 'string' && relativePath.trim()) {
+    name = relativePath.trim();
+  } else {
+    const base = 'test-file';
+    const ext = '.txt';
+    name = `${base}${ext}`;
+    const resolvedDir = path.resolve(dirPath);
+    for (let n = 2; fs.existsSync(path.join(resolvedDir, name)); n++) {
+      name = `${base}-${n}${ext}`;
+    }
+  }
   const fullPath = path.join(dirPath, name);
   try {
     fs.writeFileSync(fullPath, body, 'utf8');
@@ -2577,6 +3155,32 @@ app.whenReady().then(() => {
         return Promise.resolve({ ok: false, error: e.message || 'Failed to stop MCP server' });
       }
     },
+    getProcessesConfig: () => getProcessesConfig(),
+    setProcessesConfig: (config) => setProcessesConfig(config),
+    startProcess: (projectPath, processId, name, command) => startProcess(projectPath, processId, name, command),
+    stopProcess: (projectPath, processId) => stopProcess(projectPath, processId),
+    getProcessStatus: () => getProcessStatus(),
+    getProcessOutput: (projectPath, processId, lines) => getProcessOutput(projectPath, processId, lines),
+    startAllProcesses: (projectPath) => startAllProcesses(projectPath),
+    stopAllProcesses: (projectPath) => stopAllProcesses(projectPath),
+    getSuggestedProcesses: (dirPath) => getSuggestedProcesses(dirPath),
+    getEmailSmtpStatus: () => getEmailSmtpStatus(),
+    startEmailSmtpServer: (port) => startEmailSmtpServer(port),
+    stopEmailSmtpServer: () => stopEmailSmtpServer(),
+    getEmails: () => getEmails(),
+    clearEmails: () => clearEmails(),
+    startTunnel: (port, subdomain) => startTunnel(port, subdomain),
+    stopTunnel: (id) => stopTunnel(id),
+    getTunnels: () => getTunnels(),
+    getFtpStatus: () => getFtpStatus(),
+    ftpConnect: (config) => ftpConnect(config),
+    ftpDisconnect: () => ftpDisconnect(),
+    ftpList: (remotePath) => ftpList(remotePath),
+    ftpDownload: (remotePath, localPath) => ftpDownload(remotePath, localPath),
+    ftpUpload: (localPath, remotePath) => ftpUpload(localPath, remotePath),
+    ftpRemove: (remotePath) => ftpRemove(remotePath),
+    showSaveDialog: (options) => showSaveDialog(options),
+    showOpenDialog: (options) => showOpenDialog(options),
     getChangelog: async () => {
       try {
         const changelogPath = path.join(app.getAppPath(), 'CHANGELOG.md');
@@ -2990,6 +3594,32 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-get-mcp-server-status': 'getMcpServerStatus',
     'rm-start-mcp-server': 'startMcpServer',
     'rm-stop-mcp-server': 'stopMcpServer',
+    'rm-get-processes-config': 'getProcessesConfig',
+    'rm-set-processes-config': 'setProcessesConfig',
+    'rm-start-process': 'startProcess',
+    'rm-stop-process': 'stopProcess',
+    'rm-get-process-status': 'getProcessStatus',
+    'rm-get-process-output': 'getProcessOutput',
+    'rm-start-all-processes': 'startAllProcesses',
+    'rm-stop-all-processes': 'stopAllProcesses',
+    'rm-get-suggested-processes': 'getSuggestedProcesses',
+    'rm-get-email-smtp-status': 'getEmailSmtpStatus',
+    'rm-start-email-smtp-server': 'startEmailSmtpServer',
+    'rm-stop-email-smtp-server': 'stopEmailSmtpServer',
+    'rm-get-emails': 'getEmails',
+    'rm-clear-emails': 'clearEmails',
+    'rm-start-tunnel': 'startTunnel',
+    'rm-stop-tunnel': 'stopTunnel',
+    'rm-get-tunnels': 'getTunnels',
+    'rm-get-ftp-status': 'getFtpStatus',
+    'rm-ftp-connect': 'ftpConnect',
+    'rm-ftp-disconnect': 'ftpDisconnect',
+    'rm-ftp-list': 'ftpList',
+    'rm-ftp-download': 'ftpDownload',
+    'rm-ftp-upload': 'ftpUpload',
+    'rm-ftp-remove': 'ftpRemove',
+    'rm-show-save-dialog': 'showSaveDialog',
+    'rm-show-open-dialog': 'showOpenDialog',
     'rm-get-changelog': 'getChangelog',
     'rm-get-preference': 'getPreference',
     'rm-get-available-php-versions': 'getAvailablePhpVersions',
@@ -3018,6 +3648,27 @@ nativeTheme.on('updated', () => {
 });
 
 app.on('before-quit', () => {
+  try {
+    for (const [, entry] of runningProcesses) {
+      if (entry?.child && !entry.child.killed) entry.child.kill('SIGTERM');
+    }
+    runningProcesses.clear();
+  } catch (_) {}
+  try {
+    for (const [, entry] of activeTunnels) {
+      if (entry.tunnel && typeof entry.tunnel.close === 'function') entry.tunnel.close();
+    }
+    activeTunnels.clear();
+  } catch (_) {}
+  try {
+    if (smtpServerInstance) {
+      smtpServerInstance.close();
+      smtpServerInstance = null;
+    }
+  } catch (_) {}
+  try {
+    ftpDisconnect();
+  } catch (_) {}
   try {
     if (mcpServerProcess != null && !mcpServerProcess.killed) mcpServerProcess.kill('SIGTERM');
     mcpServerProcess = null;

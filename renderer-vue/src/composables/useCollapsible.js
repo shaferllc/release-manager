@@ -25,7 +25,8 @@ export function useCollapsible(sectionKey) {
     collapsed.value = !collapsed.value;
     try {
       const current = (await api.getPreference?.(PREF_COLLAPSED_SECTIONS)) || {};
-      await api.setPreference?.(PREF_COLLAPSED_SECTIONS, { ...current, [sectionKey]: collapsed.value });
+      const next = { ...(typeof current === 'object' && current !== null ? current : {}), [sectionKey]: collapsed.value };
+      await api.setPreference?.(PREF_COLLAPSED_SECTIONS, JSON.parse(JSON.stringify(next)));
     } catch (_) {}
   }
 
