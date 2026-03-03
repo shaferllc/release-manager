@@ -1,10 +1,13 @@
 <template>
   <nav class="nav-bar flex items-center justify-between gap-4 px-4 py-3 bg-rm-surface border-b border-rm-border select-none">
     <div class="flex items-center gap-4 no-drag min-w-0">
-      <h1 class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 shrink-0">
-        <img :src="logoUrl" alt="" class="app-logo w-12 h-12 rounded-rm shrink-0" @error="showLogoFallback" />
-        <span ref="logoFallback" class="w-12 h-12 rounded-rm bg-rm-accent/20 flex items-center justify-center text-rm-accent text-sm font-bold shrink-0 hidden" aria-hidden="true">R</span>
-        Shipwell
+      <h1
+        class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 shrink-0 cursor-default select-none"
+        @click="onAppNameClick"
+      >
+        <img :src="logoUrl" alt="" class="app-logo w-12 h-12 rounded-rm shrink-0 pointer-events-none" @error="showLogoFallback" />
+        <span ref="logoFallback" class="w-12 h-12 rounded-rm bg-rm-accent/20 flex items-center justify-center text-rm-accent text-sm font-bold shrink-0 hidden pointer-events-none" aria-hidden="true">R</span>
+        <span class="pointer-events-none">Shipwell</span>
       </h1>
       <div class="flex items-center gap-2 shrink-0">
         <span class="text-xs font-medium text-rm-muted whitespace-nowrap">View</span>
@@ -90,13 +93,19 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import * as debug from '../utils/debug';
 
 const emit = defineEmits(['refresh', 'add-project']);
 
 const store = useAppStore();
 const api = useApi();
+const { openModal: openFeatureFlagsModal } = useFeatureFlags();
 const dropdownWrap = ref(null);
+const appNameClickCount = ref(0);
+let appNameClickResetTimer = null;
+const APP_NAME_CLICKS_NEEDED = 5;
+const APP_NAME_CLICK_WINDOW_MS = 1500;
 const logoFallback = ref(null);
 const viewDropdownOpen = ref(false);
 const isRefreshing = ref(false);
@@ -106,6 +115,20 @@ const logoUrl = 'icon-128.png';
 function showLogoFallback(e) {
   e.target.style.display = 'none';
   logoFallback.value?.classList.remove('hidden');
+}
+
+function onAppNameClick() {
+  if (appNameClickResetTimer) clearTimeout(appNameClickResetTimer);
+  appNameClickCount.value += 1;
+  if (appNameClickCount.value >= APP_NAME_CLICKS_NEEDED) {
+    appNameClickCount.value = 0;
+    openFeatureFlagsModal();
+  } else {
+    appNameClickResetTimer = setTimeout(() => {
+      appNameClickCount.value = 0;
+      appNameClickResetTimer = null;
+    }, APP_NAME_CLICK_WINDOW_MS);
+  }
 }
 
 const VIEW_LABELS = {

@@ -1,5 +1,5 @@
 <template>
-  <div class="inline-terminal flex flex-col rounded-rm border-0 bg-transparent overflow-hidden h-full min-h-0" :style="minHeight ? { minHeight: minHeight + 'px' } : {}" @click="focusInput">
+  <div class="inline-terminal terminal-shape flex flex-col border-0 bg-transparent overflow-hidden h-full min-h-0" :style="minHeight ? { minHeight: minHeight + 'px' } : {}" @click="focusInput">
     <div v-if="!compactHeader" class="inline-terminal-header flex items-center justify-between gap-2 px-2 py-1.5 border-b border-rm-border bg-rm-surface/80 shrink-0" @click.stop>
       <span class="text-xs font-medium text-rm-muted truncate">Terminal · {{ displayPath }}</span>
       <div class="flex items-center gap-1 shrink-0">

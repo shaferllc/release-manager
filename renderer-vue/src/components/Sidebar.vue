@@ -16,7 +16,7 @@
         <option v-for="tag in store.allTags" :key="tag" :value="tag">{{ tag }}</option>
       </select>
     </div>
-    <div v-if="batchCount >= 2" class="batch-bar px-4 py-4 border-b border-rm-border flex-shrink-0" style="background: rgb(var(--rm-accent) / 0.06); border-left: 3px solid rgb(var(--rm-accent) / 0.5);">
+    <div v-if="license.hasLicense?.value && batchCount >= 2" class="batch-bar px-4 py-4 border-b border-rm-border flex-shrink-0" style="background: rgb(var(--rm-accent) / 0.06); border-left: 3px solid rgb(var(--rm-accent) / 0.5);">
       <p class="batch-bar-label m-0 text-xs font-semibold text-rm-text">{{ batchCount }} selected</p>
       <p class="batch-bar-hint m-0 mt-1.5 text-xs text-rm-muted">Release:</p>
       <div class="batch-bar-buttons flex flex-wrap gap-3 mt-3">
@@ -25,7 +25,7 @@
         <button type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="batchRelease('major')">Major</button>
       </div>
     </div>
-    <div class="project-list">
+    <div class="project-list flex-1 min-h-0 overflow-y-auto">
       <p v-if="store.filteredProjects.length === 0" id="empty-projects-hint" class="p-4 text-sm text-rm-muted">
         <template v-if="store.projects.length === 0">Click “Add project” to add a folder (npm, Rust, Go, Python, or PHP: <code class="bg-rm-surface px-1 rounded text-xs">package.json</code>, <code class="bg-rm-surface px-1 rounded text-xs">Cargo.toml</code>, <code class="bg-rm-surface px-1 rounded text-xs">go.mod</code>, <code class="bg-rm-surface px-1 rounded text-xs">pyproject.toml</code>, or <code class="bg-rm-surface px-1 rounded text-xs">composer.json</code>).</template>
         <template v-else>
@@ -71,6 +71,9 @@
         </li>
       </ul>
     </div>
+    <div v-if="store.selectedPath && store.viewMode === 'detail'" class="sidebar-terminal flex flex-col flex-shrink-0 border-t border-rm-border min-h-0 px-2 pt-2 pb-2" style="min-height: 200px; max-height: 40vh;">
+      <TerminalPanel :min-height="200" :initial-dir-path="store.selectedPath" class="sidebar-terminal-panel flex-1 min-h-0" />
+    </div>
   </aside>
   <button type="button" class="sidebar-resizer w-1 shrink-0 border-0 cursor-col-resize bg-transparent hover:bg-rm-accent/20 active:bg-rm-accent/30 transition-colors self-stretch" aria-label="Resize sidebar" @pointerdown="onResizerPointerDown" />
   </div>
@@ -80,12 +83,15 @@
 import { computed } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
+import { useLicense } from '../composables/useLicense';
 import { useResizableSidebar } from '../composables/useResizableSidebar';
 import * as debug from '../utils/debug';
 import { toPlainProjects } from '../utils/plainProjects';
+import TerminalPanel from './detail/TerminalPanel.vue';
 
 const store = useAppStore();
 const api = useApi();
+const license = useLicense();
 const { sidebarStyle, onResizerPointerDown } = useResizableSidebar({
   preferenceKey: 'mainSidebarWidth',
   defaultWidth: 256,

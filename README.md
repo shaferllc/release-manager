@@ -86,6 +86,34 @@ release-manager/
 | `npm run test:watch` | Run tests in watch mode |
 | `npm run test:coverage` | Run tests with coverage |
 | `npm run test:e2e` | E2E smoke test (launches app, checks UI) |
+| `npm run cli -- <cmd> [args]` | Run the app in CLI mode (no window). Example: `npm run cli -- projects` |
+
+### Command-line API
+
+You can interact with the app from the terminal. Output is JSON to stdout; exit code 0 on success, 1 on error. Use the same app data (projects, settings) as the GUI.
+
+```bash
+# From repo root (after npm install)
+npm run cli -- help
+npm run cli -- version
+npm run cli -- projects
+npm run cli -- dashboard
+npm run cli -- info /path/to/project
+npm run cli -- add /path/to/project "My Project"
+npm run cli -- remove /path/to/project
+npm run cli -- api getBranches '["/path/to/project"]'
+```
+
+| Command | Description |
+|---------|-------------|
+| `help` | Show usage and all commands |
+| `version` | Print app name and version |
+| `projects` | List saved projects (path, name, tags, starred) |
+| `dashboard` | List all projects with full info (version, branch, tags, ahead/behind) |
+| `info <path>` | Get project info for a directory |
+| `add <path> [name]` | Add a project to the list |
+| `remove <path>` | Remove a project from the list |
+| `api <method> [params]` | Call any API method; params are a JSON array |
 
 **Seeing UI changes:** The app uses the **Vue** renderer (built to `dist-renderer/`). Always run from the **repo root** (`release-manager/`), not from `renderer-vue/`. Use `npm start` or `npm run dev` to build the Vue bundle and launch; both now build the renderer first. If you only changed Vue files, run `npm run build:renderer-vue` then `npx electron .` to refresh without a full restart. For live reload during development, use `npm run dev:vue` (watches `renderer-vue` and rebuilds on save).
 

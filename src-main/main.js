@@ -1,8 +1,9 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen, Menu } = require('electron');
 const path = require('path');
 const fs = require('fs');
-const { pathToFileURL } = require('url');
 const { spawn } = require('child_process');
+const terminalService = require('./services/terminal');
+const terminalPopoutState = terminalService.createTerminalPopoutState();
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const Store = require('electron-store');
@@ -19,7 +20,6 @@ const { runInDir: runInDirLib } = require('./lib/runInDir');
 const { parseOldConfig } = require('./lib/migration');
 const { getProjectNameVersionAndType } = require('./lib/projectDetection');
 const { getReleasePlan: getReleasePlanFromStrategy } = require('./lib/releaseStrategy');
-const { getRecentCommits: getRecentCommitsLib } = require('./lib/gitLog');
 const { suggestBumpFromCommits } = require('./lib/conventionalCommits');
 const { getShortcutAction } = require('./lib/shortcuts');
 const { parsePorcelainLines } = require('./lib/gitPorcelain');
@@ -35,7 +35,6 @@ const {
 } = require('./lib/ollama');
 const { generate: claudeGenerate, DEFAULT_MODEL: CLAUDE_DEFAULT_MODEL } = require('./lib/claude');
 const { generate: openaiGenerate, DEFAULT_MODEL: OPENAI_DEFAULT_MODEL } = require('./lib/openai');
-const { getGitDiffForCommit: getGitDiffForCommitLib } = require('./lib/gitDiff');
 const {
   parseStashList: parseStashListLib,
   parseRemoteBranches: parseRemoteBranchesLib,
@@ -44,6 +43,7 @@ const {
   parseRemotes: parseRemotesLib,
   parseLocalBranches: parseLocalBranchesLib,
 } = require('./lib/gitOutputParsers');
+const { createGitApi } = require('./lib/git');
 const {
   getComposerManifestInfo,
   parseComposerOutdatedJson,
@@ -58,7 +58,16 @@ const {
   getCoverageScriptNameComposer,
 } = require('./lib/projectTestScripts');
 const { createApiServer } = require('./apiServer');
+const { runCli, getCliArgs } = require('./cli');
 const { getApiDocs: getApiDocsFromModule, getApiMethodDoc: getApiMethodDocFromModule, getSampleResponseForMethod } = require('./apiDocs');
+const { createProcessManager } = require('./services/processManager');
+const { createEmailService } = require('./services/email');
+const { createTunnelService } = require('./services/tunnels');
+const { createFtpClient } = require('./services/ftp');
+const { createSshManager } = require('./services/ssh');
+const { createDialogsService } = require('./services/dialogs');
+const { createLicenseServer } = require('./lib/licenseServer');
+const appSettings = require('./lib/appSettings');
 const { SMTPServer } = require(path.join(appRoot, 'node_modules', 'smtp-server'));
 const { simpleParser } = require(path.join(appRoot, 'node_modules', 'mailparser'));
 const localtunnel = require(path.join(appRoot, 'node_modules', 'localtunnel'));
@@ -145,21 +154,90 @@ function setPreference(key, value) {
   debug.log(getStore, 'prefs', 'setPreference', key, safeValue);
 }
 
+const LICENSE_KEY_PREF = 'licenseKey';
+
+/** Simple validation: non-empty trimmed key. Replace with server/signature check for production. */
+function isValidLicenseKey(key) {
+  const k = typeof key === 'string' ? key.trim() : '';
+  return k.length > 0;
+}
+
+function getLicenseStatus() {
+  const key = getPreference(LICENSE_KEY_PREF);
+  return { hasLicense: isValidLicenseKey(key) };
+}
+
+function setLicenseKey(key) {
+  const k = typeof key === 'string' ? key.trim() : '';
+  setPreference(LICENSE_KEY_PREF, k);
+  return { ok: true, hasLicense: isValidLicenseKey(k) };
+}
+
+const licenseServer = createLicenseServer({ getPreference, setPreference });
+
+async function getLicenseStatus() {
+  const remoteValid = await licenseServer.hasValidRemoteLicense();
+  if (remoteValid) {
+    const session = await licenseServer.getRemoteSession();
+    return { hasLicense: true, source: 'remote', email: session.email || null };
+  }
+  const key = getPreference(LICENSE_KEY_PREF);
+  if (isValidLicenseKey(key)) return { hasLicense: true, source: 'key' };
+  return { hasLicense: false, source: null };
+}
+
 function getEffectiveTheme() {
   return getEffectiveThemeFromSetting(getThemeSetting(), nativeTheme.shouldUseDarkColors);
 }
+
+function getAppZoomFactor() {
+  return getPreference('appearanceZoomFactor') ?? 1;
+}
+
+function setAppZoomFactor(factor) {
+  const f = typeof factor === 'number' && factor > 0 ? factor : 1;
+  setPreference('appearanceZoomFactor', f);
+  const wins = BrowserWindow.getAllWindows();
+  wins.forEach((w) => {
+    if (w && !w.isDestroyed() && w.webContents) w.webContents.setZoomFactor(f);
+  });
+  return null;
+}
+
+function sendToAllWindows(channel, ...args) {
+  const w = BrowserWindow.getAllWindows()[0];
+  if (w && !w.isDestroyed()) w.webContents.send(channel, ...args);
+}
+
+const processManager = createProcessManager({
+  getStore,
+  send: sendToAllWindows,
+  spawn,
+  getNpmScriptNames,
+  getComposerManifestInfo,
+});
+const emailService = createEmailService({
+  getStore,
+  send: sendToAllWindows,
+  SMTPServer,
+  simpleParser,
+  sanitizeHtml,
+  debug,
+});
+const tunnelService = createTunnelService({ send: sendToAllWindows, localtunnel });
+const ftpService = createFtpClient({ FtpClient });
+const sshManager = createSshManager({ getPreference, setPreference });
+const dialogsService = createDialogsService({
+  dialog,
+  getBrowserWindow: () => BrowserWindow.getAllWindows()[0] || null,
+});
 
 function runInDir(dirPath, command, args, options = {}) {
   return runInDirLib(dirPath, command, args, options, spawn);
 }
 
-/** Remove ANSI escape codes for parsing/display. */
-function stripAnsi(text) {
-  if (text == null || typeof text !== 'string') return '';
-  return text
-    .replace(/\x1b\[[\d;]*[a-zA-Z]/g, '')
-    .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
-    .replace(/\x1b\[?[\d;]*[a-zA-Z]/g, '');
+function runInDirCapture(dirPath, command, args, options = {}) {
+  return terminalService.runInDirCapture(dirPath, command, args, options, spawn);
 }
 
 /** Get PHP version string (e.g. "8.2") from a binary path. Returns null if not runnable. */
@@ -249,592 +327,27 @@ function getComposerEnv(dirPath) {
   return { ...process.env, PATH: phpDir + pathSep + pathEnv };
 }
 
-/** Run a command and return { ok, exitCode, stdout, stderr } without rejecting on non-zero exit. */
-function runInDirCapture(dirPath, command, args, options = {}) {
-  return new Promise((resolve) => {
-    const isWin = process.platform === 'win32';
-    const cmd = isWin ? 'cmd.exe' : command;
-    const cargs = isWin ? ['/c', command, ...args] : args;
-    const proc = spawn(cmd, cargs, {
-      cwd: dirPath,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      ...options,
+let gitApi = null;
+function getGitApi() {
+  if (!gitApi) {
+    gitApi = createGitApi({
+      runInDir,
+      runInDirCapture,
+      path,
+      fs,
+      getPreference,
+      parseLocalBranches: parseLocalBranchesLib,
+      parseRemoteBranches: parseRemoteBranchesLib,
+      parseRemotes: parseRemotesLib,
+      parseCommitLog: parseCommitLogLib,
+      parseCommitLogWithBody: parseCommitLogWithBodyLib,
+      parseStashList: parseStashListLib,
+      parsePorcelainLines,
+      formatTag,
     });
-    let stdout = '';
-    let stderr = '';
-    proc.stdout?.on('data', (d) => { stdout += d.toString(); });
-    proc.stderr?.on('data', (d) => { stderr += d.toString(); });
-    proc.on('close', (code) => {
-      const cleanStdout = stripAnsi(stdout).trim();
-      const cleanStderr = stripAnsi(stderr).trim();
-      resolve({
-        ok: code === 0,
-        exitCode: code ?? -1,
-        stdout: cleanStdout,
-        stderr: cleanStderr,
-      });
-    });
-    proc.on('error', (e) => {
-      resolve({ ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Spawn failed' });
-    });
-  });
-}
-
-/** Run a shell command string in dirPath (for inline terminal). Returns { ok, exitCode, stdout, stderr }. */
-function runShellCommand(dirPath, command) {
-  const cmd = (command || '').trim();
-  if (!cmd) return Promise.resolve({ ok: true, exitCode: 0, stdout: '', stderr: '' });
-  const isWin = process.platform === 'win32';
-  const proc = spawn(isWin ? 'cmd.exe' : process.env.SHELL || '/bin/sh', isWin ? ['/c', command] : ['-c', command], {
-    cwd: dirPath || process.cwd(),
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
-  let stdout = '';
-  let stderr = '';
-  proc.stdout?.on('data', (d) => { stdout += d.toString(); });
-  proc.stderr?.on('data', (d) => { stderr += d.toString(); });
-  return new Promise((resolve) => {
-    proc.on('close', (code) => {
-      resolve({
-        ok: code === 0,
-        exitCode: code ?? -1,
-        stdout: stripAnsi(stdout),
-        stderr: stripAnsi(stderr),
-      });
-    });
-    proc.on('error', (e) => {
-      resolve({ ok: false, exitCode: -1, stdout: '', stderr: e.message || 'Spawn failed' });
-    });
-  });
-}
-
-// ——— Dev stack / process manager (SoloTerm-style) ———
-const runningProcesses = new Map(); // key: projectPath + \0 + processId
-const MAX_OUTPUT_LINES = 500;
-
-function getProcessesConfig() {
-  const prefs = getStore().get('preferences') || {};
-  return prefs.processesConfig || {};
-}
-
-function setProcessesConfig(config) {
-  const prefs = getStore().get('preferences') || {};
-  prefs.processesConfig = config && typeof config === 'object' ? config : {};
-  getStore().set('preferences', prefs);
-  return null;
-}
-
-function processKey(projectPath, processId) {
-  return `${(projectPath || '').trim()}\0${(processId || '').trim()}`;
-}
-
-function notifyProcessStatus() {
-  const win = BrowserWindow.getAllWindows()[0];
-  if (win && !win.isDestroyed()) win.webContents.send('rm-process-status-changed');
-}
-
-function startProcess(projectPath, processId, name, command) {
-  const key = processKey(projectPath, processId);
-  if (runningProcesses.has(key)) return { ok: false, error: 'Process already running' };
-  const dir = (projectPath || '').trim();
-  if (!dir || !fs.existsSync(dir)) return { ok: false, error: 'Project path invalid or missing' };
-  const cmd = (command || '').trim();
-  if (!cmd) return { ok: false, error: 'Command is required' };
-  const isWin = process.platform === 'win32';
-  const child = spawn(isWin ? 'cmd.exe' : process.env.SHELL || '/bin/sh', isWin ? ['/c', cmd] : ['-c', cmd], {
-    cwd: dir,
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: process.env,
-  });
-  const outputLines = [];
-  function push(line) {
-    if (line == null || line === '') return;
-    outputLines.push(String(line).slice(0, 2000));
-    if (outputLines.length > MAX_OUTPUT_LINES) outputLines.shift();
   }
-  child.stdout?.on('data', (d) => { push(d.toString()); });
-  child.stderr?.on('data', (d) => { push(d.toString()); });
-  const entry = {
-    child,
-    projectPath: dir,
-    processId,
-    name: name || processId,
-    command: cmd,
-    outputLines,
-    status: 'running',
-    exitCode: null,
-  };
-  child.on('exit', (code, signal) => {
-    entry.status = code === 0 ? 'stopped' : 'error';
-    entry.exitCode = code;
-    entry.child = null;
-    runningProcesses.delete(key);
-    notifyProcessStatus();
-  });
-  child.on('error', (err) => {
-    push(err.message || 'Spawn failed');
-    entry.status = 'error';
-    entry.exitCode = -1;
-    entry.child = null;
-    runningProcesses.delete(key);
-    notifyProcessStatus();
-  });
-  runningProcesses.set(key, entry);
-  notifyProcessStatus();
-  return { ok: true, pid: child.pid };
+  return gitApi;
 }
-
-function stopProcess(projectPath, processId) {
-  const key = processKey(projectPath, processId);
-  const entry = runningProcesses.get(key);
-  if (!entry || !entry.child) return { ok: true, wasRunning: false };
-  try {
-    entry.child.kill('SIGTERM');
-    return { ok: true, wasRunning: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to stop' };
-  }
-}
-
-function getProcessStatus() {
-  const config = getProcessesConfig();
-  const result = [];
-  for (const [projectPath, projectConfig] of Object.entries(config)) {
-    const processes = projectConfig?.processes;
-    if (!Array.isArray(processes)) continue;
-    for (const p of processes) {
-      const id = p.id != null ? String(p.id) : (p.name || '').trim();
-      const key = processKey(projectPath, id);
-      const entry = runningProcesses.get(key);
-      result.push({
-        projectPath,
-        processId: id,
-        name: p.name || id,
-        command: p.command || '',
-        status: entry ? entry.status : 'stopped',
-        pid: entry?.child?.pid,
-        exitCode: entry?.exitCode,
-      });
-    }
-  }
-  return result;
-}
-
-function getProcessOutput(projectPath, processId, lines) {
-  const key = processKey(projectPath, processId);
-  const entry = runningProcesses.get(key);
-  if (!entry || !entry.outputLines) return { lines: [] };
-  const n = Math.min(Math.max(0, lines || 50), MAX_OUTPUT_LINES);
-  const start = Math.max(0, entry.outputLines.length - n);
-  return { lines: entry.outputLines.slice(start) };
-}
-
-async function startAllProcesses(projectPath) {
-  const config = getProcessesConfig();
-  const projectConfig = config[(projectPath || '').trim()];
-  if (!projectConfig || !Array.isArray(projectConfig.processes)) return { ok: true, started: 0, errors: [] };
-  const errors = [];
-  let started = 0;
-  for (const p of projectConfig.processes) {
-    const id = p.id != null ? String(p.id) : (p.name || '').trim();
-    const r = startProcess(projectPath, id, p.name, p.command);
-    if (r.ok) started += 1; else errors.push({ processId: id, error: r.error });
-  }
-  return { ok: true, started, errors };
-}
-
-async function stopAllProcesses(projectPath) {
-  const statuses = getProcessStatus().filter((s) => s.projectPath === (projectPath || '').trim());
-  let stopped = 0;
-  for (const s of statuses) {
-    if (s.status !== 'running') continue;
-    const r = stopProcess(s.projectPath, s.processId);
-    if (r.wasRunning) stopped += 1;
-  }
-  return { ok: true, stopped };
-}
-
-/** Build suggested dev processes from package.json, composer.json, and Laravel artisan. */
-function getSuggestedProcesses(dirPath) {
-  const dir = (dirPath || '').trim();
-  if (!dir || !fs.existsSync(dir)) return { suggested: [] };
-  const suggested = [];
-  const seen = new Set();
-
-  function add(id, name, command) {
-    const key = (id || name || command || '').toLowerCase().replace(/\s+/g, '-');
-    if (!key || seen.has(key)) return;
-    seen.add(key);
-    suggested.push({ id: id || key, name: name || id, command: command || '' });
-  }
-
-  // package.json scripts
-  const pkgPath = path.join(dir, 'package.json');
-  if (fs.existsSync(pkgPath)) {
-    try {
-      const content = fs.readFileSync(pkgPath, 'utf8');
-      const { ok, scripts } = getNpmScriptNames(content);
-      if (ok && scripts && scripts.length) {
-        const labels = { dev: 'Dev server', start: 'Start', serve: 'Serve', watch: 'Watch', build: 'Build', test: 'Test' };
-        const prefer = ['dev', 'start', 'serve', 'watch', 'build', 'test'];
-        for (const name of prefer) {
-          if (scripts.includes(name)) add(name, labels[name] || name, name === 'start' ? 'npm start' : `npm run ${name}`);
-        }
-        for (const name of scripts) {
-          if (!prefer.includes(name)) add(name, name, `npm run ${name}`);
-        }
-      }
-    } catch (_) {}
-  }
-
-  // composer.json scripts + Laravel artisan
-  const composerPath = path.join(dir, 'composer.json');
-  const artisanPath = path.join(dir, 'artisan');
-  if (fs.existsSync(composerPath)) {
-    try {
-      const manifest = getComposerManifestInfo(dir, fs);
-      if (manifest.ok && manifest.scripts && manifest.scripts.length) {
-        const prefer = ['dev', 'start', 'serve', 'watch', 'test', 'cs-fix'];
-        for (const name of prefer) {
-          if (manifest.scripts.includes(name)) add(`composer-${name}`, name, `composer run ${name}`);
-        }
-        for (const name of manifest.scripts) {
-          if (!prefer.includes(name)) add(`composer-${name}`, name, `composer run ${name}`);
-        }
-      }
-    } catch (_) {}
-  }
-  if (fs.existsSync(artisanPath)) {
-    add('artisan-serve', 'Laravel serve', 'php artisan serve');
-    add('artisan-queue', 'Queue worker', 'php artisan queue:work');
-  }
-
-  return { suggested };
-}
-
-// ——— Email / SMTP inbox (Helo-style) ———
-const EMAIL_INBOX_MAX = 500;
-const DEFAULT_SMTP_PORT = 1025;
-
-let smtpServerInstance = null;
-let smtpServerPort = DEFAULT_SMTP_PORT;
-
-function getEmailInbox() {
-  try {
-    const raw = getStore().get('emailInbox');
-    return Array.isArray(raw) ? raw : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveEmailInbox(inbox) {
-  const list = Array.isArray(inbox) ? inbox.slice(0, EMAIL_INBOX_MAX) : [];
-  getStore().set('emailInbox', list);
-}
-
-function getEmailSmtpStatus() {
-  const running = smtpServerInstance != null;
-  return {
-    running,
-    port: running ? smtpServerPort : null,
-    defaultPort: DEFAULT_SMTP_PORT,
-  };
-}
-
-function notifyEmailReceived() {
-  const win = BrowserWindow.getAllWindows()[0];
-  if (win && !win.isDestroyed()) win.webContents.send('rm-email-received');
-}
-
-function startEmailSmtpServer(port) {
-  if (smtpServerInstance) {
-    return Promise.resolve({ ok: true, port: smtpServerPort, alreadyRunning: true });
-  }
-  const p = Math.max(1, Math.min(65535, parseInt(port, 10) || DEFAULT_SMTP_PORT));
-  return new Promise((resolve) => {
-    try {
-      const server = new SMTPServer({
-        disabledCommands: ['AUTH', 'STARTTLS'],
-        size: 25 * 1024 * 1024,
-        onConnect(session, callback) {
-          callback();
-        },
-        onMailFrom(address, session, callback) {
-          callback();
-        },
-        onRcptTo(address, session, callback) {
-          callback();
-        },
-        onData(stream, session, callback) {
-          const chunks = [];
-          stream.on('data', (chunk) => chunks.push(chunk));
-          stream.on('end', async () => {
-            try {
-              const raw = Buffer.concat(chunks);
-              const parsed = await simpleParser(raw);
-              const fromText = parsed.from?.text || (parsed.from?.value?.[0]?.address) || '';
-              const toText = parsed.to?.text || (parsed.to?.value?.map((v) => v.address).join(', ')) || '';
-              const headers = {};
-              if (parsed.headers && typeof parsed.headers.forEach === 'function') {
-                parsed.headers.forEach((v, k) => { headers[k] = v; });
-              }
-              const rawHtml = parsed.html || null;
-              const sanitizedHtml = rawHtml
-                ? sanitizeHtml(rawHtml, {
-                    allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'a', 'strong', 'em', 'b', 'i', 'u', 'code', 'pre', 'br', 'blockquote', 'table', 'thead', 'tbody', 'tr', 'th', 'td', 'img', 'div', 'span'],
-                    allowedAttributes: { a: ['href', 'target'], img: ['src', 'alt', 'width', 'height'], td: ['colspan', 'rowspan'], th: ['colspan', 'rowspan'] },
-                    allowedSchemes: ['http', 'https', 'cid', 'data'],
-                  })
-                : null;
-              const email = {
-                id: `email-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-                from: fromText,
-                to: toText,
-                subject: parsed.subject || '(no subject)',
-                date: parsed.date ? new Date(parsed.date).toISOString() : new Date().toISOString(),
-                html: rawHtml,
-                sanitizedHtml,
-                text: parsed.text || null,
-                headers: JSON.stringify(headers, null, 2),
-                raw: raw.length > 100000 ? raw.slice(0, 100000).toString('utf8') + '\n...[truncated]' : raw.toString('utf8'),
-              };
-              const inbox = getEmailInbox();
-              inbox.unshift(email);
-              saveEmailInbox(inbox);
-              notifyEmailReceived();
-              callback(null, 'OK');
-            } catch (err) {
-              debug.log(getStore, 'email', 'parse failed', err?.message || err);
-              callback(err);
-            }
-          });
-          stream.on('error', (err) => callback(err));
-        },
-      });
-      server.on('error', (err) => {
-        debug.log(getStore, 'email', 'smtp server error', err?.message || err);
-      });
-      server.listen(p, '127.0.0.1', () => {
-        smtpServerInstance = server;
-        smtpServerPort = p;
-        resolve({ ok: true, port: p });
-      });
-      server.once('error', (err) => {
-        if (!smtpServerInstance) resolve({ ok: false, error: err.message || 'SMTP server failed to start' });
-      });
-    } catch (e) {
-      resolve({ ok: false, error: e.message || 'Failed to start SMTP server' });
-    }
-  });
-}
-
-function stopEmailSmtpServer() {
-  if (!smtpServerInstance) return Promise.resolve({ ok: true, wasRunning: false });
-  return new Promise((resolve) => {
-    try {
-      const server = smtpServerInstance;
-      smtpServerInstance = null;
-      server.close(() => resolve({ ok: true, wasRunning: true }));
-    } catch (e) {
-      smtpServerInstance = null;
-      resolve({ ok: false, error: e.message || 'Failed to stop' });
-    }
-  });
-}
-
-function getEmails() {
-  return getEmailInbox();
-}
-
-function clearEmails() {
-  saveEmailInbox([]);
-  notifyEmailReceived();
-  return null;
-}
-
-// ——— Web tunnels (Expose-style, localtunnel) ———
-const activeTunnels = new Map(); // id -> { id, port, subdomain, url, tunnel }
-
-function notifyTunnelsChanged() {
-  const win = BrowserWindow.getAllWindows()[0];
-  if (win && !win.isDestroyed()) win.webContents.send('rm-tunnels-changed');
-}
-
-function startTunnel(port, subdomain) {
-  const portNum = Math.max(1, Math.min(65535, parseInt(port, 10) || 0));
-  if (!portNum) return Promise.resolve({ ok: false, error: 'Invalid port' });
-  return new Promise((resolve) => {
-    const opts = {};
-    if (subdomain && typeof subdomain === 'string' && subdomain.trim()) opts.subdomain = subdomain.trim();
-    localtunnel(portNum, opts, (err, tunnel) => {
-      if (err) {
-        resolve({ ok: false, error: err.message || 'Tunnel failed to start' });
-        return;
-      }
-      const id = `tunnel-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
-      const entry = { id, port: portNum, subdomain: opts.subdomain || null, url: tunnel.url, tunnel };
-      tunnel.once('close', () => {
-        activeTunnels.delete(id);
-        notifyTunnelsChanged();
-      });
-      tunnel.once('error', () => {
-        activeTunnels.delete(id);
-        notifyTunnelsChanged();
-      });
-      activeTunnels.set(id, entry);
-      notifyTunnelsChanged();
-      resolve({ ok: true, id, port: portNum, url: tunnel.url });
-    });
-  });
-}
-
-function stopTunnel(id) {
-  const entry = activeTunnels.get(id);
-  if (!entry) return Promise.resolve({ ok: true, wasRunning: false });
-  return new Promise((resolve) => {
-    try {
-      entry.tunnel.close();
-      activeTunnels.delete(id);
-      notifyTunnelsChanged();
-      resolve({ ok: true, wasRunning: true });
-    } catch (e) {
-      activeTunnels.delete(id);
-      notifyTunnelsChanged();
-      resolve({ ok: false, error: e.message || 'Failed to close tunnel' });
-    }
-  });
-}
-
-function getTunnels() {
-  return Array.from(activeTunnels.values()).map(({ id, port, subdomain, url }) => ({ id, port, subdomain, url }));
-}
-
-// ——— FTP client ———
-let ftpClient = null;
-let ftpConfig = null;
-
-function getFtpStatus() {
-  const connected = ftpClient != null && !ftpClient.closed;
-  return {
-    connected,
-    host: connected && ftpConfig ? ftpConfig.host : null,
-  };
-}
-
-async function ftpConnect(config) {
-  if (ftpClient && !ftpClient.closed) {
-    try { ftpClient.close(); } catch (_) {}
-    ftpClient = null;
-  }
-  const host = (config?.host || '').trim() || 'localhost';
-  const port = Math.max(1, Math.min(65535, parseInt(config?.port, 10) || 21));
-  const user = config?.user != null ? String(config.user) : 'anonymous';
-  const password = config?.password != null ? String(config.password) : 'guest';
-  const secure = !!config?.secure;
-  ftpClient = new FtpClient(30000);
-  try {
-    await ftpClient.access({
-      host,
-      port,
-      user,
-      password,
-      secure: secure ? true : false,
-    });
-    ftpConfig = { host, port, user, secure };
-    return { ok: true };
-  } catch (e) {
-    ftpClient = null;
-    ftpConfig = null;
-    return { ok: false, error: e.message || 'FTP connection failed' };
-  }
-}
-
-function ftpDisconnect() {
-  if (!ftpClient) return Promise.resolve({ ok: true });
-  try {
-    ftpClient.close();
-  } catch (_) {}
-  ftpClient = null;
-  ftpConfig = null;
-  return Promise.resolve({ ok: true });
-}
-
-async function ftpList(remotePath) {
-  if (!ftpClient || ftpClient.closed) return { ok: false, error: 'Not connected', list: [] };
-  try {
-    const path = (remotePath || '').trim() || '.';
-    const list = await ftpClient.list(path);
-    const items = list.map((f) => ({
-      name: f.name,
-      size: f.size,
-      isDirectory: f.isDirectory,
-      modifiedAt: f.modifiedAt ? new Date(f.modifiedAt).toISOString() : null,
-    }));
-    return { ok: true, list: items };
-  } catch (e) {
-    return { ok: false, error: e.message || 'List failed', list: [] };
-  }
-}
-
-async function ftpDownload(remotePath, localPath) {
-  if (!ftpClient || ftpClient.closed) return { ok: false, error: 'Not connected' };
-  const remote = (remotePath || '').trim();
-  const local = (localPath || '').trim();
-  if (!remote || !local) return { ok: false, error: 'Invalid path' };
-  try {
-    await ftpClient.downloadTo(local, remote);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Download failed' };
-  }
-}
-
-async function ftpUpload(localPath, remotePath) {
-  if (!ftpClient || ftpClient.closed) return { ok: false, error: 'Not connected' };
-  const local = (localPath || '').trim();
-  const remote = (remotePath || '').trim();
-  if (!local || !remote) return { ok: false, error: 'Invalid path' };
-  if (!fs.existsSync(local)) return { ok: false, error: 'Local file not found' };
-  try {
-    await ftpClient.uploadFrom(local, remote);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Upload failed' };
-  }
-}
-
-async function ftpRemove(remotePath) {
-  if (!ftpClient || ftpClient.closed) return { ok: false, error: 'Not connected' };
-  const remote = (remotePath || '').trim();
-  if (!remote) return { ok: false, error: 'Invalid path' };
-  try {
-    await ftpClient.remove(remote);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Remove failed' };
-  }
-}
-
-async function showSaveDialog(options) {
-  const win = BrowserWindow.getAllWindows()[0] || null;
-  const { canceled, filePath } = await dialog.showSaveDialog(win || undefined, {
-    defaultPath: options?.defaultPath,
-    title: options?.title || 'Save file',
-  });
-  return { canceled: !!canceled, filePath: canceled ? null : filePath };
-}
-
-async function showOpenDialog(options) {
-  const win = BrowserWindow.getAllWindows()[0] || null;
-  const { canceled, filePaths } = await dialog.showOpenDialog(win || undefined, {
-    properties: options?.multiSelect ? ['openFile', 'multiSelections'] : ['openFile'],
-    title: options?.title || 'Open file',
-  });
-  return { canceled: !!canceled, filePaths: canceled ? [] : (filePaths || []) };
-}
-
-// ——— end FTP ———
 
 async function getProjectInfoAsync(dirPath) {
   const resolved = getProjectNameVersionAndType(dirPath, path, fs);
@@ -856,45 +369,16 @@ async function getProjectInfoAsync(dirPath) {
   let commitsSinceLatestTag = null;
 
   if (hasGit) {
-    try {
-      const [tagOut, remoteName, statusOut, porcelainOut, currentBranchOut] = await Promise.all([
-        runInDir(dirPath, 'git', ['tag', '-l', '--sort=-version:refname']).catch(() => ({ stdout: '' })),
-        getPushRemote(dirPath),
-        runInDir(dirPath, 'git', ['status', '-sb']).catch(() => ({ stdout: '' })),
-        runInDir(dirPath, 'git', ['status', '--porcelain', '-uall']).catch(() => ({ stdout: '' })),
-        runInDir(dirPath, 'git', ['branch', '--show-current']).catch(() => ({ stdout: '' })),
-      ]);
-      const tags = (tagOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-      latestTag = tags[0] || null;
-      allTags = tags.slice(0, 100);
-      if (latestTag) {
-        try {
-          const countOut = await runInDir(dirPath, 'git', ['rev-list', '--count', `${latestTag}..HEAD`]).catch(() => ({ stdout: '' }));
-          const count = parseInt((countOut.stdout || '').trim(), 10);
-          commitsSinceLatestTag = Number.isFinite(count) ? count : null;
-        } catch (_) {}
-      }
-      if (remoteName) {
-        const urlOut = await runInDir(dirPath, 'git', ['remote', 'get-url', remoteName]).catch(() => ({ stdout: '' }));
-        gitRemote = (urlOut.stdout || '').trim() || null;
-      }
-      const statusLines = (statusOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-      const statusLine = statusLines[0] || '';
-      const currentFromBranch = (currentBranchOut.stdout || '').trim();
-      if (currentFromBranch) branch = currentFromBranch;
-      else {
-        const branchMatch = statusLine.match(/^##\s+(.+?)(?:\.\.\.|$)/);
-        if (branchMatch) branch = branchMatch[1].trim();
-      }
-      const aheadMatch = statusLine.match(/ahead\s+(\d+)/);
-      if (aheadMatch) ahead = parseInt(aheadMatch[1], 10);
-      const behindMatch = statusLine.match(/behind\s+(\d+)/);
-      if (behindMatch) behind = parseInt(behindMatch[1], 10);
-      const porcelain = (porcelainOut.stdout || '').trim();
-      const { lines: parsedLines, conflictCount: parsedConflictCount } = parsePorcelainLines(porcelain);
-      uncommittedLines = parsedLines;
-      conflictCount = parsedConflictCount;
-    } catch (_) {}
+    const gitInfo = await getGitApi().getProjectInfoFromGit(dirPath);
+    latestTag = gitInfo.latestTag;
+    allTags = gitInfo.allTags || [];
+    commitsSinceLatestTag = gitInfo.commitsSinceLatestTag;
+    gitRemote = gitInfo.gitRemote;
+    branch = gitInfo.branch;
+    ahead = gitInfo.ahead;
+    behind = gitInfo.behind;
+    uncommittedLines = gitInfo.uncommittedLines || [];
+    conflictCount = gitInfo.conflictCount || 0;
   }
 
   return {
@@ -916,24 +400,6 @@ async function getProjectInfoAsync(dirPath) {
     uncommittedLines,
     conflictCount,
   };
-}
-
-/** Get the remote name to use for push (branch's remote or first configured remote). Returns null if no remotes. */
-async function getPushRemote(dirPath) {
-  try {
-    const branchOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
-    const branch = (branchOut.stdout || '').trim();
-    if (branch) {
-      const remoteOut = await runInDir(dirPath, 'git', ['config', '--get', `branch.${branch}.remote`]);
-      const remote = (remoteOut.stdout || '').trim();
-      if (remote) return remote;
-    }
-    const listOut = await runInDir(dirPath, 'git', ['remote']);
-    const remotes = (listOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    return remotes[0] || null;
-  } catch (_) {
-    return null;
-  }
 }
 
 async function runVersionBump(dirPath, bump, projectType = 'npm') {
@@ -958,38 +424,6 @@ async function runVersionBump(dirPath, bump, projectType = 'npm') {
   }
 }
 
-async function gitTagAndPush(dirPath, tagMessage, options = {}) {
-  const versionOverride = options.version;
-  try {
-    let version;
-    if (versionOverride != null && typeof versionOverride === 'string') {
-      version = versionOverride;
-    } else {
-      const pkgPath = path.join(dirPath, 'package.json');
-      const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-      version = pkg.version;
-    }
-    const tag = formatTag(version);
-    if (!tag) throw new Error('Invalid version');
-    if (versionOverride == null) {
-      await runInDir(dirPath, 'git', ['add', 'package.json']);
-      if (fs.existsSync(path.join(dirPath, 'package-lock.json'))) {
-        await runInDir(dirPath, 'git', ['add', 'package-lock.json']);
-      }
-      await runInDir(dirPath, 'git', ['commit', '-m', tagMessage || `chore: release ${tag}`]);
-    }
-    await runInDir(dirPath, 'git', ['tag', tag]);
-    const remote = await getPushRemote(dirPath);
-    const target = remote || 'origin';
-    // Push branch then tag explicitly so the tag always appears on the remote
-    await runInDir(dirPath, 'git', ['push', target, 'HEAD']);
-    await runInDir(dirPath, 'git', ['push', target, tag]);
-    return { ok: true, tag };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git tag/push failed' };
-  }
-}
-
 async function showDirectoryDialog() {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ['openDirectory'],
@@ -999,1402 +433,6 @@ async function showDirectoryDialog() {
   return filePaths[0];
 }
 
-
-async function getGitStatus(dirPath) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['status', '--porcelain', '-uall']);
-    const trimmed = (out.stdout || '').trim();
-    return { clean: trimmed.length === 0, output: trimmed || null };
-  } catch (e) {
-    return { clean: false, output: e.message || null };
-  }
-}
-
-/** List all tracked files (git ls-files). For tree view when not "View all files". */
-async function getTrackedFiles(dirPath) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['ls-files']);
-    const files = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    return { ok: true, files };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to list files', files: [] };
-  }
-}
-
-/** Directories to skip when listing "all project files" (full filesystem tree). */
-const PROJECT_FILES_SKIP_DIRS = new Set([
-  '.git', 'node_modules', 'vendor', '__pycache__', '.pycache', '.next', '.nuxt', '.output',
-  'dist', 'build', 'out', 'coverage', '.turbo', '.cache', '.parcel-cache', '.vite', '.svelte-kit',
-  '.idea', '.vscode', 'tmp', 'temp', '.tmp', '.temp', 'cache', '.cache',
-]);
-
-/** List every file in the project (filesystem walk). Skips .git, node_modules, vendor, dist, etc. */
-function getProjectFiles(dirPath) {
-  const files = [];
-  const base = path.resolve(dirPath);
-  if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
-    return { ok: true, files: [] };
-  }
-  function walk(relDir) {
-    const fullDir = path.join(base, relDir);
-    let entries;
-    try {
-      entries = fs.readdirSync(fullDir, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const e of entries) {
-      const relPath = relDir ? `${relDir}/${e.name}` : e.name;
-      if (e.isDirectory()) {
-        if (PROJECT_FILES_SKIP_DIRS.has(e.name)) continue;
-        walk(relPath);
-      } else if (e.isFile()) {
-        files.push(relPath);
-      }
-    }
-  }
-  walk('');
-  return { ok: true, files };
-}
-
-/** options: { sign?: boolean } — if sign true, use -S (uses commit.gpgsign or default key) */
-async function gitCommit(dirPath, message, options = {}) {
-  if (!message || typeof message !== 'string' || !message.trim()) {
-    return { ok: false, error: 'Commit message is required' };
-  }
-  const msg = message.trim();
-  const sign = options.sign !== undefined ? options.sign : getPreference('signCommits');
-  try {
-    await runInDir(dirPath, 'git', ['add', '-A']);
-    const commitArgs = ['commit', '-m', msg];
-    if (sign) commitArgs.push('-S');
-    await runInDir(dirPath, 'git', commitArgs);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Commit failed' };
-  }
-}
-
-async function gitFetch(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['fetch']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git fetch failed' };
-  }
-}
-
-async function gitPull(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['pull', '--no-rebase']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git pull failed' };
-  }
-}
-
-/** Pull with --ff-only (fail if not fast-forward). */
-async function gitPullFFOnly(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['pull', '--ff-only']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Pull (fast-forward only) failed' };
-  }
-}
-
-async function gitMergeAbort(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['merge', '--abort']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Merge abort failed' };
-  }
-}
-
-/** options: { includeUntracked?: boolean, keepIndex?: boolean } */
-async function gitStashPush(dirPath, message, options = {}) {
-  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
-    return { ok: false, error: 'Project path is required' };
-  }
-  const cwd = path.resolve(dirPath.trim());
-  if (!fs.existsSync(path.join(cwd, '.git'))) {
-    return { ok: false, error: 'Not a Git repository' };
-  }
-  try {
-    const args = ['stash', 'push'];
-    if (options && options.includeUntracked) args.push('--include-untracked');
-    if (options && options.keepIndex) args.push('--keep-index');
-    if (message && typeof message === 'string' && message.trim()) args.push('-m', message.trim());
-    await runInDir(cwd, 'git', args);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git stash failed' };
-  }
-}
-
-async function gitStashPop(dirPath) {
-  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
-    return { ok: false, error: 'Project path is required' };
-  }
-  const cwd = path.resolve(dirPath.trim());
-  if (!fs.existsSync(path.join(cwd, '.git'))) {
-    return { ok: false, error: 'Not a Git repository' };
-  }
-  try {
-    await runInDir(cwd, 'git', ['stash', 'pop']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git stash pop failed' };
-  }
-}
-
-async function gitDiscardChanges(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['reset', '--hard', 'HEAD']);
-    await runInDir(dirPath, 'git', ['clean', '-fd']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Discard failed' };
-  }
-}
-
-/** Get local branch names and current branch. */
-async function getBranches(dirPath) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['branch', '--no-color']);
-    const branches = parseLocalBranchesLib(out.stdout || '');
-    const currentOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
-    const current = (currentOut.stdout || '').trim() || null;
-    return { ok: true, branches, current };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to list branches', branches: [], current: null };
-  }
-}
-
-/** Checkout an existing branch. */
-async function checkoutBranch(dirPath, branchName) {
-  const name = (branchName || '').trim();
-  if (!name) return { ok: false, error: 'Branch name is required' };
-  try {
-    await runInDir(dirPath, 'git', ['checkout', name]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Checkout failed' };
-  }
-}
-
-/** Create a new branch; if checkout is true, check it out. */
-async function createBranch(dirPath, branchName, checkout = true) {
-  const name = (branchName || '').trim();
-  if (!name) return { ok: false, error: 'Branch name is required' };
-  try {
-    if (checkout) {
-      await runInDir(dirPath, 'git', ['checkout', '-b', name]);
-    } else {
-      await runInDir(dirPath, 'git', ['branch', name]);
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Create branch failed' };
-  }
-}
-
-/** Create a new branch starting from an existing ref (branch or commit) and check it out. */
-async function createBranchFrom(dirPath, newBranchName, fromRef) {
-  const name = (newBranchName || '').trim();
-  const ref = (fromRef || '').trim();
-  if (!name) return { ok: false, error: 'Branch name is required' };
-  if (!ref) return { ok: false, error: 'Source branch or ref is required' };
-  try {
-    await runInDir(dirPath, 'git', ['checkout', '-b', name, ref]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Create branch failed' };
-  }
-}
-
-/** Rename a branch. If newName only, renames current branch. */
-async function renameBranch(dirPath, oldName, newName) {
-  const n = (newName || '').trim();
-  if (!n) return { ok: false, error: 'New branch name is required' };
-  try {
-    if (oldName && oldName.trim()) {
-      await runInDir(dirPath, 'git', ['branch', '-m', oldName.trim(), n]);
-    } else {
-      await runInDir(dirPath, 'git', ['branch', '-m', n]);
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Rename branch failed' };
-  }
-}
-
-/** Push current branch to its upstream (or origin if none). */
-async function gitPush(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['push']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Push failed' };
-  }
-}
-
-/** Force-push current branch (overwrites remote). Use with care. */
-async function gitPushForce(dirPath, withLease = false) {
-  try {
-    const branchOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
-    const branch = (branchOut.stdout || '').trim();
-    if (!branch) return { ok: false, error: 'Not on a branch' };
-    const upstreamOut = await runInDir(dirPath, 'git', ['rev-parse', '--abbrev-ref', '@{u}']).catch(() => ({ stdout: '' }));
-    const hasUpstream = (upstreamOut.stdout || '').trim().length > 0;
-    const args = ['push'];
-    if (withLease) args.push('--force-with-lease');
-    else args.push('--force');
-    if (hasUpstream) {
-      await runInDir(dirPath, 'git', args);
-    } else {
-      args.push('-u', 'origin', branch);
-      await runInDir(dirPath, 'git', args);
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Force push failed' };
-  }
-}
-
-/** Merge another branch into the current branch. strategy: 'ours'|'theirs'|null, strategyOption: 'ours'|'theirs'|null for -X */
-async function gitMerge(dirPath, branchName, options = {}) {
-  const name = (branchName || '').trim();
-  if (!name) return { ok: false, error: 'Branch name is required' };
-  try {
-    const args = ['merge'];
-    if (options.strategy === 'ours') args.push('-s', 'ours');
-    else if (options.strategy === 'theirs') args.push('-s', 'theirs');
-    if (options.strategyOption === 'ours') args.push('-X', 'ours');
-    else if (options.strategyOption === 'theirs') args.push('-X', 'theirs');
-    args.push(name);
-    await runInDir(dirPath, 'git', args);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Merge failed' };
-  }
-}
-
-// ---------- Phase 1: Remote branches, push -u, stash list ----------
-/** Get remote-tracking branch refs (e.g. origin/main). Call after fetch. */
-async function getRemoteBranches(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['fetch', '--prune']);
-    const out = await runInDir(dirPath, 'git', ['branch', '-r', '--no-color']);
-    const branches = parseRemoteBranchesLib(out.stdout || '');
-    return { ok: true, branches };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to list remote branches', branches: [] };
-  }
-}
-
-/** Checkout a remote branch (create local tracking branch). ref e.g. origin/feature. */
-async function checkoutRemoteBranch(dirPath, ref) {
-  const r = (ref || '').trim();
-  if (!r || r.indexOf('/') === -1) return { ok: false, error: 'Remote branch ref required (e.g. origin/feature)' };
-  try {
-    await runInDir(dirPath, 'git', ['checkout', '--track', r]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Checkout failed' };
-  }
-}
-
-/** Push with -u origin <current> when branch has no upstream. */
-async function gitPushWithUpstream(dirPath) {
-  try {
-    const branchOut = await runInDir(dirPath, 'git', ['branch', '--show-current']);
-    const branch = (branchOut.stdout || '').trim();
-    if (!branch) return { ok: false, error: 'Not on a branch' };
-    const upstreamOut = await runInDir(dirPath, 'git', ['rev-parse', '--abbrev-ref', '@{u}']).catch(() => ({ stdout: '' }));
-    const hasUpstream = (upstreamOut.stdout || '').trim().length > 0;
-    if (hasUpstream) {
-      await runInDir(dirPath, 'git', ['push']);
-    } else {
-      await runInDir(dirPath, 'git', ['push', '-u', 'origin', branch]);
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Push failed' };
-  }
-}
-
-/** List stash entries: [{ index, message }]. */
-async function getStashList(dirPath) {
-  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
-    return { ok: false, error: 'Project path is required', entries: [] };
-  }
-  const cwd = path.resolve(dirPath.trim());
-  if (!fs.existsSync(path.join(cwd, '.git'))) {
-    return { ok: false, error: 'Not a Git repository', entries: [] };
-  }
-  try {
-    const out = await runInDir(cwd, 'git', ['stash', 'list', '--pretty=format:%gd %s']);
-    const entries = parseStashListLib(out.stdout || '');
-    return { ok: true, entries };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to list stash', entries: [] };
-  }
-}
-
-async function stashApply(dirPath, index) {
-  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
-    return { ok: false, error: 'Project path is required' };
-  }
-  const cwd = path.resolve(dirPath.trim());
-  if (!fs.existsSync(path.join(cwd, '.git'))) {
-    return { ok: false, error: 'Not a Git repository' };
-  }
-  try {
-    const args = index ? ['stash', 'apply', String(index)] : ['stash', 'apply'];
-    await runInDir(cwd, 'git', args);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Stash apply failed' };
-  }
-}
-
-async function stashDrop(dirPath, index) {
-  if (!dirPath || typeof dirPath !== 'string' || !dirPath.trim()) {
-    return { ok: false, error: 'Project path is required' };
-  }
-  const cwd = path.resolve(dirPath.trim());
-  if (!fs.existsSync(path.join(cwd, '.git'))) {
-    return { ok: false, error: 'Not a Git repository' };
-  }
-  try {
-    const args = index ? ['stash', 'drop', String(index)] : ['stash', 'drop'];
-    await runInDir(cwd, 'git', args);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Stash drop failed' };
-  }
-}
-
-// ---------- Phase 2: Tags, commit log ----------
-/** Get tag names (sorted by version). */
-async function getTags(dirPath) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['tag', '-l', '--sort=-version:refname']);
-    const tags = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    return { ok: true, tags };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to list tags', tags: [] };
-  }
-}
-
-async function checkoutTag(dirPath, tagName) {
-  const name = (tagName || '').trim();
-  if (!name) return { ok: false, error: 'Tag name is required' };
-  try {
-    await runInDir(dirPath, 'git', ['checkout', name]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Checkout failed' };
-  }
-}
-
-/** Create a tag. ref defaults to HEAD. If message is set, creates an annotated tag. */
-async function createTag(dirPath, tagName, message, ref) {
-  const name = (tagName || '').trim();
-  if (!name) return { ok: false, error: 'Tag name is required' };
-  const r = (ref || 'HEAD').trim();
-  try {
-    if (message != null && String(message).trim()) {
-      await runInDir(dirPath, 'git', ['tag', '-a', name, '-m', String(message).trim(), r]);
-    } else {
-      await runInDir(dirPath, 'git', ['tag', name, r]);
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Create tag failed' };
-  }
-}
-
-/** Initialize a new Git repository in the given directory. */
-async function gitInit(dirPath) {
-  if (!dirPath || typeof dirPath !== 'string') return { ok: false, error: 'Directory path is required' };
-  const gitDir = path.join(dirPath, '.git');
-  if (fs.existsSync(gitDir)) return { ok: false, error: 'Repository already exists' };
-  try {
-    await runInDir(dirPath, 'git', ['init']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git init failed' };
-  }
-}
-
-/** Commit log entries: { sha, subject, author, date }. */
-async function getCommitLog(dirPath, n = 30) {
-  const limit = Math.max(1, Math.min(100, n));
-  try {
-    const out = await runInDir(dirPath, 'git', [
-      'log',
-      '-n',
-      String(limit),
-      '--pretty=format:%h%x00%s%x00%an%x00%ad%x00%ae',
-      '--date=short',
-      '--no-merges',
-    ]);
-    const commits = parseCommitLogLib(out.stdout || '');
-    return { ok: true, commits };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git log failed', commits: [] };
-  }
-}
-
-/** Commit log with body for search (hash, subject, author, date, body). */
-async function getCommitLogWithBody(dirPath, n = 30) {
-  const limit = Math.max(1, Math.min(100, n));
-  try {
-    const out = await runInDir(dirPath, 'git', [
-      'log',
-      '-n',
-      String(limit),
-      '--pretty=format:%h%x00%s%x00%an%x00%ad%x00%ae%x00%b%x1e',
-      '--date=short',
-      '--no-merges',
-    ]);
-    const commits = parseCommitLogWithBodyLib(out.stdout || '');
-    return { ok: true, commits };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git log failed', commits: [] };
-  }
-}
-
-/** Get one commit detail and diff (for modal). */
-async function getCommitDetail(dirPath, sha) {
-  const s = (sha || '').trim();
-  if (!s) return { ok: false, error: 'SHA required' };
-  try {
-    const [infoOut, diffOut, namesOut] = await Promise.all([
-      runInDir(dirPath, 'git', ['show', '-s', '--format=%s%n%an%n%ad%n%b', '--date=short', s]).catch(() => ({ stdout: '' })),
-      runInDir(dirPath, 'git', ['show', '--no-color', s]).catch(() => ({ stdout: '' })),
-      runInDir(dirPath, 'git', ['diff-tree', '--no-commit-id', '--name-only', '-r', s]).catch(() => ({ stdout: '' })),
-    ]);
-    const infoLines = (infoOut.stdout || '').trim().split(/\r?\n/);
-    const subject = infoLines[0] || '';
-    const author = infoLines[1] || '';
-    const date = infoLines[2] || '';
-    const body = infoLines.slice(3).join('\n').trim();
-    const diff = (diffOut.stdout || '').trim();
-    const files = (namesOut.stdout || '').trim().split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
-    return { ok: true, sha: s, subject, author, date, body, diff, files };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to get commit' };
-  }
-}
-
-// ---------- Phase 3: Branch delete, rebase ----------
-async function deleteBranch(dirPath, branchName, force = false) {
-  const name = (branchName || '').trim();
-  if (!name) return { ok: false, error: 'Branch name is required' };
-  try {
-    await runInDir(dirPath, 'git', ['branch', force ? '-D' : '-d', name]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Delete branch failed' };
-  }
-}
-
-async function deleteRemoteBranch(dirPath, remoteName, branchName) {
-  const remote = (remoteName || 'origin').trim();
-  const name = (branchName || '').trim();
-  if (!name) return { ok: false, error: 'Branch name is required' };
-  try {
-    await runInDir(dirPath, 'git', ['push', remote, '--delete', name]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Delete remote branch failed' };
-  }
-}
-
-async function gitRebase(dirPath, ontoBranch) {
-  const onto = (ontoBranch || '').trim();
-  if (!onto) return { ok: false, error: 'Branch name is required' };
-  try {
-    await runInDir(dirPath, 'git', ['rebase', onto]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Rebase failed' };
-  }
-}
-
-async function gitRebaseAbort(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['rebase', '--abort']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Rebase abort failed' };
-  }
-}
-
-/** Start interactive rebase onto ref. Opens the rebase-todo in Cursor or VS Code (--wait). */
-async function gitRebaseInteractive(dirPath, ref) {
-  const r = (ref || '').trim();
-  if (!r) return { ok: false, error: 'Ref is required (e.g. branch name or HEAD~5)' };
-  const editors = ['cursor --wait', 'code --wait'];
-  for (const editor of editors) {
-    try {
-      await runInDir(dirPath, 'git', ['rebase', '-i', r], { env: { ...process.env, GIT_EDITOR: editor } });
-      return { ok: true };
-    } catch (e) {
-      try {
-        await runInDir(dirPath, 'git', ['rebase', '--abort']).catch(() => {});
-      } catch (_) {}
-      if (editor === editors[editors.length - 1]) {
-        return { ok: false, error: (e.message || 'Interactive rebase failed') + '. Ensure Cursor or VS Code is in PATH with --wait support.' };
-      }
-    }
-  }
-  return { ok: false, error: 'Interactive rebase failed. Ensure Cursor or VS Code is in PATH.' };
-}
-
-async function gitRebaseContinue(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['rebase', '--continue']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Rebase continue failed' };
-  }
-}
-
-async function gitRebaseSkip(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['rebase', '--skip']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Rebase skip failed' };
-  }
-}
-
-async function gitMergeContinue(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['merge', '--continue']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Merge continue failed' };
-  }
-}
-
-// ---------- Phase 4: Remotes, cherry-pick, reset, compare ----------
-async function getRemotes(dirPath) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['remote', '-v']);
-    const remotes = parseRemotesLib(out.stdout || '');
-    return { ok: true, remotes };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to list remotes', remotes: [] };
-  }
-}
-
-async function addRemote(dirPath, name, url) {
-  const n = (name || '').trim();
-  const u = (url || '').trim();
-  if (!n || !u) return { ok: false, error: 'Name and URL required' };
-  try {
-    await runInDir(dirPath, 'git', ['remote', 'add', n, u]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Add remote failed' };
-  }
-}
-
-async function removeRemote(dirPath, name) {
-  const n = (name || '').trim();
-  if (!n) return { ok: false, error: 'Remote name required' };
-  try {
-    await runInDir(dirPath, 'git', ['remote', 'remove', n]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Remove remote failed' };
-  }
-}
-
-/** Rename a remote (e.g. origin → upstream). */
-async function renameRemote(dirPath, oldName, newName) {
-  const oldN = (oldName || '').trim();
-  const newN = (newName || '').trim();
-  if (!oldN || !newN) return { ok: false, error: 'Current name and new name required' };
-  if (oldN === newN) return { ok: true };
-  try {
-    await runInDir(dirPath, 'git', ['remote', 'rename', oldN, newN]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Rename remote failed' };
-  }
-}
-
-/** Change a remote's URL (e.g. point origin to a different repo). */
-async function setRemoteUrl(dirPath, name, url) {
-  const n = (name || '').trim();
-  const u = (url || '').trim();
-  if (!n || !u) return { ok: false, error: 'Remote name and URL required' };
-  try {
-    await runInDir(dirPath, 'git', ['remote', 'set-url', n, u]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Set URL failed' };
-  }
-}
-
-async function gitCherryPick(dirPath, sha) {
-  const s = (sha || '').trim();
-  if (!s) return { ok: false, error: 'Commit SHA required' };
-  try {
-    await runInDir(dirPath, 'git', ['cherry-pick', s]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Cherry-pick failed' };
-  }
-}
-
-async function gitCherryPickAbort(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['cherry-pick', '--abort']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Cherry-pick abort failed' };
-  }
-}
-
-async function gitCherryPickContinue(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['cherry-pick', '--continue']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Cherry-pick continue failed' };
-  }
-}
-
-async function gitReset(dirPath, ref, mode) {
-  const r = (ref || 'HEAD').trim();
-  const m = mode === 'soft' || mode === 'mixed' || mode === 'hard' ? mode : 'mixed';
-  try {
-    await runInDir(dirPath, 'git', ['reset', `--${m}`, r]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Reset failed' };
-  }
-}
-
-/** Get full SHA for a ref (branch, tag, or commit). For "Copy commit SHA" in branch menu. */
-async function getBranchRevision(dirPath, ref) {
-  const r = (ref || 'HEAD').trim();
-  if (!r) return { ok: false, error: 'Ref required', sha: '' };
-  try {
-    const out = await runInDir(dirPath, 'git', ['rev-parse', r]);
-    const sha = (out.stdout || '').trim();
-    return { ok: true, sha };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Rev-parse failed', sha: '' };
-  }
-}
-
-/** Set branch upstream to origin/<branch>. For "Set Upstream" in branch context menu. */
-async function setBranchUpstream(dirPath, branchName) {
-  const branch = (branchName || '').trim();
-  if (!branch) return { ok: false, error: 'Branch name required' };
-  try {
-    await runInDir(dirPath, 'git', ['branch', '--set-upstream-to=origin/' + branch, branch]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Set upstream failed' };
-  }
-}
-
-/** Diff summary between two refs: { files: string[], stats: string }. */
-async function getDiffBetween(dirPath, refA, refB) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['diff', '--stat', refA, refB]);
-    const stats = (out.stdout || '').trim();
-    const nameOut = await runInDir(dirPath, 'git', ['diff', '--name-only', refA, refB]);
-    const files = (nameOut.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    return { ok: true, files, stats };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Diff failed', files: [], stats: '' };
-  }
-}
-
-/** Full diff text between two refs (for modal). */
-async function getDiffBetweenFull(dirPath, refA, refB) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['diff', '--no-color', refA, refB]);
-    return { ok: true, diff: (out.stdout || '').trim() };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Diff failed', diff: '' };
-  }
-}
-
-/**
- * Parse unified diff output for a single file into aligned rows for side-by-side view.
- * Each row: { oldLineNum, newLineNum, oldContent, newContent, type: 'context'|'add'|'remove' }.
- */
-function parseUnifiedDiffToRows(diffText) {
-  const rows = [];
-  const lines = (diffText || '').split(/\r?\n/);
-  let oldLine = 0;
-  let newLine = 0;
-  let inHunk = false;
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-    if (hunkMatch) {
-      oldLine = parseInt(hunkMatch[1], 10);
-      newLine = parseInt(hunkMatch[3], 10);
-      inHunk = true;
-      continue;
-    }
-    if (!inHunk) continue;
-    const first = line.charAt(0);
-    const content = first === '-' || first === '+' || first === ' ' ? line.slice(1) : line;
-    if (first === '-') {
-      rows.push({ oldLineNum: oldLine, newLineNum: null, oldContent: content, newContent: null, type: 'remove' });
-      oldLine++;
-    } else if (first === '+') {
-      rows.push({ oldLineNum: null, newLineNum: newLine, oldContent: null, newContent: content, type: 'add' });
-      newLine++;
-    } else {
-      rows.push({ oldLineNum: oldLine, newLineNum: newLine, oldContent: content, newContent: content, type: 'context' });
-      oldLine++;
-      newLine++;
-    }
-  }
-  return rows;
-}
-
-/**
- * Get structured diff for one file: aligned rows for side-by-side view.
- * options: { commitSha?: string, staged?: boolean }
- *   - commitSha: diff is commit vs parent.
- *   - staged === true: index vs HEAD (staged changes only).
- *   - staged === false: working tree vs index (unstaged changes only).
- *   - staged undefined: working tree vs HEAD, then fallback to --cached if empty.
- */
-async function getFileDiffStructured(dirPath, filePath, options = {}) {
-  try {
-    let diff = '';
-    if (options.commitSha) {
-      const out = await runInDir(dirPath, 'git', ['show', '--no-color', options.commitSha, '--', filePath]).catch(() => ({ stdout: '' }));
-      diff = (out.stdout || '').trim();
-    } else if (options.staged === true) {
-      const result = await runInDirCapture(dirPath, 'git', ['diff', '--cached', 'HEAD', '--', filePath]);
-      diff = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
-    } else if (options.staged === false) {
-      const result = await runInDirCapture(dirPath, 'git', ['diff', '--', filePath]);
-      diff = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
-    } else {
-      const result = await runInDirCapture(dirPath, 'git', ['diff', 'HEAD', '--', filePath]);
-      diff = [result.stdout, result.stderr].filter(Boolean).join('\n').trim();
-      if (!diff) {
-        const resultCached = await runInDirCapture(dirPath, 'git', ['diff', '--cached', 'HEAD', '--', filePath]);
-        diff = [resultCached.stdout, resultCached.stderr].filter(Boolean).join('\n').trim();
-      }
-    }
-    if (diff) {
-      const rows = parseUnifiedDiffToRows(diff);
-      return { ok: true, filePath, rows, diff };
-    }
-    if (!options.commitSha) {
-      const fullPath = path.join(dirPath, filePath);
-      if (fs.existsSync(fullPath)) {
-        try {
-          const content = fs.readFileSync(fullPath, 'utf8');
-          const lines = content.split(/\r?\n/);
-          const rows = lines.map((line, i) => ({
-            oldLineNum: null,
-            newLineNum: i + 1,
-            oldContent: null,
-            newContent: line,
-            type: 'add',
-          }));
-          return { ok: true, filePath, rows, diff: '' };
-        } catch (_) {}
-      }
-    }
-    return { ok: true, filePath, rows: [], diff: '' };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Diff failed', filePath, rows: [] };
-  }
-}
-
-/**
- * Revert a single line in a file (working copy): replace or delete line, or insert old line.
- * op: 'replace' | 'delete' | 'insert' — replace line at lineNum with content; delete line at lineNum; insert content before lineNum.
- */
-async function revertFileLine(dirPath, filePath, op, lineNum, content) {
-  const fullPath = path.join(dirPath, filePath);
-  if (!fs.existsSync(fullPath)) return { ok: false, error: 'File not found' };
-  let text = fs.readFileSync(fullPath, 'utf8');
-  const lineEnding = text.includes('\r\n') ? '\r\n' : '\n';
-  const lines = text.split(/\r?\n/);
-  const oneBased = Math.max(1, parseInt(lineNum, 10));
-  const idx = oneBased - 1;
-  if (op === 'delete') {
-    if (idx < 0 || idx >= lines.length) return { ok: false, error: 'Line number out of range' };
-    lines.splice(idx, 1);
-  } else if (op === 'replace') {
-    if (idx < 0 || idx >= lines.length) return { ok: false, error: 'Line number out of range' };
-    lines[idx] = content != null ? content : '';
-  } else if (op === 'insert') {
-    const insertIdx = Math.max(0, Math.min(idx, lines.length));
-    lines.splice(insertIdx, 0, content != null ? content : '');
-  } else {
-    return { ok: false, error: 'Invalid operation' };
-  }
-  fs.writeFileSync(fullPath, lines.join(lineEnding), 'utf8');
-  return { ok: true };
-}
-
-/** Prune remote-tracking branches (remove refs for branches deleted on remote). */
-async function gitPruneRemotes(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['fetch', '--prune']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Prune failed' };
-  }
-}
-
-/** Amend the last commit (optionally with new message). Uses -S if signCommits preference is set. */
-async function gitAmend(dirPath, message) {
-  const sign = getPreference('signCommits');
-  try {
-    const args = ['commit', '--amend'];
-    if (sign) args.push('-S');
-    if (message != null && String(message).trim()) {
-      args.push('-m', String(message).trim());
-      await runInDir(dirPath, 'git', args);
-    } else {
-      args.push('--no-edit');
-      await runInDir(dirPath, 'git', args);
-    }
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Amend failed' };
-  }
-}
-
-/** Get reflog entries (e.g. last 50). */
-async function getReflog(dirPath, n = 50) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['reflog', '-n', String(n), '--format=%h %gD %s']);
-    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    const entries = lines.map((line) => {
-      const match = line.match(/^(\S+)\s+(\S+)\s+(.*)$/);
-      return match ? { sha: match[1], ref: match[2], message: match[3] } : { sha: line.split(/\s/)[0] || '', ref: '', message: line };
-    });
-    return { ok: true, entries };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Reflog failed', entries: [] };
-  }
-}
-
-/** Checkout any ref (SHA, branch, reflog ref like HEAD@{1}). */
-async function checkoutRef(dirPath, ref) {
-  const r = (ref || '').trim();
-  if (!r) return { ok: false, error: 'Ref required' };
-  try {
-    await runInDir(dirPath, 'git', ['checkout', r]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Checkout failed' };
-  }
-}
-
-/** Get blame for a file (first 500 lines of output). */
-async function getBlame(dirPath, filePath) {
-  const f = (filePath || '').trim();
-  if (!f) return { ok: false, error: 'File path required', text: '' };
-  try {
-    const out = await runInDir(dirPath, 'git', ['blame', '-w', '--no-color', '-L', '1,500', '--', f]);
-    return { ok: true, text: (out.stdout || '').trim() };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Blame failed', text: '' };
-  }
-}
-
-/** Delete a tag locally. */
-async function deleteTag(dirPath, tagName) {
-  const t = (tagName || '').trim();
-  if (!t) return { ok: false, error: 'Tag name required' };
-  try {
-    await runInDir(dirPath, 'git', ['tag', '-d', t]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Delete tag failed' };
-  }
-}
-
-/** Push a single tag to remote (default origin). */
-async function pushTag(dirPath, tagName, remoteName = 'origin') {
-  const t = (tagName || '').trim();
-  const r = (remoteName || 'origin').trim();
-  if (!t) return { ok: false, error: 'Tag name required' };
-  try {
-    await runInDir(dirPath, 'git', ['push', r, 'refs/tags/' + t]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Push tag failed' };
-  }
-}
-
-/** Stage a single file (or pathspec). */
-async function stageFile(dirPath, filePath) {
-  const f = (filePath || '').trim();
-  if (!f) return { ok: false, error: 'File path required' };
-  try {
-    await runInDir(dirPath, 'git', ['add', f]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Stage failed' };
-  }
-}
-
-/** Unstage a single file (reset from index). */
-async function unstageFile(dirPath, filePath) {
-  const f = (filePath || '').trim();
-  if (!f) return { ok: false, error: 'File path required' };
-  try {
-    await runInDir(dirPath, 'git', ['reset', 'HEAD', '--', f]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Unstage failed' };
-  }
-}
-
-/** Discard changes in one file (working tree only; not delete). */
-async function discardFile(dirPath, filePath) {
-  const f = (filePath || '').trim();
-  if (!f) return { ok: false, error: 'File path required' };
-  try {
-    await runInDir(dirPath, 'git', ['checkout', '--', f]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Discard file failed' };
-  }
-}
-
-/** Fetch from a specific remote (optional ref). */
-async function gitFetchRemote(dirPath, remoteName, ref) {
-  const remote = (remoteName || 'origin').trim();
-  if (!remote) return { ok: false, error: 'Remote name required' };
-  try {
-    const args = ['fetch', remote];
-    if (ref && String(ref).trim()) args.push(String(ref).trim());
-    await runInDir(dirPath, 'git', args);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Fetch failed' };
-  }
-}
-
-// ---------- Phase 5: Pull rebase, gitignore, submodules ----------
-async function gitPullRebase(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['pull', '--rebase']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Pull (rebase) failed' };
-  }
-}
-
-/** Read .gitignore (first 8KB). */
-async function getGitignore(dirPath) {
-  const p = path.join(dirPath, '.gitignore');
-  try {
-    if (!fs.existsSync(p)) return { ok: true, content: null, path: p };
-    const content = fs.readFileSync(p, 'utf8').slice(0, 8192);
-    return { ok: true, content, path: p };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to read .gitignore', content: null, path: p };
-  }
-}
-
-/** Read .gitattributes (first 8KB). */
-/** Get file content at a ref (e.g. HEAD). Returns { ok, content } or { ok: false, error }. */
-async function getFileAtRef(dirPath, filePath, ref = 'HEAD') {
-  try {
-    const out = await runInDir(dirPath, 'git', ['show', `${ref}:${filePath}`]).catch((e) => ({ stdout: null, stderr: e?.message }));
-    if (out.stdout == null) return { ok: false, error: 'File not at ref or not found', content: '' };
-    return { ok: true, content: out.stdout };
-  } catch (e) {
-    return { ok: false, error: e?.message || 'Failed to read file at ref', content: '' };
-  }
-}
-
-async function getGitattributes(dirPath) {
-  const p = path.join(dirPath, '.gitattributes');
-  try {
-    if (!fs.existsSync(p)) return { ok: true, content: null, path: p };
-    const content = fs.readFileSync(p, 'utf8').slice(0, 8192);
-    return { ok: true, content, path: p };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to read .gitattributes', content: null, path: p };
-  }
-}
-
-/** Write .gitignore content. Creates file if missing. */
-async function writeGitignore(dirPath, content) {
-  const p = path.join(dirPath, '.gitignore');
-  try {
-    fs.writeFileSync(p, typeof content === 'string' ? content : '', 'utf8');
-    return { ok: true, path: p };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to write .gitignore', path: p };
-  }
-}
-
-/**
- * Common paths/files that are typically gitignored. We scan the project root for these
- * and suggest adding them if not already in .gitignore. Based on common templates
- * (e.g. github/gitignore, GitLab, etc.).
- * name: exact dir or file name to look for at top level
- * pattern: the .gitignore pattern to add
- * label: short label for UI
- * category: group for display (Dependencies, Build, Env, etc.)
- */
-const COMMON_IGNORABLES = [
-  { name: 'node_modules', pattern: 'node_modules/', label: 'Node dependencies', category: 'Dependencies' },
-  { name: 'vendor', pattern: 'vendor/', label: 'Composer / PHP deps', category: 'Dependencies' },
-  { name: 'dist', pattern: 'dist/', label: 'Build output (dist)', category: 'Build' },
-  { name: 'build', pattern: 'build/', label: 'Build output (build)', category: 'Build' },
-  { name: 'out', pattern: 'out/', label: 'Build output (out)', category: 'Build' },
-  { name: 'target', pattern: 'target/', label: 'Rust/Cargo build', category: 'Build' },
-  { name: '.next', pattern: '.next/', label: 'Next.js build', category: 'Build' },
-  { name: '.nuxt', pattern: '.nuxt/', label: 'Nuxt build', category: 'Build' },
-  { name: '.output', pattern: '.output/', label: 'Nuxt output', category: 'Build' },
-  { name: '__pycache__', pattern: '__pycache__/', label: 'Python cache', category: 'Build' },
-  { name: '.venv', pattern: '.venv/', label: 'Python venv', category: 'Environment' },
-  { name: 'venv', pattern: 'venv/', label: 'Python venv', category: 'Environment' },
-  { name: '.env', pattern: '.env', label: 'Environment / secrets', category: 'Environment' },
-  { name: '.env.local', pattern: '.env.local', label: 'Local env overrides', category: 'Environment' },
-  { name: '.idea', pattern: '.idea/', label: 'JetBrains IDE', category: 'IDE' },
-  { name: '.vscode', pattern: '.vscode/', label: 'VS Code', category: 'IDE' },
-  { name: '.cache', pattern: '.cache', label: 'Cache directory', category: 'Cache' },
-  { name: '.parcel-cache', pattern: '.parcel-cache/', label: 'Parcel cache', category: 'Cache' },
-  { name: '.vite', pattern: '.vite/', label: 'Vite cache', category: 'Cache' },
-  { name: '.pytest_cache', pattern: '.pytest_cache/', label: 'Pytest cache', category: 'Cache' },
-  { name: '.mypy_cache', pattern: '.mypy_cache/', label: 'mypy cache', category: 'Cache' },
-  { name: 'coverage', pattern: 'coverage/', label: 'Coverage reports', category: 'Test' },
-  { name: 'htmlcov', pattern: 'htmlcov/', label: 'Python coverage html', category: 'Test' },
-  { name: '.nyc_output', pattern: '.nyc_output/', label: 'Istanbul/nyc output', category: 'Test' },
-  { name: '.DS_Store', pattern: '.DS_Store', label: 'macOS folder metadata', category: 'OS' },
-  { name: 'Thumbs.db', pattern: 'Thumbs.db', label: 'Windows thumbnails', category: 'OS' },
-  { name: 'logs', pattern: 'logs/', label: 'Logs directory', category: 'Logs' },
-  { name: 'tmp', pattern: 'tmp/', label: 'Temporary files', category: 'Temp' },
-  { name: 'temp', pattern: 'temp/', label: 'Temporary files', category: 'Temp' },
-];
-
-/** Check if .gitignore content already effectively covers this pattern (exact or broader). */
-function gitignoreCoversPattern(existingLines, pattern) {
-  const normalized = pattern.replace(/\/$/, '');
-  for (const line of existingLines) {
-    const t = line.trim();
-    if (!t || t.startsWith('#')) continue;
-    const lineNorm = t.replace(/\/$/, '');
-    if (lineNorm === normalized || lineNorm === pattern || t === pattern) return true;
-    if (pattern.endsWith('/') && lineNorm === normalized) return true;
-    if (t.includes('*') && normalized.includes(lineNorm.replace(/\*/g, ''))) return true;
-    if (lineNorm.length > 0 && pattern.startsWith(lineNorm)) return true;
-  }
-  return false;
-}
-
-/** Scan project root for common ignorable paths and return suggestions not already in .gitignore. */
-async function scanProjectForGitignore(dirPath) {
-  try {
-    if (!dirPath || !fs.existsSync(dirPath)) return { ok: true, suggestions: [] };
-    let existingContent = '';
-    const gitignorePath = path.join(dirPath, '.gitignore');
-    if (fs.existsSync(gitignorePath)) {
-      existingContent = fs.readFileSync(gitignorePath, 'utf8').slice(0, 8192);
-    }
-    const existingLines = existingContent.split(/\r?\n/);
-    const topLevel = fs.readdirSync(dirPath, { withFileTypes: true });
-    const names = new Set(topLevel.map((d) => d.name));
-
-    const suggestions = [];
-    for (const entry of COMMON_IGNORABLES) {
-      if (!names.has(entry.name)) continue;
-      if (gitignoreCoversPattern(existingLines, entry.pattern)) continue;
-      suggestions.push({
-        pattern: entry.pattern,
-        label: entry.label,
-        category: entry.category,
-      });
-    }
-    return { ok: true, suggestions };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Scan failed', suggestions: [] };
-  }
-}
-
-/** Write .gitattributes content. Creates file if missing. */
-async function writeGitattributes(dirPath, content) {
-  const p = path.join(dirPath, '.gitattributes');
-  try {
-    fs.writeFileSync(p, typeof content === 'string' ? content : '', 'utf8');
-    return { ok: true, path: p };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to write .gitattributes', path: p };
-  }
-}
-
-/** Create a test file in the project for testing git actions (stage, diff, discard, etc.). */
-async function createTestFile(dirPath, relativePath, content) {
-  const body = (content && typeof content === 'string') ? content : `Test file created at ${new Date().toISOString()}\n`;
-  let name;
-  if (relativePath && typeof relativePath === 'string' && relativePath.trim()) {
-    name = relativePath.trim();
-  } else {
-    const base = 'test-file';
-    const ext = '.txt';
-    name = `${base}${ext}`;
-    const resolvedDir = path.resolve(dirPath);
-    for (let n = 2; fs.existsSync(path.join(resolvedDir, name)); n++) {
-      name = `${base}-${n}${ext}`;
-    }
-  }
-  const fullPath = path.join(dirPath, name);
-  try {
-    fs.writeFileSync(fullPath, body, 'utf8');
-    return { ok: true, path: fullPath, relativePath: name };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to create file', path: fullPath };
-  }
-}
-
-/** List submodules: [{ path, url, sha }]. */
-async function getSubmodules(dirPath) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['submodule', 'status']);
-    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    const subs = [];
-    for (const line of lines) {
-      const match = line.match(/^[\s\-+]?([a-f0-9]+)\s+(\S+)(?:\s+\([^)]*\))?$/);
-      if (match) {
-        const sha = match[1];
-        const subPath = match[2];
-        let url = '';
-        try {
-          const cfg = await runInDir(dirPath, 'git', ['config', '--get', `submodule.${subPath}.url`]);
-          url = (cfg.stdout || '').trim();
-        } catch (_) {}
-        subs.push({ path: subPath, url, sha });
-      }
-    }
-    return { ok: true, submodules: subs };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to list submodules', submodules: [] };
-  }
-}
-
-async function submoduleUpdate(dirPath, init = true) {
-  try {
-    const args = init ? ['submodule', 'update', '--init', '--recursive'] : ['submodule', 'update', '--recursive'];
-    await runInDir(dirPath, 'git', args);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Submodule update failed' };
-  }
-}
-
-/** Detect rebase/cherry-pick/merge state for showing Abort buttons. */
-async function getGitState(dirPath) {
-  const gitDir = path.join(dirPath, '.git');
-  const rebasing = fs.existsSync(path.join(gitDir, 'rebase-merge')) || fs.existsSync(path.join(gitDir, 'rebase-apply'));
-  const cherryPicking = fs.existsSync(path.join(gitDir, 'sequencer'));
-  const merging = fs.existsSync(path.join(gitDir, 'MERGE_HEAD'));
-  return { ok: true, rebasing, cherryPicking, merging };
-}
-
-/** Get configured git user (committer) for the repo: user.name and user.email. */
-async function getGitUser(dirPath) {
-  try {
-    const [nameOut, emailOut] = await Promise.all([
-      runInDir(dirPath, 'git', ['config', '--get', 'user.name']).catch(() => ({ stdout: '' })),
-      runInDir(dirPath, 'git', ['config', '--get', 'user.email']).catch(() => ({ stdout: '' })),
-    ]);
-    const name = (nameOut.stdout || '').trim();
-    const email = (emailOut.stdout || '').trim();
-    return { ok: true, name, email };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to get git user', name: '', email: '' };
-  }
-}
-
-/** List worktrees: [{ path, head, branch }]. */
-async function getWorktrees(dirPath) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['worktree', 'list', '--porcelain']);
-    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    const worktrees = [];
-    let current = {};
-    for (const line of lines) {
-      if (line.startsWith('worktree ')) {
-        if (current.path) worktrees.push(current);
-        current = { path: line.slice(9).trim(), head: '', branch: '' };
-      } else if (line.startsWith('HEAD ')) current.head = line.slice(5).trim();
-      else if (line.startsWith('branch ')) current.branch = line.slice(7).trim().replace(/^refs\/heads\//, '');
-    }
-    if (current.path) worktrees.push(current);
-    return { ok: true, worktrees };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Worktree list failed', worktrees: [] };
-  }
-}
-
-/** Add a linked worktree. */
-async function worktreeAdd(dirPath, worktreePath, branch) {
-  const wt = (worktreePath || '').trim();
-  if (!wt) return { ok: false, error: 'Worktree path required' };
-  try {
-    const args = ['worktree', 'add', path.isAbsolute(wt) ? wt : path.join(path.dirname(dirPath), wt)];
-    if (branch && String(branch).trim()) args.push('-b', String(branch).trim());
-    await runInDir(dirPath, 'git', args);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Worktree add failed' };
-  }
-}
-
-/** Remove a worktree (must be clean and not current). */
-async function worktreeRemove(dirPath, worktreePath) {
-  const wt = (worktreePath || '').trim();
-  if (!wt) return { ok: false, error: 'Worktree path required' };
-  try {
-    await runInDir(dirPath, 'git', ['worktree', 'remove', wt]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Worktree remove failed' };
-  }
-}
-
-/** Get bisect status: { active, current, currentSha, good, bad, remaining, raw }. */
-async function getBisectStatus(dirPath) {
-  try {
-    const out = await runInDir(dirPath, 'git', ['bisect', 'status']);
-    const text = (out.stdout || '').trim();
-    const active = text.includes('bisecting');
-    let current = '';
-    let currentSha = '';
-    let good = '';
-    let bad = '';
-    let remaining = '';
-    const currentMatch = text.match(/Currently at: ([^\n]+)/);
-    if (currentMatch) {
-      current = currentMatch[1].trim();
-      const shaMatch = current.match(/^([0-9a-f]{7,40})/i);
-      if (shaMatch) currentSha = shaMatch[1];
-    }
-    const goodMatch = text.match(/between ([^\n]+) and/);
-    if (goodMatch) good = goodMatch[1].trim();
-    const badMatch = text.match(/and ([^\n\s]+)/);
-    if (badMatch) bad = badMatch[1].trim();
-    const remMatch = text.match(/(\d+) revisions left/);
-    if (remMatch) remaining = remMatch[1];
-    return { ok: true, active, current, currentSha, good, bad, remaining, raw: text };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Bisect status failed', active: false, raw: '' };
-  }
-}
-
-async function bisectStart(dirPath, badRef, goodRef) {
-  const bad = (badRef || 'HEAD').trim();
-  const good = (goodRef || '').trim();
-  try {
-    const args = ['bisect', 'start'];
-    await runInDir(dirPath, 'git', args);
-    await runInDir(dirPath, 'git', ['bisect', 'bad', bad]);
-    if (good) await runInDir(dirPath, 'git', ['bisect', 'good', good]);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Bisect start failed' };
-  }
-}
-
-async function bisectGood(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['bisect', 'good']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Bisect good failed' };
-  }
-}
-
-async function bisectBad(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['bisect', 'bad']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Bisect bad failed' };
-  }
-}
-
-async function bisectSkip(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['bisect', 'skip']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Bisect skip failed' };
-  }
-}
-
-/** Run automated bisect: git bisect run <cmd...>. commandArgs e.g. ['npm', 'run', 'test']. Exit 0 = good, non-zero = bad. */
-async function bisectRun(dirPath, commandArgs) {
-  const args = Array.isArray(commandArgs) && commandArgs.length > 0 ? commandArgs : ['true'];
-  const result = await runInDirCapture(dirPath, 'git', ['bisect', 'run', ...args]);
-  return { ok: true, exitCode: result.exitCode, stdout: result.stdout, stderr: result.stderr };
-}
-
-async function bisectReset(dirPath) {
-  try {
-    await runInDir(dirPath, 'git', ['bisect', 'reset']);
-    return { ok: true };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Bisect reset failed' };
-  }
-}
-
-/** Returns commit subject lines since the given tag (or last 30 commits if no tag). */
-async function getCommitsSinceTag(dirPath, sinceTag) {
-  try {
-    const args = sinceTag
-      ? ['log', sinceTag + '..HEAD', '--pretty=format:%s', '--no-merges']
-      : ['log', '-n', '30', '--pretty=format:%s', '--no-merges'];
-    const out = await runInDir(dirPath, 'git', args);
-    const lines = (out.stdout || '').trim().split(/\r?\n/).filter(Boolean);
-    return { ok: true, commits: lines };
-  } catch (e) {
-    return { ok: false, error: e.message || 'git log failed', commits: [] };
-  }
-}
-
-/** Get the one-line commit subject at the given ref (default HEAD). */
-async function getCommitSubject(dirPath, ref) {
-  const r = (ref || 'HEAD').trim();
-  try {
-    const out = await runInDir(dirPath, 'git', ['log', '-1', '--pretty=format:%s', r]);
-    return { ok: true, subject: (out.stdout || '').trim() };
-  } catch (e) {
-    return { ok: false, error: e.message || 'Failed to get commit', subject: '' };
-  }
-}
-
-async function getRecentCommits(dirPath, n = 10) {
-  return getRecentCommitsLib(runInDir, dirPath, n);
-}
-
-async function getGitDiffForCommit(dirPath) {
-  return getGitDiffForCommitLib(runInDir, dirPath);
-}
 
 const GITHUB_API_USER_AGENT = 'Release-Manager-Electron/1.0';
 
@@ -2595,54 +633,50 @@ function createWindow() {
   }
   win.on('move', scheduleSaveBounds);
   win.on('resize', scheduleSaveBounds);
-  win.on('close', () => {
+  appSettings.setMainWindowRef(win);
+  win.on('close', (e) => {
+    if (appSettings.handleWindowClose(win)) {
+      e.preventDefault();
+      return;
+    }
     if (saveBoundsTimeout) clearTimeout(saveBoundsTimeout);
     saveWindowBounds(win);
   });
+  const alwaysOnTop = getPreference('alwaysOnTop');
+  if (!!alwaysOnTop) win.setAlwaysOnTop(true);
 
   win.webContents.on('did-finish-load', () => {
     win.webContents.send('rm-theme', getEffectiveTheme());
+    const zoom = getPreference('appearanceZoomFactor');
+    if (typeof zoom === 'number' && zoom > 0) win.webContents.setZoomFactor(zoom);
+    else win.webContents.setZoomFactor(1);
     if (process.env.NODE_ENV === 'development') {
       win.webContents.openDevTools({ mode: 'detach' });
     }
   });
 }
 
-/** State for terminal popout windows: webContentsId -> { dirPath } */
-const terminalPopoutStateByWebContentsId = new Map();
-
 function createTerminalPopoutWindow(dirPath) {
-  const win = new BrowserWindow({
-    width: 900,
-    height: 560,
-    minWidth: 400,
-    minHeight: 300,
-    icon: fs.existsSync(iconPath) ? iconPath : undefined,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      nodeIntegration: false,
-    },
-    title: 'Terminal',
-  });
-  const state = { dirPath: dirPath || '' };
-  win.webContents.once('did-start-loading', () => {
-    terminalPopoutStateByWebContentsId.set(win.webContents.id, state);
-  });
-  win.on('closed', () => {
-    terminalPopoutStateByWebContentsId.delete(win.webContents.id);
-  });
+  const iconPath = path.join(__dirname, '..', 'assets', 'icons', 'icon.png');
   const indexPath = path.join(__dirname, '..', 'dist-renderer', 'index.html');
-  const fileUrl = pathToFileURL(indexPath).href + '#terminal-popout';
-  win.loadURL(fileUrl);
-  win.once('ready-to-show', () => win.show());
-  win.webContents.on('did-finish-load', () => {
-    win.webContents.send('rm-theme', getEffectiveTheme());
+  const preloadPath = path.join(__dirname, 'preload.js');
+  terminalService.createTerminalPopoutWindow(dirPath, {
+    BrowserWindow,
+    path,
+    fs,
+    getEffectiveTheme,
+    iconPath,
+    indexPath,
+    preloadPath,
+    state: terminalPopoutState,
+    getPreference,
   });
 }
 
 app.whenReady().then(() => {
   store = new Store({ name: 'release-manager' });
+  appSettings.init(getStore, getPreference, setPreference);
+  appSettings.applyProxy();
   // One-time migration from old JSON config so projects survive rebuilds
   const oldConfigPath = path.join(app.getPath('userData'), 'shipwell-config.json');
   if (fs.existsSync(oldConfigPath)) {
@@ -2824,11 +858,11 @@ app.whenReady().then(() => {
     },
     runProjectCoverage: async (dirPath, projectType) => runProjectCoverageImpl(dirPath, projectType),
     versionBump: (dirPath, bump) => runVersionBump(dirPath, bump),
-    gitTagAndPush: (dirPath, tagMessage) => gitTagAndPush(dirPath, tagMessage),
+    gitTagAndPush: (dirPath, tagMessage, options) => getGitApi().gitTagAndPush(dirPath, tagMessage, options || {}),
     release: async (dirPath, bump, force, options = {}) => runReleaseImpl(dirPath, bump, force, options),
     getCommitsSinceTag: (dirPath, sinceTag) => getCommitsSinceTag(dirPath, sinceTag),
     getCommitSubject: (dirPath, ref) => getCommitSubject(dirPath, ref),
-    getRecentCommits: (dirPath, n) => getRecentCommits(dirPath, n),
+    getRecentCommits: (dirPath, n) => getGitApi().getRecentCommits(dirPath, n),
     getSuggestedBump: (commits) => suggestBumpFromCommits(commits),
     getShortcutAction: (viewMode, selectedPath, key, metaKey, ctrlKey, inInput) =>
       getShortcutAction(viewMode, selectedPath, key, metaKey, ctrlKey, inInput),
@@ -2878,7 +912,7 @@ app.whenReady().then(() => {
     },
     ollamaListModels: async (baseUrl) => ollamaListModels(baseUrl || getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL),
     ollamaGenerateCommitMessage: async (dirPath) => {
-      const diff = await getGitDiffForCommit(dirPath);
+      const diff = await getGitApi().getGitDiffForCommit(dirPath);
       const prompt = buildCommitMessagePrompt(diff);
       return generateWithProvider(prompt);
     },
@@ -2898,94 +932,94 @@ app.whenReady().then(() => {
       const prompt = buildTestFixPrompt(testScriptName, stdout, stderr);
       return generateWithProvider(prompt);
     },
-    getGitStatus: (dirPath) => getGitStatus(dirPath),
-    getTrackedFiles: (dirPath) => getTrackedFiles(dirPath),
-    getProjectFiles: (dirPath) => getProjectFiles(dirPath),
-    gitPull: (dirPath) => gitPull(dirPath),
-    getBranches: (dirPath) => getBranches(dirPath),
-    checkoutBranch: (dirPath, branchName) => checkoutBranch(dirPath, branchName),
-    createBranch: (dirPath, branchName, checkout) => createBranch(dirPath, branchName, checkout !== false),
-    createBranchFrom: (dirPath, newBranchName, fromRef) => createBranchFrom(dirPath, newBranchName, fromRef),
-    gitPush: (dirPath) => gitPushWithUpstream(dirPath),
-    gitPushForce: (dirPath, withLease) => gitPushForce(dirPath, !!withLease),
-    gitFetch: (dirPath) => gitFetch(dirPath),
-    gitMerge: (dirPath, branchName, options) => gitMerge(dirPath, branchName, options || {}),
-    gitStashPush: (dirPath, message, options) => gitStashPush(dirPath, message, options || {}),
-    commitChanges: (dirPath, message, options) => gitCommit(dirPath, message, options || {}),
-    gitStashPop: (dirPath) => gitStashPop(dirPath),
-    gitDiscardChanges: (dirPath) => gitDiscardChanges(dirPath),
-    gitMergeAbort: (dirPath) => gitMergeAbort(dirPath),
-    getRemoteBranches: (dirPath) => getRemoteBranches(dirPath),
-    checkoutRemoteBranch: (dirPath, ref) => checkoutRemoteBranch(dirPath, ref),
-    getStashList: (dirPath) => getStashList(dirPath),
-    stashApply: (dirPath, index) => stashApply(dirPath, index),
-    stashDrop: (dirPath, index) => stashDrop(dirPath, index),
-    getTags: (dirPath) => getTags(dirPath),
-    checkoutTag: (dirPath, tagName) => checkoutTag(dirPath, tagName),
-    getCommitLog: (dirPath, n) => getCommitLog(dirPath, n),
-    getCommitLogWithBody: (dirPath, n) => getCommitLogWithBody(dirPath, n),
-    getCommitDetail: (dirPath, sha) => getCommitDetail(dirPath, sha),
-    deleteBranch: (dirPath, branchName, force) => deleteBranch(dirPath, branchName, force),
-    deleteRemoteBranch: (dirPath, remoteName, branchName) => deleteRemoteBranch(dirPath, remoteName, branchName),
-    gitRebase: (dirPath, ontoBranch) => gitRebase(dirPath, ontoBranch),
-    gitRebaseAbort: (dirPath) => gitRebaseAbort(dirPath),
-    gitRebaseContinue: (dirPath) => gitRebaseContinue(dirPath),
-    gitRebaseSkip: (dirPath) => gitRebaseSkip(dirPath),
-    gitMergeContinue: (dirPath) => gitMergeContinue(dirPath),
-    getRemotes: (dirPath) => getRemotes(dirPath),
-    addRemote: (dirPath, name, url) => addRemote(dirPath, name, url),
-    removeRemote: (dirPath, name) => removeRemote(dirPath, name),
-    renameRemote: (dirPath, oldName, newName) => renameRemote(dirPath, oldName, newName),
-    setRemoteUrl: (dirPath, name, url) => setRemoteUrl(dirPath, name, url),
-    gitCherryPick: (dirPath, sha) => gitCherryPick(dirPath, sha),
-    gitCherryPickAbort: (dirPath) => gitCherryPickAbort(dirPath),
-    gitCherryPickContinue: (dirPath) => gitCherryPickContinue(dirPath),
-    renameBranch: (dirPath, oldName, newName) => renameBranch(dirPath, oldName, newName),
-    createTag: (dirPath, tagName, message, ref) => createTag(dirPath, tagName, message, ref),
-    gitInit: (dirPath) => gitInit(dirPath),
-    writeGitignore: (dirPath, content) => writeGitignore(dirPath, content),
-    writeGitattributes: (dirPath, content) => writeGitattributes(dirPath, content),
+    getGitStatus: (dirPath) => getGitApi().getGitStatus(dirPath),
+    getTrackedFiles: (dirPath) => getGitApi().getTrackedFiles(dirPath),
+    getProjectFiles: (dirPath) => getGitApi().getProjectFiles(dirPath),
+    gitPull: (dirPath) => getGitApi().gitPull(dirPath),
+    getBranches: (dirPath) => getGitApi().getBranches(dirPath),
+    checkoutBranch: (dirPath, branchName) => getGitApi().checkoutBranch(dirPath, branchName),
+    createBranch: (dirPath, branchName, checkout) => getGitApi().createBranch(dirPath, branchName, checkout !== false),
+    createBranchFrom: (dirPath, newBranchName, fromRef) => getGitApi().createBranchFrom(dirPath, newBranchName, fromRef),
+    gitPush: (dirPath) => getGitApi().gitPushWithUpstream(dirPath),
+    gitPushForce: (dirPath, withLease) => getGitApi().gitPushForce(dirPath, !!withLease),
+    gitFetch: (dirPath) => getGitApi().gitFetch(dirPath),
+    gitMerge: (dirPath, branchName, options) => getGitApi().gitMerge(dirPath, branchName, options || {}),
+    gitStashPush: (dirPath, message, options) => getGitApi().gitStashPush(dirPath, message, options || {}),
+    commitChanges: (dirPath, message, options) => getGitApi().gitCommit(dirPath, message, options || {}),
+    gitStashPop: (dirPath) => getGitApi().gitStashPop(dirPath),
+    gitDiscardChanges: (dirPath) => getGitApi().gitDiscardChanges(dirPath),
+    gitMergeAbort: (dirPath) => getGitApi().gitMergeAbort(dirPath),
+    getRemoteBranches: (dirPath) => getGitApi().getRemoteBranches(dirPath),
+    checkoutRemoteBranch: (dirPath, ref) => getGitApi().checkoutRemoteBranch(dirPath, ref),
+    getStashList: (dirPath) => getGitApi().getStashList(dirPath),
+    stashApply: (dirPath, index) => getGitApi().stashApply(dirPath, index),
+    stashDrop: (dirPath, index) => getGitApi().stashDrop(dirPath, index),
+    getTags: (dirPath) => getGitApi().getTags(dirPath),
+    checkoutTag: (dirPath, tagName) => getGitApi().checkoutTag(dirPath, tagName),
+    getCommitLog: (dirPath, n) => getGitApi().getCommitLog(dirPath, n),
+    getCommitLogWithBody: (dirPath, n) => getGitApi().getCommitLogWithBody(dirPath, n),
+    getCommitDetail: (dirPath, sha) => getGitApi().getCommitDetail(dirPath, sha),
+    deleteBranch: (dirPath, branchName, force) => getGitApi().deleteBranch(dirPath, branchName, force),
+    deleteRemoteBranch: (dirPath, remoteName, branchName) => getGitApi().deleteRemoteBranch(dirPath, remoteName, branchName),
+    gitRebase: (dirPath, ontoBranch) => getGitApi().gitRebase(dirPath, ontoBranch),
+    gitRebaseAbort: (dirPath) => getGitApi().gitRebaseAbort(dirPath),
+    gitRebaseContinue: (dirPath) => getGitApi().gitRebaseContinue(dirPath),
+    gitRebaseSkip: (dirPath) => getGitApi().gitRebaseSkip(dirPath),
+    gitMergeContinue: (dirPath) => getGitApi().gitMergeContinue(dirPath),
+    getRemotes: (dirPath) => getGitApi().getRemotes(dirPath),
+    addRemote: (dirPath, name, url) => getGitApi().addRemote(dirPath, name, url),
+    removeRemote: (dirPath, name) => getGitApi().removeRemote(dirPath, name),
+    renameRemote: (dirPath, oldName, newName) => getGitApi().renameRemote(dirPath, oldName, newName),
+    setRemoteUrl: (dirPath, name, url) => getGitApi().setRemoteUrl(dirPath, name, url),
+    gitCherryPick: (dirPath, sha) => getGitApi().gitCherryPick(dirPath, sha),
+    gitCherryPickAbort: (dirPath) => getGitApi().gitCherryPickAbort(dirPath),
+    gitCherryPickContinue: (dirPath) => getGitApi().gitCherryPickContinue(dirPath),
+    renameBranch: (dirPath, oldName, newName) => getGitApi().renameBranch(dirPath, oldName, newName),
+    createTag: (dirPath, tagName, message, ref) => getGitApi().createTag(dirPath, tagName, message, ref),
+    gitInit: (dirPath) => getGitApi().gitInit(dirPath),
+    writeGitignore: (dirPath, content) => getGitApi().writeGitignore(dirPath, content),
+    writeGitattributes: (dirPath, content) => getGitApi().writeGitattributes(dirPath, content),
     createTestFile: (dirPath, relativePath, content) => createTestFile(dirPath, relativePath, content),
-    gitRebaseInteractive: (dirPath, ref) => gitRebaseInteractive(dirPath, ref),
-    gitReset: (dirPath, ref, mode) => gitReset(dirPath, ref, mode),
-    getBranchRevision: (dirPath, ref) => getBranchRevision(dirPath, ref),
-    setBranchUpstream: (dirPath, branchName) => setBranchUpstream(dirPath, branchName),
-    getDiffBetween: (dirPath, refA, refB) => getDiffBetween(dirPath, refA, refB),
-    getDiffBetweenFull: (dirPath, refA, refB) => getDiffBetweenFull(dirPath, refA, refB),
-    getFileDiffStructured: (dirPath, filePath, options) => getFileDiffStructured(dirPath, filePath, options),
-    revertFileLine: (dirPath, filePath, op, lineNum, content) => revertFileLine(dirPath, filePath, op, lineNum, content),
-    gitRevert: (dirPath, sha) => gitRevert(dirPath, sha),
-    gitPruneRemotes: (dirPath) => gitPruneRemotes(dirPath),
-    gitAmend: (dirPath, message) => gitAmend(dirPath, message),
-    getReflog: (dirPath, n) => getReflog(dirPath, n),
-    checkoutRef: (dirPath, ref) => checkoutRef(dirPath, ref),
-    getBlame: (dirPath, filePath) => getBlame(dirPath, filePath),
-    deleteTag: (dirPath, tagName) => deleteTag(dirPath, tagName),
-    pushTag: (dirPath, tagName, remoteName) => pushTag(dirPath, tagName, remoteName),
-    stageFile: (dirPath, filePath) => stageFile(dirPath, filePath),
-    unstageFile: (dirPath, filePath) => unstageFile(dirPath, filePath),
-    discardFile: (dirPath, filePath) => discardFile(dirPath, filePath),
-    gitFetchRemote: (dirPath, remoteName, ref) => gitFetchRemote(dirPath, remoteName, ref),
-    gitPullRebase: (dirPath) => gitPullRebase(dirPath),
-    gitPullFFOnly: (dirPath) => gitPullFFOnly(dirPath),
-    getGitignore: (dirPath) => getGitignore(dirPath),
-    scanProjectForGitignore: (dirPath) => scanProjectForGitignore(dirPath),
-    getFileAtRef: (dirPath, filePath, ref) => getFileAtRef(dirPath, filePath, ref),
-    getGitattributes: (dirPath) => getGitattributes(dirPath),
-    getSubmodules: (dirPath) => getSubmodules(dirPath),
-    submoduleUpdate: (dirPath, init) => submoduleUpdate(dirPath, init),
-    getGitState: (dirPath) => getGitState(dirPath),
-    getGitUser: (dirPath) => getGitUser(dirPath),
-    getWorktrees: (dirPath) => getWorktrees(dirPath),
-    worktreeAdd: (dirPath, worktreePath, branch) => worktreeAdd(dirPath, worktreePath, branch),
-    worktreeRemove: (dirPath, worktreePath) => worktreeRemove(dirPath, worktreePath),
-    getBisectStatus: (dirPath) => getBisectStatus(dirPath),
-    bisectStart: (dirPath, badRef, goodRef) => bisectStart(dirPath, badRef, goodRef),
-    bisectGood: (dirPath) => bisectGood(dirPath),
-    bisectBad: (dirPath) => bisectBad(dirPath),
-    bisectSkip: (dirPath) => bisectSkip(dirPath),
-    bisectReset: (dirPath) => bisectReset(dirPath),
-    bisectRun: (dirPath, commandArgs) => bisectRun(dirPath, commandArgs),
+    gitRebaseInteractive: (dirPath, ref) => getGitApi().gitRebaseInteractive(dirPath, ref),
+    gitReset: (dirPath, ref, mode) => getGitApi().gitReset(dirPath, ref, mode),
+    getBranchRevision: (dirPath, ref) => getGitApi().getBranchRevision(dirPath, ref),
+    setBranchUpstream: (dirPath, branchName) => getGitApi().setBranchUpstream(dirPath, branchName),
+    getDiffBetween: (dirPath, refA, refB) => getGitApi().getDiffBetween(dirPath, refA, refB),
+    getDiffBetweenFull: (dirPath, refA, refB) => getGitApi().getDiffBetweenFull(dirPath, refA, refB),
+    getFileDiffStructured: (dirPath, filePath, options) => getGitApi().getFileDiffStructured(dirPath, filePath, options),
+    revertFileLine: (dirPath, filePath, op, lineNum, content) => getGitApi().revertFileLine(dirPath, filePath, op, lineNum, content),
+    gitRevert: (dirPath, sha) => getGitApi().gitRevert(dirPath, sha),
+    gitPruneRemotes: (dirPath) => getGitApi().gitPruneRemotes(dirPath),
+    gitAmend: (dirPath, message) => getGitApi().gitAmend(dirPath, message),
+    getReflog: (dirPath, n) => getGitApi().getReflog(dirPath, n),
+    checkoutRef: (dirPath, ref) => getGitApi().checkoutRef(dirPath, ref),
+    getBlame: (dirPath, filePath) => getGitApi().getBlame(dirPath, filePath),
+    deleteTag: (dirPath, tagName) => getGitApi().deleteTag(dirPath, tagName),
+    pushTag: (dirPath, tagName, remoteName) => getGitApi().pushTag(dirPath, tagName, remoteName),
+    stageFile: (dirPath, filePath) => getGitApi().stageFile(dirPath, filePath),
+    unstageFile: (dirPath, filePath) => getGitApi().unstageFile(dirPath, filePath),
+    discardFile: (dirPath, filePath) => getGitApi().discardFile(dirPath, filePath),
+    gitFetchRemote: (dirPath, remoteName, ref) => getGitApi().gitFetchRemote(dirPath, remoteName, ref),
+    gitPullRebase: (dirPath) => getGitApi().gitPullRebase(dirPath),
+    gitPullFFOnly: (dirPath) => getGitApi().gitPullFFOnly(dirPath),
+    getGitignore: (dirPath) => getGitApi().getGitignore(dirPath),
+    scanProjectForGitignore: (dirPath) => getGitApi().scanProjectForGitignore(dirPath),
+    getFileAtRef: (dirPath, filePath, ref) => getGitApi().getFileAtRef(dirPath, filePath, ref),
+    getGitattributes: (dirPath) => getGitApi().getGitattributes(dirPath),
+    getSubmodules: (dirPath) => getGitApi().getSubmodules(dirPath),
+    submoduleUpdate: (dirPath, init) => getGitApi().submoduleUpdate(dirPath, init),
+    getGitState: (dirPath) => getGitApi().getGitState(dirPath),
+    getGitUser: (dirPath) => getGitApi().getGitUser(dirPath),
+    getWorktrees: (dirPath) => getGitApi().getWorktrees(dirPath),
+    worktreeAdd: (dirPath, worktreePath, branch) => getGitApi().worktreeAdd(dirPath, worktreePath, branch),
+    worktreeRemove: (dirPath, worktreePath) => getGitApi().worktreeRemove(dirPath, worktreePath),
+    getBisectStatus: (dirPath) => getGitApi().getBisectStatus(dirPath),
+    bisectStart: (dirPath, badRef, goodRef) => getGitApi().bisectStart(dirPath, badRef, goodRef),
+    bisectGood: (dirPath) => getGitApi().bisectGood(dirPath),
+    bisectBad: (dirPath) => getGitApi().bisectBad(dirPath),
+    bisectSkip: (dirPath) => getGitApi().bisectSkip(dirPath),
+    bisectReset: (dirPath) => getGitApi().bisectReset(dirPath),
+    bisectRun: (dirPath, commandArgs) => getGitApi().bisectRun(dirPath, commandArgs),
     copyToClipboard: (text) => {
       if (text != null && typeof text === 'string') clipboard.writeText(text);
       return null;
@@ -3001,7 +1035,7 @@ app.whenReady().then(() => {
     getFileDiff: async (dirPath, filePath, isUntracked) => getFileDiffImpl(dirPath, filePath, isUntracked),
     getReleasesUrl: (gitRemote) => getReleasesUrl(gitRemote),
     getPullRequestsUrl: (gitRemote) => getPullRequestsUrl(gitRemote),
-    syncFromRemote: (dirPath) => gitFetch(dirPath),
+    syncFromRemote: (dirPath) => getGitApi().gitFetch(dirPath),
     getGitHubReleases: async (gitRemote, token = null) => {
       const slug = getRepoSlug(gitRemote);
       if (!slug) return { ok: false, error: 'Not a GitHub repo', releases: [] };
@@ -3027,20 +1061,23 @@ app.whenReady().then(() => {
     createPullRequest: async (dirPath, baseBranch, title, body, token = null) => {
       let remoteName;
       try {
-        remoteName = await getPushRemote(dirPath);
+        remoteName = await getGitApi().getPushRemote(dirPath);
       } catch (_) {}
       if (!remoteName) return { ok: false, error: 'No push remote configured' };
-      let remoteUrl;
+      let remoteUrl = null;
       try {
-        const out = await runInDir(dirPath, 'git', ['remote', 'get-url', remoteName]);
-        remoteUrl = (out.stdout || '').trim() || null;
+        const remotesResult = await getGitApi().getRemotes(dirPath);
+        if (remotesResult.ok && remotesResult.remotes) {
+          const r = remotesResult.remotes.find((x) => x.name === remoteName);
+          if (r) remoteUrl = r.url;
+        }
       } catch (_) {}
       const slug = getRepoSlug(remoteUrl);
       if (!slug) return { ok: false, error: 'Not a GitHub repo. Configure a GitHub remote and push branch.' };
-      let headBranch;
+      let headBranch = null;
       try {
-        const out = await runInDir(dirPath, 'git', ['branch', '--show-current']);
-        headBranch = (out.stdout || '').trim();
+        const br = await getGitApi().getBranches(dirPath);
+        if (br.ok) headBranch = br.current;
       } catch (_) {
         return { ok: false, error: 'Could not get current branch' };
       }
@@ -3155,32 +1192,35 @@ app.whenReady().then(() => {
         return Promise.resolve({ ok: false, error: e.message || 'Failed to stop MCP server' });
       }
     },
-    getProcessesConfig: () => getProcessesConfig(),
-    setProcessesConfig: (config) => setProcessesConfig(config),
-    startProcess: (projectPath, processId, name, command) => startProcess(projectPath, processId, name, command),
-    stopProcess: (projectPath, processId) => stopProcess(projectPath, processId),
-    getProcessStatus: () => getProcessStatus(),
-    getProcessOutput: (projectPath, processId, lines) => getProcessOutput(projectPath, processId, lines),
-    startAllProcesses: (projectPath) => startAllProcesses(projectPath),
-    stopAllProcesses: (projectPath) => stopAllProcesses(projectPath),
-    getSuggestedProcesses: (dirPath) => getSuggestedProcesses(dirPath),
-    getEmailSmtpStatus: () => getEmailSmtpStatus(),
-    startEmailSmtpServer: (port) => startEmailSmtpServer(port),
-    stopEmailSmtpServer: () => stopEmailSmtpServer(),
-    getEmails: () => getEmails(),
-    clearEmails: () => clearEmails(),
-    startTunnel: (port, subdomain) => startTunnel(port, subdomain),
-    stopTunnel: (id) => stopTunnel(id),
-    getTunnels: () => getTunnels(),
-    getFtpStatus: () => getFtpStatus(),
-    ftpConnect: (config) => ftpConnect(config),
-    ftpDisconnect: () => ftpDisconnect(),
-    ftpList: (remotePath) => ftpList(remotePath),
-    ftpDownload: (remotePath, localPath) => ftpDownload(remotePath, localPath),
-    ftpUpload: (localPath, remotePath) => ftpUpload(localPath, remotePath),
-    ftpRemove: (remotePath) => ftpRemove(remotePath),
-    showSaveDialog: (options) => showSaveDialog(options),
-    showOpenDialog: (options) => showOpenDialog(options),
+    getProcessesConfig: () => processManager.getProcessesConfig(),
+    setProcessesConfig: (config) => processManager.setProcessesConfig(config),
+    startProcess: (projectPath, processId, name, command) => processManager.startProcess(projectPath, processId, name, command),
+    stopProcess: (projectPath, processId) => processManager.stopProcess(projectPath, processId),
+    getProcessStatus: () => processManager.getProcessStatus(),
+    getProcessOutput: (projectPath, processId, lines) => processManager.getProcessOutput(projectPath, processId, lines),
+    startAllProcesses: (projectPath) => processManager.startAllProcesses(projectPath),
+    stopAllProcesses: (projectPath) => processManager.stopAllProcesses(projectPath),
+    getSuggestedProcesses: (dirPath) => processManager.getSuggestedProcesses(dirPath),
+    getEmailSmtpStatus: () => emailService.getEmailSmtpStatus(),
+    startEmailSmtpServer: (port) => emailService.startEmailSmtpServer(port),
+    stopEmailSmtpServer: () => emailService.stopEmailSmtpServer(),
+    getEmails: () => emailService.getEmails(),
+    clearEmails: () => emailService.clearEmails(),
+    startTunnel: (port, subdomain) => tunnelService.startTunnel(port, subdomain),
+    stopTunnel: (id) => tunnelService.stopTunnel(id),
+    getTunnels: () => tunnelService.getTunnels(),
+    getFtpStatus: () => ftpService.getFtpStatus(),
+    ftpConnect: (config) => ftpService.ftpConnect(config),
+    ftpDisconnect: () => ftpService.ftpDisconnect(),
+    ftpList: (remotePath) => ftpService.ftpList(remotePath),
+    ftpDownload: (remotePath, localPath) => ftpService.ftpDownload(remotePath, localPath),
+    ftpUpload: (localPath, remotePath) => ftpService.ftpUpload(localPath, remotePath),
+    ftpRemove: (remotePath) => ftpService.ftpRemove(remotePath),
+    showSaveDialog: (options) => dialogsService.showSaveDialog(options),
+    showOpenDialog: (options) => dialogsService.showOpenDialog(options),
+    getSshConnections: () => sshManager.getSshConnections(),
+    setSshConnections: (connections) => sshManager.setSshConnections(connections),
+    openSshInTerminal: (connection) => sshManager.openSshInTerminal(connection),
     getChangelog: async () => {
       try {
         const changelogPath = path.join(app.getAppPath(), 'CHANGELOG.md');
@@ -3197,6 +1237,13 @@ app.whenReady().then(() => {
       }
     },
     getPreference: (key) => getPreference(key),
+    getLicenseStatus: () => getLicenseStatus(),
+    setLicenseKey: (key) => setLicenseKey(key),
+    getLicenseServerConfig: () => licenseServer.getConfig(),
+    setLicenseServerConfig: (config) => { licenseServer.setConfig(config); return null; },
+    loginToLicenseServer: (email, password) => licenseServer.login(email, password),
+    logoutFromLicenseServer: () => licenseServer.logout(),
+    getLicenseRemoteSession: () => licenseServer.getRemoteSession(),
     getAvailablePhpVersions: () => getAvailablePhpVersions(),
     getPhpVersionFromRequire: (phpRequire) => parsePhpRequireToVersion(phpRequire),
     setPreference: (key, value) => {
@@ -3207,6 +1254,35 @@ app.whenReady().then(() => {
     setTheme: (theme) => {
       setThemeSetting(theme);
       return null;
+    },
+    getAppZoomFactor: () => getAppZoomFactor(),
+    setAppZoomFactor: (factor) => setAppZoomFactor(factor),
+    getLaunchAtLogin: () => appSettings.getLaunchAtLogin(),
+    setLaunchAtLogin: (open) => appSettings.setLaunchAtLogin(open),
+    getConfirmBeforeQuit: () => appSettings.getConfirmBeforeQuit(),
+    setConfirmBeforeQuit: (value) => appSettings.setConfirmBeforeQuit(value),
+    getProxy: () => appSettings.getProxy(),
+    setProxy: (rules) => appSettings.setProxy(rules),
+    exportSettings: () => appSettings.exportSettings(),
+    importSettings: (json, replace) => appSettings.importSettings(json, replace),
+    resetSettings: () => appSettings.resetSettings(),
+    getAlwaysOnTop: () => appSettings.getAlwaysOnTop(),
+    setAlwaysOnTop: (value) => appSettings.setAlwaysOnTop(value),
+    getMinimizeToTray: () => appSettings.getMinimizeToTray(),
+    setMinimizeToTray: (value) => appSettings.setMinimizeToTray(value),
+    exportSettingsToFile: async () => {
+      const result = appSettings.exportSettings();
+      if (!result.ok) return result;
+      const { canceled, filePath } = await dialogsService.showSaveDialog({ defaultPath: 'shipwell-settings.json', title: 'Export settings' });
+      if (canceled || !filePath) return { ok: false, canceled: true };
+      fs.writeFileSync(filePath, result.data);
+      return { ok: true, filePath };
+    },
+    importSettingsFromFile: async (replace) => {
+      const { canceled, filePaths } = await dialogsService.showOpenDialog({ title: 'Import settings' });
+      if (canceled || !filePaths?.length) return { ok: false, canceled: true };
+      const content = fs.readFileSync(filePaths[0], 'utf8');
+      return appSettings.importSettings(content, !!replace);
     },
     listApiMethods: () => Object.keys(apiRegistry).filter((k) => k !== 'listApiMethods' && k !== 'invokeApi'),
     getApiDocs: () => getApiDocsFromModule(),
@@ -3300,35 +1376,18 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     if (plan.action === 'bump_and_tag') {
       const bumpResult = await runVersionBump(dirPath, plan.bump, 'npm');
       if (!bumpResult.ok) return { ok: false, error: bumpResult.error };
-      const pushResult = await gitTagAndPush(dirPath, plan.tagMessage);
+      const pushResult = await getGitApi().gitTagAndPush(dirPath, plan.tagMessage);
       if (!pushResult.ok) return { ok: false, error: pushResult.error };
       return { ok: true, tag: pushResult.tag, bump: plan.bump };
     }
-    const pushResult = await gitTagAndPush(dirPath, plan.tagMessage, { version: plan.versionForTag });
+    const pushResult = await getGitApi().gitTagAndPush(dirPath, plan.tagMessage, { version: plan.versionForTag });
     if (!pushResult.ok) return { ok: false, error: pushResult.error };
     return { ok: true, tag: pushResult.tag, bump: null };
   }
   function openInTerminalImpl(dirPath) {
-    if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
-    const platform = process.platform;
-    const { spawn: spawnProc } = require('child_process');
-    try {
-      if (platform === 'darwin') {
-        const escaped = dirPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-        const script = `tell application "Terminal" to do script "cd \\"${escaped}\\""`;
-        spawnProc('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
-      } else if (platform === 'win32') {
-        spawnProc('cmd.exe', ['/c', 'start', 'cmd', '/k', 'cd', '/d', dirPath], { detached: true, stdio: 'ignore' });
-      } else {
-        spawnProc('x-terminal-emulator', ['-e', `cd "${dirPath}" && exec $SHELL`], { detached: true, stdio: 'ignore' }).on('error', () => {
-          spawnProc('gnome-terminal', ['--working-directory', dirPath], { detached: true, stdio: 'ignore' });
-        });
-      }
-      return Promise.resolve({ ok: true });
-    } catch (e) {
-      return Promise.resolve({ ok: false, error: e.message });
-    }
+    return terminalService.openInSystemTerminal(dirPath, spawn);
   }
+
   function openInEditorImpl(targetPath) {
     const { spawn: spawnProc } = require('child_process');
     const preferred = getPreference('preferredEditor') || '';
@@ -3375,8 +1434,8 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
         const content = fs.readFileSync(fullPath, 'utf8');
         return { ok: true, type: 'new', content };
       }
-      const result = await runInDirCapture(dirPath, 'git', ['diff', 'HEAD', '--', filePath]);
-      const content = [result.stdout, result.stderr].filter(Boolean).join('\n').trim() || '(no diff)';
+      const diffResult = await getGitApi().getFileDiffRaw(dirPath, filePath);
+      const content = diffResult.ok ? diffResult.diff : '(no diff)';
       return { ok: true, type: 'diff', content };
     } catch (e) {
       return { ok: false, error: e.message || 'Failed to load file' };
@@ -3430,14 +1489,13 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
   ipcMain.handle('rm-get-api-method-doc', (_e, methodName) => getApiMethodDocFromModule(methodName));
 
   // Explicit handler for inline terminal (ensure it is always registered)
-  ipcMain.handle('rm-run-shell-command', (_e, dirPath, command) => runShellCommand(dirPath, command));
+  ipcMain.handle('rm-run-shell-command', (_e, dirPath, command) => terminalService.runShellCommand(dirPath, command, spawn));
   ipcMain.handle('rm-open-terminal-popout', (_e, dirPath) => {
     createTerminalPopoutWindow(dirPath);
     return Promise.resolve();
   });
   ipcMain.handle('rm-get-terminal-popout-state', (e) => {
-    const state = terminalPopoutStateByWebContentsId.get(e.sender.id);
-    return Promise.resolve(state || { dirPath: '' });
+    return Promise.resolve(terminalPopoutState.get(e.sender.id));
   });
   ipcMain.handle('rm-close-terminal-popout-window', (e) => {
     const win = e.sender.getOwnerBrowserWindow();
@@ -3620,19 +1678,57 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-ftp-remove': 'ftpRemove',
     'rm-show-save-dialog': 'showSaveDialog',
     'rm-show-open-dialog': 'showOpenDialog',
+    'rm-get-ssh-connections': 'getSshConnections',
+    'rm-set-ssh-connections': 'setSshConnections',
+    'rm-open-ssh-in-terminal': 'openSshInTerminal',
     'rm-get-changelog': 'getChangelog',
     'rm-get-preference': 'getPreference',
+    'rm-get-license-status': 'getLicenseStatus',
+    'rm-set-license-key': 'setLicenseKey',
+    'rm-get-license-server-config': 'getLicenseServerConfig',
+    'rm-set-license-server-config': 'setLicenseServerConfig',
+    'rm-login-to-license-server': 'loginToLicenseServer',
+    'rm-logout-from-license-server': 'logoutFromLicenseServer',
+    'rm-get-license-remote-session': 'getLicenseRemoteSession',
     'rm-get-available-php-versions': 'getAvailablePhpVersions',
     'rm-parse-php-require': 'getPhpVersionFromRequire',
     'rm-set-preference': 'setPreference',
     'rm-get-theme': 'getTheme',
     'rm-set-theme': 'setTheme',
+    'rm-get-app-zoom-factor': 'getAppZoomFactor',
+    'rm-set-app-zoom-factor': 'setAppZoomFactor',
+    'rm-get-launch-at-login': 'getLaunchAtLogin',
+    'rm-set-launch-at-login': 'setLaunchAtLogin',
+    'rm-get-confirm-before-quit': 'getConfirmBeforeQuit',
+    'rm-set-confirm-before-quit': 'setConfirmBeforeQuit',
+    'rm-get-proxy': 'getProxy',
+    'rm-set-proxy': 'setProxy',
+    'rm-export-settings': 'exportSettings',
+    'rm-import-settings': 'importSettings',
+    'rm-reset-settings': 'resetSettings',
+    'rm-get-always-on-top': 'getAlwaysOnTop',
+    'rm-set-always-on-top': 'setAlwaysOnTop',
+    'rm-get-minimize-to-tray': 'getMinimizeToTray',
+    'rm-set-minimize-to-tray': 'setMinimizeToTray',
+    'rm-export-settings-to-file': 'exportSettingsToFile',
+    'rm-import-settings-from-file': 'importSettingsFromFile',
   };
   for (const [channel, methodName] of Object.entries(IPC_TO_METHOD)) {
     ipcMain.handle(channel, (_e, ...args) => {
       debug.log(getStore, 'ipc', channel, 'args.length=', args?.length ?? 0);
       return apiRegistry[methodName](...args);
     });
+  }
+
+  const cliArgs = getCliArgs();
+  if (cliArgs.length > 0) {
+    runCli(apiRegistry, cliArgs).then((code) => {
+      app.exit(typeof code === 'number' ? code : 0);
+    }).catch((e) => {
+      console.error(e);
+      app.exit(1);
+    });
+    return;
   }
 
   createWindow();
@@ -3647,27 +1743,38 @@ nativeTheme.on('updated', () => {
   }
 });
 
-app.on('before-quit', () => {
+let confirmQuitHandled = false;
+app.on('before-quit', (e) => {
+  if (!confirmQuitHandled && appSettings.getConfirmBeforeQuit()) {
+    e.preventDefault();
+    confirmQuitHandled = true;
+    const w = BrowserWindow.getAllWindows()[0];
+    dialog.showMessageBox(w || null, {
+      type: 'question',
+      buttons: ['Cancel', 'Quit'],
+      defaultId: 1,
+      title: 'Quit Shipwell?',
+      message: 'Are you sure you want to quit?',
+    }).then(({ response }) => {
+      if (response === 1) app.quit();
+      else confirmQuitHandled = false;
+    }).catch(() => { confirmQuitHandled = false; });
+    return;
+  }
   try {
-    for (const [, entry] of runningProcesses) {
-      if (entry?.child && !entry.child.killed) entry.child.kill('SIGTERM');
-    }
-    runningProcesses.clear();
+    processManager.cleanup();
   } catch (_) {}
   try {
-    for (const [, entry] of activeTunnels) {
-      if (entry.tunnel && typeof entry.tunnel.close === 'function') entry.tunnel.close();
-    }
-    activeTunnels.clear();
+    tunnelService.cleanup();
   } catch (_) {}
   try {
-    if (smtpServerInstance) {
-      smtpServerInstance.close();
-      smtpServerInstance = null;
-    }
+    emailService.cleanup();
   } catch (_) {}
   try {
-    ftpDisconnect();
+    ftpService.cleanup();
+  } catch (_) {}
+  try {
+    appSettings.destroyTray();
   } catch (_) {}
   try {
     if (mcpServerProcess != null && !mcpServerProcess.killed) mcpServerProcess.kill('SIGTERM');

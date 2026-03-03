@@ -1,5 +1,5 @@
 <template>
-  <div class="terminal-panel flex flex-col rounded-rm border border-rm-border bg-rm-bg overflow-hidden" :style="{ minHeight: minHeight + 'px' }">
+  <div class="terminal-panel terminal-shape flex flex-col border border-rm-border bg-rm-bg overflow-hidden" :style="{ minHeight: minHeight + 'px' }">
     <div class="terminal-panel-header flex items-center gap-1 border-b border-rm-border bg-rm-surface/80 shrink-0" @click.stop>
       <div class="terminal-tabs flex items-center gap-0 min-w-0 flex-1 overflow-x-auto">
         <button

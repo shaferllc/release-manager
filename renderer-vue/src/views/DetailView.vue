@@ -25,7 +25,7 @@
           :class="store.detailTab === 'coverage' ? 'detail-tab-panels-coverage' : 'flex-1 min-h-0'"
         >
           <template v-if="store.detailTab === 'dashboard'">
-            <DetailDashboardCard :info="info" />
+            <DetailDashboardCard :info="info" :tabs="visibleTabs.filter((t) => t.id !== 'dashboard')" />
           </template>
           <template v-else-if="store.detailTab === 'git'">
             <DetailGitSection :info="info" @refresh="load" />
@@ -60,6 +60,12 @@
           <template v-else-if="store.detailTab === 'tunnels'">
             <DetailTunnelsCard />
           </template>
+          <template v-else-if="store.detailTab === 'ftp'">
+            <DetailFtpCard />
+          </template>
+          <template v-else-if="store.detailTab === 'ssh'">
+            <DetailSshCard />
+          </template>
         </div>
       </div>
     </template>
@@ -71,10 +77,11 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
-import { computed } from 'vue';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useLicense } from '../composables/useLicense';
 import DetailHeader from '../components/detail/DetailHeader.vue';
 import DetailDashboardCard from '../components/detail/DetailDashboardCard.vue';
 import DetailVersionCard from '../components/detail/DetailVersionCard.vue';
@@ -88,11 +95,15 @@ import DetailWordPressCard from '../components/detail/DetailWordPressCard.vue';
 import DetailProcessesCard from '../components/detail/DetailProcessesCard.vue';
 import DetailEmailCard from '../components/detail/DetailEmailCard.vue';
 import DetailTunnelsCard from '../components/detail/DetailTunnelsCard.vue';
+import DetailFtpCard from '../components/detail/DetailFtpCard.vue';
+import DetailSshCard from '../components/detail/DetailSshCard.vue';
 
 defineEmits(['refresh']);
 
 const store = useAppStore();
 const api = useApi();
+const { isTabEnabled } = useFeatureFlags();
+const { isTabAllowed } = useLicense();
 const info = ref(null);
 const error = ref(null);
 
@@ -113,6 +124,8 @@ const tabIcons = {
   processes: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="4" rx="1"/><rect x="2" y="10" width="20" height="4" rx="1"/><rect x="2" y="16" width="20" height="4" rx="1"/></svg>',
   email: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
   tunnels: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/><circle cx="12" cy="12" r="3"/></svg>',
+  ftp: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>',
+  ssh: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/></svg>',
 };
 const baseTabs = [
   { id: 'dashboard', label: 'Dashboard', icon: tabIcons.dashboard },
@@ -122,14 +135,16 @@ const baseTabs = [
   { id: 'processes', label: 'Dev stack', icon: tabIcons.processes },
   { id: 'email', label: 'Email', icon: tabIcons.email },
   { id: 'tunnels', label: 'Tunnels', icon: tabIcons.tunnels },
+  { id: 'ftp', label: 'FTP', icon: tabIcons.ftp },
+  { id: 'ssh', label: 'SSH', icon: tabIcons.ssh },
 ];
 const visibleTabs = computed(() => {
-  const t = [...baseTabs];
-  if (info.value?.hasWordPress) t.push({ id: 'wordpress', label: 'WordPress', icon: tabIcons.wordpress });
-  if (info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: tabIcons.composer });
-  if (showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: tabIcons.tests });
-  if (showCoverageTab.value) t.push({ id: 'coverage', label: 'Coverage', icon: tabIcons.coverage });
-  t.push({ id: 'api', label: 'API', icon: tabIcons.api });
+  const t = baseTabs.filter((tab) => isTabEnabled(tab.id) && isTabAllowed(tab.id));
+  if (isTabEnabled('wordpress') && isTabAllowed('wordpress') && info.value?.hasWordPress) t.push({ id: 'wordpress', label: 'WordPress', icon: tabIcons.wordpress });
+  if (isTabEnabled('composer') && isTabAllowed('composer') && info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: tabIcons.composer });
+  if (isTabEnabled('tests') && isTabAllowed('tests') && showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: tabIcons.tests });
+  if (isTabEnabled('coverage') && isTabAllowed('coverage') && showCoverageTab.value) t.push({ id: 'coverage', label: 'Coverage', icon: tabIcons.coverage });
+  if (isTabEnabled('api') && isTabAllowed('api')) t.push({ id: 'api', label: 'API', icon: tabIcons.api });
   return t;
 });
 

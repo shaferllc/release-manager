@@ -6,6 +6,7 @@
       <Sidebar />
       <section class="main-content-section flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-rm-bg">
         <div class="main-content-scroll flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden">
+        <LicenseUpgradeBanner v-if="store.viewMode !== 'settings'" />
         <NoSelection v-if="store.viewMode === 'detail' && !store.selectedPath" />
         <DetailView v-else-if="store.viewMode === 'detail' && store.selectedPath" @refresh="onModalRefresh" />
         <DashboardView v-else-if="store.viewMode === 'dashboard'" />
@@ -18,13 +19,14 @@
       </section>
     </main>
     <ModalHost @refresh="onModalRefresh" />
+    <FeatureFlagsModal v-if="showFeatureFlagsModal" />
     <LoadingBar />
     <LoadingOverlay />
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, watch, onUnmounted } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
 import { useAppStore } from './stores/app';
 import { useApi } from './composables/useApi';
 import NavBar from './components/NavBar.vue';
@@ -38,13 +40,20 @@ import ChangelogView from './views/ChangelogView.vue';
 import ApiView from './views/ApiView.vue';
 import TerminalPopoutView from './views/TerminalPopoutView.vue';
 import ModalHost from './components/ModalHost.vue';
+import LicenseUpgradeBanner from './components/LicenseUpgradeBanner.vue';
 import LoadingOverlay from './components/LoadingOverlay.vue';
 import LoadingBar from './components/LoadingBar.vue';
 import { useLongActionOverlay } from './composables/useLongActionOverlay';
+import { useFeatureFlags } from './composables/useFeatureFlags';
+import { useLicense } from './composables/useLicense';
 import * as debug from './utils/debug';
 import { toPlainProjects } from './utils/plainProjects';
+import FeatureFlagsModal from './components/modals/FeatureFlagsModal.vue';
 
 const store = useAppStore();
+const featureFlags = useFeatureFlags();
+const license = useLicense();
+const showFeatureFlagsModal = computed(() => !!featureFlags.isModalOpen?.value);
 const api = useApi();
 const isTerminalPopout = ref(typeof window !== 'undefined' && window.location.hash === '#terminal-popout');
 const { runWithOverlay } = useLongActionOverlay();
@@ -112,7 +121,7 @@ async function loadProjects() {
     else if (store.projects.length > 0 && !store.selectedPath) store.setSelectedPath(store.projects[0].path);
     else store.setSelectedPath(null);
     if (savedView && ['detail', 'dashboard', 'settings', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
-    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'wordpress', 'processes', 'email', 'tunnels'];
+    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'wordpress', 'processes', 'email', 'tunnels', 'ftp', 'ssh'];
     if (typeof savedDetailTab === 'string' && validDetailTabs.includes(savedDetailTab)) store.setDetailTab(savedDetailTab);
     if (store.selectedPath) {
       const current = store.projects.find((p) => p.path === store.selectedPath);
@@ -263,10 +272,42 @@ onMounted(async () => {
     debug.setEnabled(debugPref !== false);
     debug.log('app', 'mounted', { debug: debugPref !== false, apiReady: !!(window.releaseManager?.showDirectoryDialog) });
   } catch (_) {}
-  if (!isTerminalPopout.value) loadProjects();
+  if (!isTerminalPopout.value) {
+    featureFlags.loadFlags();
+    license.loadStatus();
+    loadProjects();
+  }
   try {
     const useTabs = await api.getPreference?.('detailUseTabs');
     if (useTabs !== undefined) store.setUseDetailTabs(useTabs !== false);
+  } catch (_) {}
+  try {
+    const [focusOutline, largeCursor, screenReader] = await Promise.all([
+      api.getPreference?.('focusOutlineVisible').catch(() => false),
+      api.getPreference?.('largeCursor').catch(() => false),
+      api.getPreference?.('screenReaderSupport').catch(() => false),
+    ]);
+    const el = document.documentElement;
+    el.setAttribute('data-focus-outline-visible', focusOutline ? 'true' : 'false');
+    el.setAttribute('data-large-cursor', largeCursor ? 'true' : 'false');
+    el.setAttribute('data-screen-reader-support', screenReader ? 'true' : 'false');
+  } catch (_) {}
+  try {
+    const [accent, fontSize, radius, reducedMotion, reduceTransparency, highContrast] = await Promise.all([
+      api.getPreference?.('appearanceAccent').catch(() => 'green'),
+      api.getPreference?.('appearanceFontSize').catch(() => 'comfortable'),
+      api.getPreference?.('appearanceRadius').catch(() => 'rounded'),
+      api.getPreference?.('appearanceReducedMotion').catch(() => false),
+      api.getPreference?.('appearanceReduceTransparency').catch(() => false),
+      api.getPreference?.('appearanceHighContrast').catch(() => false),
+    ]);
+    const el = document.documentElement;
+    if (accent) el.setAttribute('data-accent', accent);
+    if (fontSize) el.setAttribute('data-font-size', fontSize);
+    if (radius) el.setAttribute('data-radius', radius);
+    el.setAttribute('data-reduced-motion', reducedMotion ? 'true' : 'false');
+    el.setAttribute('data-reduce-transparency', reduceTransparency ? 'true' : 'false');
+    el.setAttribute('data-high-contrast', highContrast ? 'true' : 'false');
   } catch (_) {}
   window.addEventListener('keydown', handleShortcut);
 });
