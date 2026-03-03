@@ -127,6 +127,8 @@ import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable
 
 const props = defineProps({
   dirPath: { type: String, default: '' },
+  /** When opening "Create tag here" from branch menu, prefill ref (e.g. branch name). */
+  initialRef: { type: String, default: '' },
 });
 
 const emit = defineEmits(['close', 'created']);
@@ -272,10 +274,14 @@ async function submit() {
 }
 
 watch(() => props.dirPath, (path) => {
-  if (path) tagRef.value = 'HEAD';
+  if (path) tagRef.value = (props.initialRef || '').trim() || 'HEAD';
 });
 
+watch(() => props.initialRef, (r) => {
+  if ((r || '').trim()) tagRef.value = r.trim();
+}, { immediate: true });
+
 onMounted(() => {
-  if (props.dirPath) tagRef.value = 'HEAD';
+  if (props.dirPath) tagRef.value = (props.initialRef || '').trim() || 'HEAD';
 });
 </script>

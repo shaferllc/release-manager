@@ -21,6 +21,7 @@
       :dir-path="modalPayload.dirPath"
       :file-path="modalPayload.filePath"
       :commit-sha="modalPayload.commitSha || ''"
+      :staged="modalPayload.staged"
       :title="modalPayload.title"
       @close="onModalClose"
       @refresh="onModalRefresh"
@@ -61,6 +62,7 @@
     <CreateTagModal
       v-else-if="activeModal === 'createTag' && modalPayload"
       :dir-path="modalPayload.dirPath"
+      :initial-ref="modalPayload.initialRef || ''"
       @close="onModalClose"
       @created="onCreateTagCreated"
     />

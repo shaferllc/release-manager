@@ -478,7 +478,7 @@ async function getGitStatus(dirPath) {
   }
 }
 
-/** List all tracked files (git ls-files). For tree view "View all files". */
+/** List all tracked files (git ls-files). For tree view when not "View all files". */
 async function getTrackedFiles(dirPath) {
   try {
     const out = await runInDir(dirPath, 'git', ['ls-files']);
@@ -487,6 +487,42 @@ async function getTrackedFiles(dirPath) {
   } catch (e) {
     return { ok: false, error: e.message || 'Failed to list files', files: [] };
   }
+}
+
+/** Directories to skip when listing "all project files" (full filesystem tree). */
+const PROJECT_FILES_SKIP_DIRS = new Set([
+  '.git', 'node_modules', 'vendor', '__pycache__', '.pycache', '.next', '.nuxt', '.output',
+  'dist', 'build', 'out', 'coverage', '.turbo', '.cache', '.parcel-cache', '.vite', '.svelte-kit',
+  '.idea', '.vscode', 'tmp', 'temp', '.tmp', '.temp', 'cache', '.cache',
+]);
+
+/** List every file in the project (filesystem walk). Skips .git, node_modules, vendor, dist, etc. */
+function getProjectFiles(dirPath) {
+  const files = [];
+  const base = path.resolve(dirPath);
+  if (!fs.existsSync(base) || !fs.statSync(base).isDirectory()) {
+    return { ok: true, files: [] };
+  }
+  function walk(relDir) {
+    const fullDir = path.join(base, relDir);
+    let entries;
+    try {
+      entries = fs.readdirSync(fullDir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const e of entries) {
+      const relPath = relDir ? `${relDir}/${e.name}` : e.name;
+      if (e.isDirectory()) {
+        if (PROJECT_FILES_SKIP_DIRS.has(e.name)) continue;
+        walk(relPath);
+      } else if (e.isFile()) {
+        files.push(relPath);
+      }
+    }
+  }
+  walk('');
+  return { ok: true, files };
 }
 
 /** options: { sign?: boolean } — if sign true, use -S (uses commit.gpgsign or default key) */
@@ -522,6 +558,16 @@ async function gitPull(dirPath) {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'git pull failed' };
+  }
+}
+
+/** Pull with --ff-only (fail if not fast-forward). */
+async function gitPullFFOnly(dirPath) {
+  try {
+    await runInDir(dirPath, 'git', ['pull', '--ff-only']);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Pull (fast-forward only) failed' };
   }
 }
 
@@ -1068,6 +1114,31 @@ async function gitReset(dirPath, ref, mode) {
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e.message || 'Reset failed' };
+  }
+}
+
+/** Get full SHA for a ref (branch, tag, or commit). For "Copy commit SHA" in branch menu. */
+async function getBranchRevision(dirPath, ref) {
+  const r = (ref || 'HEAD').trim();
+  if (!r) return { ok: false, error: 'Ref required', sha: '' };
+  try {
+    const out = await runInDir(dirPath, 'git', ['rev-parse', r]);
+    const sha = (out.stdout || '').trim();
+    return { ok: true, sha };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Rev-parse failed', sha: '' };
+  }
+}
+
+/** Set branch upstream to origin/<branch>. For "Set Upstream" in branch context menu. */
+async function setBranchUpstream(dirPath, branchName) {
+  const branch = (branchName || '').trim();
+  if (!branch) return { ok: false, error: 'Branch name required' };
+  try {
+    await runInDir(dirPath, 'git', ['branch', '--set-upstream-to=origin/' + branch, branch]);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message || 'Set upstream failed' };
   }
 }
 
@@ -2251,6 +2322,7 @@ app.whenReady().then(() => {
     },
     getGitStatus: (dirPath) => getGitStatus(dirPath),
     getTrackedFiles: (dirPath) => getTrackedFiles(dirPath),
+    getProjectFiles: (dirPath) => getProjectFiles(dirPath),
     gitPull: (dirPath) => gitPull(dirPath),
     getBranches: (dirPath) => getBranches(dirPath),
     checkoutBranch: (dirPath, branchName) => checkoutBranch(dirPath, branchName),
@@ -2298,6 +2370,8 @@ app.whenReady().then(() => {
     createTestFile: (dirPath, relativePath, content) => createTestFile(dirPath, relativePath, content),
     gitRebaseInteractive: (dirPath, ref) => gitRebaseInteractive(dirPath, ref),
     gitReset: (dirPath, ref, mode) => gitReset(dirPath, ref, mode),
+    getBranchRevision: (dirPath, ref) => getBranchRevision(dirPath, ref),
+    setBranchUpstream: (dirPath, branchName) => setBranchUpstream(dirPath, branchName),
     getDiffBetween: (dirPath, refA, refB) => getDiffBetween(dirPath, refA, refB),
     getDiffBetweenFull: (dirPath, refA, refB) => getDiffBetweenFull(dirPath, refA, refB),
     getFileDiffStructured: (dirPath, filePath, options) => getFileDiffStructured(dirPath, filePath, options),
@@ -2315,6 +2389,7 @@ app.whenReady().then(() => {
     discardFile: (dirPath, filePath) => discardFile(dirPath, filePath),
     gitFetchRemote: (dirPath, remoteName, ref) => gitFetchRemote(dirPath, remoteName, ref),
     gitPullRebase: (dirPath) => gitPullRebase(dirPath),
+    gitPullFFOnly: (dirPath) => gitPullFFOnly(dirPath),
     getGitignore: (dirPath) => getGitignore(dirPath),
     scanProjectForGitignore: (dirPath) => scanProjectForGitignore(dirPath),
     getFileAtRef: (dirPath, filePath, ref) => getFileAtRef(dirPath, filePath, ref),
@@ -2809,6 +2884,7 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-ollama-suggest-test-fix': 'ollamaSuggestTestFix',
     'rm-get-git-status': 'getGitStatus',
     'rm-get-tracked-files': 'getTrackedFiles',
+    'rm-get-project-files': 'getProjectFiles',
     'rm-git-pull': 'gitPull',
     'rm-get-branches': 'getBranches',
     'rm-checkout-branch': 'checkoutBranch',
@@ -2856,6 +2932,8 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-create-test-file': 'createTestFile',
     'rm-git-rebase-interactive': 'gitRebaseInteractive',
     'rm-git-reset': 'gitReset',
+    'rm-get-branch-revision': 'getBranchRevision',
+    'rm-set-branch-upstream': 'setBranchUpstream',
     'rm-get-diff-between': 'getDiffBetween',
     'rm-get-diff-between-full': 'getDiffBetweenFull',
     'rm-get-file-diff-structured': 'getFileDiffStructured',
@@ -2873,6 +2951,7 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-discard-file': 'discardFile',
     'rm-git-fetch-remote': 'gitFetchRemote',
     'rm-git-pull-rebase': 'gitPullRebase',
+    'rm-git-pull-ff-only': 'gitPullFFOnly',
     'rm-get-gitignore': 'getGitignore',
     'rm-scan-project-gitignore': 'scanProjectForGitignore',
     'rm-get-file-at-ref': 'getFileAtRef',

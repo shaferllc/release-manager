@@ -97,10 +97,11 @@ const API_DOCS = [
     "hasUntracked": true
   }
 }` },
-  { name: 'getTrackedFiles', category: 'Git', description: 'List all tracked files (git ls-files). Used for working tree "View all files" tree mode.', params: [{ name: 'dirPath', type: 'string', description: 'Project directory' }], returns: '{ ok, files: string[] }', sampleResponse: `{
+  { name: 'getTrackedFiles', category: 'Git', description: 'List all tracked files (git ls-files).', params: [{ name: 'dirPath', type: 'string', description: 'Project directory' }], returns: '{ ok, files: string[] }', sampleResponse: `{
   "ok": true,
   "result": { "ok": true, "files": ["src/main.js", "package.json"] }
 }` },
+  { name: 'getProjectFiles', category: 'Git', description: 'List every file in the project (filesystem walk). Skips .git, node_modules, vendor, dist, etc. Used when "View all files" is checked.', params: [{ name: 'dirPath', type: 'string', description: 'Project directory' }], returns: '{ ok, files: string[] }' },
   { name: 'gitPull', category: 'Git', description: 'Run git pull.', params: [{ name: 'dirPath', type: 'string' }], returns: 'void' },
   { name: 'getBranches', category: 'Git', description: 'List local branch names.', params: [{ name: 'dirPath', type: 'string' }], returns: 'Array of branch names', sampleResponse: `{
   "ok": true,
@@ -157,6 +158,8 @@ const API_DOCS = [
   { name: 'writeGitattributes', category: 'Git', description: 'Overwrite .gitattributes with given content.', params: [{ name: 'dirPath', type: 'string' }, { name: 'content', type: 'string' }], returns: 'void' },
   { name: 'gitRebaseInteractive', category: 'Git', description: 'Start interactive rebase from a ref.', params: [{ name: 'dirPath', type: 'string' }, { name: 'ref', type: 'string' }], returns: 'void' },
   { name: 'gitReset', category: 'Git', description: 'Reset HEAD to a ref. Mode: soft, mixed, hard.', params: [{ name: 'dirPath', type: 'string' }, { name: 'ref', type: 'string' }, { name: 'mode', type: 'string', description: 'soft, mixed, or hard' }], returns: 'void' },
+  { name: 'getBranchRevision', category: 'Git', description: 'Get full SHA for a ref (branch, tag, or commit).', params: [{ name: 'dirPath', type: 'string' }, { name: 'ref', type: 'string' }], returns: '{ ok, sha } | { ok: false, error, sha }' },
+  { name: 'setBranchUpstream', category: 'Git', description: 'Set branch upstream to origin/<branch>.', params: [{ name: 'dirPath', type: 'string' }, { name: 'branchName', type: 'string' }], returns: '{ ok } | { ok: false, error }' },
   { name: 'getDiffBetween', category: 'Git', description: 'Get short diff between two refs.', params: [{ name: 'dirPath', type: 'string' }, { name: 'refA', type: 'string' }, { name: 'refB', type: 'string' }], returns: 'Diff string or object' },
   { name: 'getDiffBetweenFull', category: 'Git', description: 'Get full diff between two refs.', params: [{ name: 'dirPath', type: 'string' }, { name: 'refA', type: 'string' }, { name: 'refB', type: 'string' }], returns: 'Full diff' },
   { name: 'getFileDiffStructured', category: 'Git', description: 'Get structured diff for one file (aligned rows for side-by-side view). Options: { commitSha? } for commit vs parent.', params: [{ name: 'dirPath', type: 'string' }, { name: 'filePath', type: 'string' }, { name: 'options', type: 'object' }], returns: '{ ok, filePath, rows, diff? }' },

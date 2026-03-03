@@ -110,6 +110,8 @@ const props = defineProps({
   dirPath: { type: String, default: '' },
   filePath: { type: String, default: '' },
   commitSha: { type: String, default: '' },
+  /** When set, show staged (index vs HEAD) or unstaged (working tree vs index) diff; undefined = working tree vs HEAD */
+  staged: { type: Boolean, default: undefined },
   title: { type: String, default: '' },
 });
 const emit = defineEmits(['close', 'refresh']);
@@ -120,7 +122,13 @@ const error = ref('');
 const rows = ref([]);
 const revertStatus = ref(null);
 
-const displayTitle = computed(() => props.title || (props.commitSha ? `Diff: ${props.filePath} @ ${props.commitSha.slice(0, 7)}` : `Diff: ${props.filePath}`));
+const displayTitle = computed(() => {
+  if (props.title) return props.title;
+  if (props.commitSha) return `Diff: ${props.filePath} @ ${props.commitSha.slice(0, 7)}`;
+  if (props.staged === true) return `Diff (staged): ${props.filePath}`;
+  if (props.staged === false) return `Diff (unstaged): ${props.filePath}`;
+  return `Diff: ${props.filePath}`;
+});
 
 /** Compute insertBeforeNewLine for remove-only rows so we can offer "Restore". */
 const rowsWithInsert = computed(() => {
@@ -261,7 +269,7 @@ async function load() {
   loading.value = true;
   error.value = '';
   try {
-    const options = props.commitSha ? { commitSha: props.commitSha } : {};
+    const options = props.commitSha ? { commitSha: props.commitSha } : { staged: props.staged };
     const result = await api.getFileDiffStructured?.(props.dirPath, props.filePath, options);
     if (result?.error) {
       error.value = result.error;
@@ -284,7 +292,7 @@ async function load() {
   }
 }
 
-watch(() => [props.dirPath, props.filePath, props.commitSha], load, { immediate: true });
+watch(() => [props.dirPath, props.filePath, props.commitSha, props.staged], load, { immediate: true });
 
 function close() {
   emit('close');

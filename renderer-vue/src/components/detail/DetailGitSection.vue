@@ -540,8 +540,8 @@
               <span class="text-xs font-semibold text-rm-muted uppercase tracking-wide">{{ trackedFilesLoading ? 'Loading…' : (fileCountInTree > 0 ? `${fileCountInTree} file${fileCountInTree === 1 ? '' : 's'}` : 'No files') }}</span>
             </div>
             <div class="px-2 py-1 overflow-y-auto min-h-0 flex-1 text-xs">
-              <p v-if="trackedFilesLoading" class="m-0 py-2 text-rm-muted">Loading tracked files…</p>
-              <p v-else-if="!workingTreeFlatRows.length" class="m-0 py-2 text-rm-muted">No files to show. Uncheck "View all files" to see only modified files.</p>
+              <p v-if="trackedFilesLoading" class="m-0 py-2 text-rm-muted">{{ viewAllFiles ? 'Loading project files…' : 'Loading…' }}</p>
+              <p v-else-if="!workingTreeFlatRows.length" class="m-0 py-2 text-rm-muted">{{ viewAllFiles ? 'No files in project.' : 'No files to show. Check "View all files" to see every file in the project.' }}</p>
               <ul v-else class="m-0 pl-0 list-none space-y-0">
                 <template v-for="row in workingTreeFlatRows" :key="row.key">
                   <li v-if="row.type === 'dir'" class="flex items-center gap-1 py-0.5 cursor-pointer hover:bg-rm-surface-hover/50 rounded-rm" :style="{ paddingLeft: row.depth * 12 + 4 + 'px' }" @click="toggleTreeExpand(row.key)">
@@ -551,10 +551,10 @@
                   <li v-else class="flex items-center gap-2 py-0.5 group" :style="{ paddingLeft: row.depth * 12 + 4 + 'px' }" @contextmenu.prevent="openFilePathContextMenu($event, row.path)">
                     <span v-if="modifiedPathSet.has(row.path)" class="shrink-0 w-4 text-center" :class="workingTreeBadge(row.path, porcelainByPath.get(row.path)?.isStaged).className" :title="workingTreeBadge(row.path, porcelainByPath.get(row.path)?.isStaged).title">{{ workingTreeBadge(row.path, porcelainByPath.get(row.path)?.isStaged).label }}</span>
                     <span v-else class="shrink-0 w-4 text-center text-rm-muted">·</span>
-                    <button v-if="!workingTreeBadge(row.path, porcelainByPath.get(row.path)?.isStaged ?? false).isDeleted" type="button" class="text-left truncate flex-1 min-w-0 text-rm-text hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" :title="row.path" @click="openSideBySideDiff(row.path)">{{ row.name }}</button>
+                    <button v-if="!workingTreeBadge(row.path, porcelainByPath.get(row.path)?.isStaged ?? false).isDeleted" type="button" class="text-left truncate flex-1 min-w-0 text-rm-text hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" :title="row.path" @click="openSideBySideDiff(row.path, porcelainByPath.get(row.path)?.isStaged ?? false)">{{ row.name }}</button>
                     <span v-else class="truncate flex-1 min-w-0 text-rm-muted" :title="row.path">{{ row.name }}</span>
                     <span class="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100">
-                      <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer" title="Diff" @click="openSideBySideDiff(row.path)">Diff</button>
+                      <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer" title="Diff" @click="openSideBySideDiff(row.path, porcelainByPath.get(row.path)?.isStaged ?? false)">Diff</button>
                       <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer" title="Open in selected editor" @click="openFile(row.path)">Editor</button>
                       <button v-if="isGitattributesFile(row.path)" type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer" title="Open in .gitattributes editor" @click="openGitattributesEditor">Edit</button>
                       <template v-if="modifiedPathSet.has(row.path)">
@@ -583,9 +583,9 @@
                   <ul v-if="unstaged.length" class="m-0 mt-1 pl-0 list-none text-xs space-y-1">
                     <li v-for="f in unstaged" :key="'u-' + f" class="flex items-center gap-2 py-0.5" @contextmenu.prevent="openFilePathContextMenu($event, f)">
                       <span class="shrink-0 w-4 text-center" :class="workingTreeBadge(f, false).className" :title="workingTreeBadge(f, false).title">{{ workingTreeBadge(f, false).label }}</span>
-                      <button v-if="!workingTreeBadge(f, false).isDeleted" type="button" class="text-left truncate flex-1 min-w-0 text-rm-text hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" :title="f" @click="openSideBySideDiff(f)">{{ f }}</button>
+                      <button v-if="!workingTreeBadge(f, false).isDeleted" type="button" class="text-left truncate flex-1 min-w-0 text-rm-text hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" :title="f" @click="openSideBySideDiff(f, false)">{{ f }}</button>
                       <span v-else class="truncate flex-1 min-w-0 text-rm-muted" :title="f">{{ f }}</span>
-                      <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Diff" @click="openSideBySideDiff(f)">Diff</button>
+                      <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Diff" @click="openSideBySideDiff(f, false)">Diff</button>
                       <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Open in selected editor" @click="openFile(f)">Editor</button>
                       <button v-if="isGitattributesFile(f)" type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Open in .gitattributes editor" @click="openGitattributesEditor">Edit</button>
                       <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" @click="stageFile(f)">Stage</button>
@@ -603,10 +603,11 @@
                       <li class="font-medium text-rm-muted/90 py-0.5">{{ group.dir || '.' }}</li>
                       <li v-for="item in group.items" :key="'u-' + item.path" class="flex items-center gap-2 pl-3 py-0.5" @contextmenu.prevent="openFilePathContextMenu($event, item.path)">
                         <span class="shrink-0 w-4 text-center" :class="workingTreeBadge(item.path, false).className" :title="workingTreeBadge(item.path, false).title">{{ workingTreeBadge(item.path, false).label }}</span>
-                        <button v-if="!workingTreeBadge(item.path, false).isDeleted" type="button" class="text-left truncate flex-1 min-w-0 text-rm-text hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" :title="item.path" @click="openSideBySideDiff(item.path)">{{ item.name }}</button>
+                        <button v-if="!workingTreeBadge(item.path, false).isDeleted" type="button" class="text-left truncate flex-1 min-w-0 text-rm-text hover:text-rm-accent hover:underline bg-transparent border-0 p-0 cursor-pointer" :title="item.path" @click="openSideBySideDiff(item.path, false)">{{ item.name }}</button>
                         <span v-else class="truncate flex-1 min-w-0 text-rm-muted" :title="item.path">{{ item.name }}</span>
                         <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Open in selected editor" @click="openFile(item.path)">Editor</button>
                         <button v-if="isGitattributesFile(item.path)" type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Open in .gitattributes editor" @click="openGitattributesEditor">Edit</button>
+                        <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Diff (unstaged)" @click="openSideBySideDiff(item.path, false)">Diff</button>
                         <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" @click="stageFile(item.path)">Stage</button>
                         <button type="button" class="text-[10px] text-rm-warning hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" @click="discardFile(item.path)">Discard</button>
                       </li>
@@ -633,7 +634,7 @@
                     <li v-for="f in staged" :key="'s-' + f" class="flex items-center gap-2 py-0.5" @contextmenu.prevent="openFilePathContextMenu($event, f)">
                       <span class="shrink-0 w-4 text-center" :class="workingTreeBadge(f, true).className" :title="workingTreeBadge(f, true).title">{{ workingTreeBadge(f, true).label }}</span>
                       <span class="truncate flex-1 min-w-0 text-rm-text" :title="f">{{ f }}</span>
-                      <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Diff" @click="openSideBySideDiff(f)">Diff</button>
+                      <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Diff (staged)" @click="openSideBySideDiff(f, true)">Diff</button>
                       <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Open in selected editor" @click="openFile(f)">Editor</button>
                       <button v-if="isGitattributesFile(f)" type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Open in .gitattributes editor" @click="openGitattributesEditor">Edit</button>
                       <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" @click="unstageFile(f)">Unstage</button>
@@ -652,7 +653,7 @@
                       <li v-for="item in group.items" :key="'s-' + item.path" class="flex items-center gap-2 pl-3 py-0.5" @contextmenu.prevent="openFilePathContextMenu($event, item.path)">
                         <span class="shrink-0 w-4 text-center" :class="workingTreeBadge(item.path, true).className" :title="workingTreeBadge(item.path, true).title">{{ workingTreeBadge(item.path, true).label }}</span>
                         <span class="truncate flex-1 min-w-0 text-rm-text" :title="item.path">{{ item.name }}</span>
-                        <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" @click="openSideBySideDiff(item.path)">Diff</button>
+                        <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Diff (staged)" @click="openSideBySideDiff(item.path, true)">Diff</button>
                         <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Open in selected editor" @click="openFile(item.path)">Editor</button>
                         <button v-if="isGitattributesFile(item.path)" type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" title="Open in .gitattributes editor" @click="openGitattributesEditor">Edit</button>
                         <button type="button" class="text-[10px] text-rm-accent hover:underline border-0 bg-transparent p-0 cursor-pointer shrink-0" @click="unstageFile(item.path)">Unstage</button>
@@ -761,6 +762,15 @@
           >
             Push
           </button>
+          <button
+            v-if="!branchContextMenu.isRemote && api.setBranchUpstream"
+            type="button"
+            class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+            role="menuitem"
+            @click="contextMenuSetUpstream"
+          >
+            Set Upstream
+          </button>
         </template>
         <div class="border-t border-rm-border/60 my-1" role="separator"></div>
         <button
@@ -770,6 +780,59 @@
           @click="contextMenuCreateBranchFrom"
         >
           Create branch from this…
+        </button>
+        <template v-if="!branchContextMenu.isRemote && branchContextMenu.branch !== currentBranch && api.gitReset">
+          <button
+            type="button"
+            class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+            role="menuitem"
+            @click="contextMenuResetToHere('soft')"
+          >
+            Reset current branch to here (soft)
+          </button>
+          <button
+            type="button"
+            class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+            role="menuitem"
+            @click="contextMenuResetToHere('mixed')"
+          >
+            Reset current branch to here (mixed)
+          </button>
+          <button
+            type="button"
+            class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-warning border-0 bg-transparent cursor-pointer"
+            role="menuitem"
+            @click="contextMenuResetToHere('hard')"
+          >
+            Reset current branch to here (hard)
+          </button>
+        </template>
+        <button
+          v-if="!branchContextMenu.isRemote && branchContextMenuBranchIsCurrent && api.gitAmend"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuAmendCommit"
+        >
+          Amend last commit…
+        </button>
+        <button
+          v-if="!branchContextMenu.isRemote && api.createTag"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuCreateTagHere(false)"
+        >
+          Create tag here
+        </button>
+        <button
+          v-if="!branchContextMenu.isRemote && api.createTag"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuCreateTagHere(true)"
+        >
+          Create annotated tag here
         </button>
         <button
           v-if="!branchContextMenu.isRemote && branchContextMenu.branch !== currentBranch && api.renameBranch"
@@ -797,6 +860,15 @@
           @click="contextMenuCopyBranchName"
         >
           Copy branch name
+        </button>
+        <button
+          v-if="api.getBranchRevision"
+          type="button"
+          class="git-context-menu-item w-full text-left px-3 py-1.5 hover:bg-rm-surface-hover text-rm-text border-0 bg-transparent cursor-pointer"
+          role="menuitem"
+          @click="contextMenuCopyCommitSha"
+        >
+          Copy commit SHA
         </button>
         <button
           type="button"
@@ -1111,6 +1183,9 @@ const GIT_SIDEBAR_WIDGET_ORDER_KEY = 'gitSidebarWidgetOrder';
 const GIT_SIDEBAR_WIDGET_VISIBLE_KEY = 'gitSidebarWidgetVisibility';
 const draggedWidgetId = ref(null);
 const widgetDropTarget = ref({ id: null, position: 'before' });
+/** Branch drag-and-drop: { ref, isRemote } while dragging; drop target branch name for highlight. */
+const branchDragPayload = ref(null);
+const branchDropTarget = ref(null);
 const currentSectionOption = computed(() => gitSectionOptions.find((o) => o.value === gitRightSection.value) || null);
 
 const gitSectionIcon = (name) => {
@@ -1625,10 +1700,13 @@ watch(() => store.selectedPath, (path) => {
 
 async function loadTrackedFiles() {
   const path = store.selectedPath;
-  if (!path || !api.getTrackedFiles) return;
+  const useProjectFiles = viewAllFiles.value && api.getProjectFiles;
+  if (!path || (!api.getTrackedFiles && !useProjectFiles)) return;
   trackedFilesLoading.value = true;
   try {
-    const res = await api.getTrackedFiles(path);
+    const res = useProjectFiles
+      ? await api.getProjectFiles(path)
+      : await api.getTrackedFiles(path);
     const list = res?.ok && Array.isArray(res.files) ? res.files : [];
     trackedFilesList.value = list;
     if (list.length > 0) {
@@ -1990,6 +2068,7 @@ async function createBranch() {
   try {
     await api.createBranch(path, name.trim(), true);
     gitActionStatus.value = 'Branch created and checked out.';
+    await refetchBranches();
     emit('refresh');
   } catch (e) {
     gitActionStatus.value = e?.message || 'Failed.';
@@ -2125,6 +2204,102 @@ function contextMenuBranchPull() {
 function contextMenuBranchPush() {
   closeBranchContextMenu();
   push();
+}
+
+async function contextMenuSetUpstream() {
+  const menu = branchContextMenu.value;
+  closeBranchContextMenu();
+  if (!menu?.branch || menu.isRemote || !api.setBranchUpstream) return;
+  const path = store.selectedPath;
+  if (!path) return;
+  try {
+    const res = await api.setBranchUpstream(path, menu.branch);
+    if (res?.ok) {
+      gitActionStatus.value = 'Upstream set.';
+      emit('refresh');
+    } else {
+      gitActionStatus.value = res?.error || 'Set upstream failed.';
+    }
+  } catch (e) {
+    gitActionStatus.value = e?.message || 'Set upstream failed.';
+  }
+}
+
+async function contextMenuResetToHere(mode) {
+  const menu = branchContextMenu.value;
+  closeBranchContextMenu();
+  if (!menu?.branch || menu.isRemote || menu.branch === currentBranch.value || !api.gitReset) return;
+  const path = store.selectedPath;
+  if (!path) return;
+  const label = mode === 'hard' ? 'Hard reset will discard all changes. ' : '';
+  if (!window.confirm(`${label}Reset current branch (${currentBranch.value}) to the commit at "${menu.branch}"?`)) return;
+  try {
+    await api.gitReset(path, menu.branch, mode);
+    gitActionStatus.value = 'Branch reset.';
+    emit('refresh');
+  } catch (e) {
+    gitActionStatus.value = e?.message || 'Reset failed.';
+  }
+}
+
+async function contextMenuAmendCommit() {
+  const menu = branchContextMenu.value;
+  closeBranchContextMenu();
+  if (!menu?.branch || menu.isRemote || menu.branch !== currentBranch.value || !api.gitAmend) return;
+  const path = store.selectedPath;
+  if (!path) return;
+  let message = '';
+  try {
+    const rev = await api.getBranchRevision(path, 'HEAD');
+    if (rev?.ok && rev.sha && api.getCommitDetail) {
+      const detail = await api.getCommitDetail(path, rev.sha);
+      if (detail?.subject) message = detail.body ? `${detail.subject}\n\n${detail.body}` : detail.subject;
+    }
+  } catch (_) {}
+  const newMessage = window.prompt('Amend commit message:', message || '');
+  if (newMessage == null) return;
+  try {
+    await api.gitAmend(path, newMessage.trim());
+    gitActionStatus.value = 'Commit amended.';
+    emit('refresh');
+  } catch (e) {
+    gitActionStatus.value = e?.message || 'Amend failed.';
+  }
+}
+
+function contextMenuCreateTagHere(annotated) {
+  const menu = branchContextMenu.value;
+  closeBranchContextMenu();
+  if (!menu?.branch || menu.isRemote) return;
+  const path = store.selectedPath;
+  if (!path || !api.createTag) return;
+  modals.openModal('createTag', {
+    dirPath: path,
+    initialRef: menu.branch,
+    onCreated: () => {
+      gitActionStatus.value = annotated ? 'Annotated tag created.' : 'Tag created.';
+      loadTagsOnly();
+    },
+  });
+}
+
+async function contextMenuCopyCommitSha() {
+  const menu = branchContextMenu.value;
+  if (!menu?.branch || !api.getBranchRevision) return;
+  const path = store.selectedPath;
+  if (!path) return;
+  closeBranchContextMenu();
+  try {
+    const res = await api.getBranchRevision(path, menu.branch);
+    if (res?.ok && res.sha && navigator.clipboard?.writeText) {
+      navigator.clipboard.writeText(res.sha);
+      gitActionStatus.value = 'Commit SHA copied.';
+    } else {
+      gitActionStatus.value = res?.error || 'Could not get SHA.';
+    }
+  } catch (e) {
+    gitActionStatus.value = e?.message || 'Failed.';
+  }
 }
 
 async function contextMenuRenameBranch() {
@@ -2436,7 +2611,10 @@ async function loadSubmodulesOnly() {
 
 async function loadReflogOnly() {
   const path = store.selectedPath;
-  if (!path || !api.getReflog) return;
+  if (!path || !api.getReflog) {
+    reflogLoading.value = false;
+    return;
+  }
   reflogLoading.value = true;
   try {
     const r = await api.getReflog(path, 50);
@@ -2450,8 +2628,9 @@ async function loadReflogOnly() {
   }
 }
 
-function loadReflogFromSidebar() {
-  loadReflogOnly();
+async function loadReflogFromSidebar() {
+  await loadReflogOnly();
+  gitRightSection.value = 'reflog';
 }
 
 function openReflogContextMenu(e, entry) {
@@ -2510,11 +2689,26 @@ async function checkoutReflogEntry(entry) {
 async function stashPush() {
   const path = store.selectedPath;
   if (!path || !api.gitStashPush) return;
-  const message = window.prompt('Stash message (optional)') || '';
+  if (!hasChanges) {
+    gitActionStatus.value = 'No changes to stash.';
+    return;
+  }
+  if (!window.confirm('Stash your current changes? You can restore them later with Pop or Apply.')) return;
+  const messageRaw = window.prompt('Stash message (optional)');
+  if (messageRaw === null) return; // user cancelled prompt
+  const message = messageRaw || '';
   try {
-    await api.gitStashPush(path, message, {});
-    gitActionStatus.value = 'Stashed.';
-    emit('refresh');
+    const result = await api.gitStashPush(path, message, { includeUntracked: true });
+    if (result?.ok) {
+      gitActionStatus.value = 'Stashed.';
+      await loadStashList();
+      emit('refresh');
+      // Refetch project info so sidebar and working tree update immediately
+      const fresh = await api.getProjectInfo?.(path);
+      if (fresh?.ok) store.setCurrentInfo(fresh);
+    } else {
+      gitActionStatus.value = result?.error || 'Stash failed.';
+    }
   } catch (e) {
     gitActionStatus.value = e?.message || 'Stash failed.';
   }
@@ -2582,9 +2776,9 @@ function openFile(filePath) {
   if (path) api.openFileInEditor?.(path, filePath);
 }
 
-function openSideBySideDiff(filePath) {
+function openSideBySideDiff(filePath, staged) {
   const path = store.selectedPath;
-  if (path && filePath) modals.openModal('diffSideBySide', { dirPath: path, filePath });
+  if (path && filePath) modals.openModal('diffSideBySide', { dirPath: path, filePath, staged });
 }
 
 function isGitattributesFile(filePath) {
