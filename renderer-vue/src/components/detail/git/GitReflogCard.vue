@@ -1,60 +1,27 @@
 <template>
   <div class="git-card">
-    <RmCardHeader tag="p" class="mb-2">Reflog</RmCardHeader>
-    <RmButton variant="secondary" size="compact" class="text-xs mb-3" @click="load">Refresh</RmButton>
-    <ul v-if="entries.length" class="list-none m-0 p-0 space-y-1 text-sm max-h-64 overflow-y-auto">
+    <p class="card-label mb-2">Reflog</p>
+    <Button severity="secondary" size="small" class="text-xs mb-3" @click="reflog.load">Refresh</Button>
+    <ul v-if="reflog.entries.length" class="list-none m-0 p-0 space-y-1 text-sm max-h-64 overflow-y-auto">
       <li
-        v-for="(e, i) in entries"
+        v-for="(e, i) in reflog.entries"
         :key="i"
         class="py-1 border-b border-rm-border cursor-pointer hover:text-rm-accent truncate"
         :title="e.message"
-        @click="checkout(e)"
+        @click="reflog.checkout(e)"
       >
         <span class="font-mono text-rm-muted">{{ e.sha }}</span> {{ e.message }}
       </li>
     </ul>
     <p v-else class="m-0 text-xs text-rm-muted">No reflog entries.</p>
-    <p v-if="error" class="m-0 mt-2 text-xs text-rm-warning">{{ error }}</p>
+    <p v-if="reflog.error" class="m-0 mt-2 text-xs text-rm-warning">{{ reflog.error }}</p>
   </div>
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
-import { RmButton, RmCardHeader } from '../../ui';
-import { useAppStore } from '../../../stores/app';
-import { useApi } from '../../../composables/useApi';
+import Button from 'primevue/button';
+import { useReflog } from '../../../composables/useReflog';
 
 const emit = defineEmits(['refresh']);
-const store = useAppStore();
-const api = useApi();
-const entries = ref([]);
-const error = ref('');
-
-async function load() {
-  const path = store.selectedPath;
-  if (!path || !api.getReflog) return;
-  error.value = '';
-  try {
-    const r = await api.getReflog(path, 50);
-    entries.value = r?.ok ? (r.entries || []) : [];
-  } catch {
-    entries.value = [];
-  }
-}
-
-watch(() => store.selectedPath, load, { immediate: true });
-
-async function checkout(e) {
-  const path = store.selectedPath;
-  const refVal = e.ref || e.sha;
-  if (!path || !refVal || !api.checkoutRef) return;
-  if (!window.confirm(`Checkout ${refVal}?`)) return;
-  error.value = '';
-  try {
-    await api.checkoutRef(path, refVal);
-    emit('refresh');
-  } catch (e) {
-    error.value = e?.message || 'Checkout failed.';
-  }
-}
+const reflog = useReflog({ onRefresh: () => emit('refresh') });
 </script>

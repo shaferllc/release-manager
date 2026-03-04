@@ -5,42 +5,46 @@
       <p class="text-sm text-rm-muted m-0 flex-1 min-w-0 max-w-xl">
         Connect to an FTP server to browse and transfer files. Optional for projects that deploy or sync via FTP.
       </p>
-      <RmStatusPill v-if="status.connected" variant="success" dot>
+      <Tag v-if="status.connected" severity="success" class="inline-flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-rm-success" aria-hidden="true" />
         {{ status.host }}
-      </RmStatusPill>
-      <RmStatusPill v-else variant="muted" dot>Disconnected</RmStatusPill>
+      </Tag>
+      <Tag v-else severity="secondary" class="inline-flex items-center gap-1.5">
+        <span class="w-1.5 h-1.5 rounded-full bg-rm-muted/50" aria-hidden="true" />
+        Disconnected
+      </Tag>
     </div>
 
     <!-- Connection form (when disconnected) -->
     <div v-if="!status.connected" class="ftp-form rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-4 mb-5 flex flex-wrap items-end gap-4">
       <label class="ftp-field">
         <span class="text-xs font-medium text-rm-muted block mb-1">Host</span>
-        <RmInput v-model="form.host" type="text" class="w-48" placeholder="ftp.example.com" />
+        <InputText v-model="form.host" type="text" class="w-48" placeholder="ftp.example.com" />
       </label>
       <label class="ftp-field">
         <span class="text-xs font-medium text-rm-muted block mb-1">Port</span>
-        <RmInput v-model.number="form.port" type="number" min="1" max="65535" class="w-20" placeholder="21" />
+        <InputText v-model.number="form.port" type="number" min="1" max="65535" class="w-20" placeholder="21" />
       </label>
       <label class="ftp-field">
         <span class="text-xs font-medium text-rm-muted block mb-1">Username</span>
-        <RmInput v-model="form.user" type="text" class="w-36" placeholder="anonymous" autocomplete="username" />
+        <InputText v-model="form.user" type="text" class="w-36" placeholder="anonymous" autocomplete="username" />
       </label>
       <label class="ftp-field">
         <span class="text-xs font-medium text-rm-muted block mb-1">Password</span>
-        <RmInput v-model="form.password" type="password" class="w-36" placeholder="guest" autocomplete="current-password" />
+        <InputText v-model="form.password" type="password" class="w-36" placeholder="guest" autocomplete="current-password" />
       </label>
       <label class="ftp-field flex items-center gap-2 cursor-pointer">
-        <input v-model="form.secure" type="checkbox" class="ftp-checkbox" />
-        <span class="text-xs font-medium text-rm-muted">FTPS (TLS)</span>
+        <Checkbox v-model="form.secure" binary input-id="ftp-secure" />
+        <span class="text-xs font-medium text-rm-muted" for="ftp-secure">FTPS (TLS)</span>
       </label>
-      <RmButton
-        variant="primary"
-        size="compact"
+      <Button
+        severity="primary"
+        size="small"
         :disabled="connecting || !form.host?.trim()"
         @click="connect"
       >
         {{ connecting ? 'Connecting…' : 'Connect' }}
-      </RmButton>
+      </Button>
     </div>
     <p v-if="connectError" class="text-sm text-rm-danger mb-3">{{ connectError }}</p>
 
@@ -49,23 +53,24 @@
       <div class="ftp-browser rounded-rm border border-rm-border bg-rm-surface/30 overflow-hidden shadow-sm flex flex-col min-h-0">
         <div class="ftp-browser-toolbar flex items-center justify-between gap-3 px-4 py-3 border-b border-rm-border bg-rm-surface/50 flex-wrap">
           <div class="flex items-center gap-2 min-w-0">
-            <RmButton variant="ghost" size="compact" class="shrink-0" title="Disconnect" @click="disconnect">
+            <Button variant="text" size="small" class="shrink-0" v-tooltip.top="'Disconnect from FTP'" aria-label="Disconnect" @click="disconnect">
               Disconnect
-            </RmButton>
+            </Button>
             <span class="text-rm-muted text-sm">·</span>
-            <RmButton
-              variant="ghost"
-              size="compact"
+            <Button
+              variant="text"
+              size="small"
               class="shrink-0"
               :disabled="!currentPath"
-              title="Refresh"
+              v-tooltip.top="'Refresh current folder'"
+              aria-label="Refresh"
               @click="loadList"
             >
               Refresh
-            </RmButton>
-            <RmButton variant="primary" size="compact" class="shrink-0" title="Upload file(s)" @click="upload">
+            </Button>
+            <Button severity="primary" size="small" class="shrink-0" v-tooltip.top="'Upload file(s) to current folder'" aria-label="Upload files" @click="upload">
               Upload
-            </RmButton>
+            </Button>
           </div>
         </div>
         <div class="ftp-breadcrumb px-4 py-2 border-b border-rm-border bg-rm-surface/30 flex items-center gap-1 flex-wrap text-sm">
@@ -113,250 +118,99 @@
                   {{ formatSize(item.size) }}
                 </span>
                 <span v-if="item.modifiedAt" class="ftp-item-date text-rm-muted text-xs shrink-0">
-                  {{ formatDate(item.modifiedAt) }}
+                  {{ formatDateTimeShort(item.modifiedAt) }}
                 </span>
               </button>
               <div v-if="!item.isDirectory" class="ftp-item-actions shrink-0 opacity-0 group-hover:opacity-100 flex items-center gap-1">
-                <RmButton variant="secondary" size="compact" title="Download" @click="downloadFile(item)">
+                <Button severity="secondary" size="small" v-tooltip.top="'Download file'" aria-label="Download" @click="downloadFile(item)">
                   Download
-                </RmButton>
-                <RmButton variant="danger" size="compact" title="Delete" @click="removeFile(item)">
+                </Button>
+                <Button severity="danger" size="small" v-tooltip.top="'Delete file on server'" aria-label="Delete" @click="removeFile(item)">
                   Delete
-                </RmButton>
+                </Button>
               </div>
               <div v-else class="ftp-item-actions shrink-0 opacity-0 group-hover:opacity-100">
-                <RmButton variant="secondary" size="compact" title="Open folder" @click="enterDir(item.name)">
+                <Button severity="secondary" size="small" v-tooltip.top="'Open folder'" aria-label="Open folder" @click="enterDir(item.name)">
                   Open
-                </RmButton>
+                </Button>
               </div>
             </li>
           </ul>
-          <div v-else-if="loading" class="ftp-loading flex items-center justify-center py-12 text-rm-muted text-sm">
-            <span class="ftp-loading-spinner w-6 h-6 border-2 border-rm-border border-t-rm-accent rounded-full animate-spin mr-2" aria-hidden="true"></span>
+          <div v-else-if="loading" class="ftp-loading flex items-center justify-center gap-2 py-12 text-rm-muted text-sm">
+            <ProgressSpinner aria-hidden="true" class="!w-6 !h-6" />
             Loading…
           </div>
           <div v-else-if="listError" class="ftp-error px-4 py-6 text-sm text-rm-danger">
             {{ listError }}
           </div>
-          <RmEmptyState v-else title="This folder is empty">
-            Use <strong>Upload</strong> to add files, or go back to open another folder.
-            <template #icon>
+          <div v-else class="empty-state">
+            <div class="empty-state-icon">
               <svg class="w-10 h-10" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
                 <line x1="12" y1="11" x2="12" y2="17"/>
                 <line x1="9" y1="14" x2="15" y2="14"/>
               </svg>
-            </template>
-          </RmEmptyState>
+            </div>
+            <h4 class="empty-state-title">This folder is empty</h4>
+            <div class="empty-state-body">
+              Use <strong>Upload</strong> to add files, or go back to open another folder.
+            </div>
+          </div>
         </div>
       </div>
     </template>
 
     <div v-else class="ftp-disconnected rounded-rm border border-rm-border bg-rm-surface/30 overflow-hidden">
-      <RmEmptyState title="Not connected">
-        Enter host, credentials, and click <strong>Connect</strong> to browse and transfer files.
-        <template #icon>
+      <div class="empty-state">
+        <div class="empty-state-icon">
           <svg class="w-10 h-10" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
             <polyline points="10 17 15 12 10 7"/>
             <line x1="15" y1="12" x2="3" y2="12"/>
           </svg>
-        </template>
-      </RmEmptyState>
+        </div>
+        <h4 class="empty-state-title">Not connected</h4>
+        <div class="empty-state-body">
+          Enter host, credentials, and click <strong>Connect</strong> to browse and transfer files.
+        </div>
+      </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { RmButton, RmInput, RmEmptyState, RmStatusPill } from '../ui';
-import { useApi } from '../../composables/useApi';
+import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
+import Checkbox from 'primevue/checkbox';
+import Tag from 'primevue/tag';
+import ProgressSpinner from 'primevue/progressspinner';
+import { useFtp } from '../../composables/useFtp';
+import { formatDateTimeShort } from '../../utils/formatDate';
+import { formatSize } from '../../utils/formatSize';
 
-const api = useApi();
-
-const status = ref({ connected: false, host: null });
-const form = ref({
-  host: '',
-  port: 21,
-  user: 'anonymous',
-  password: 'guest',
-  secure: false,
-});
-const connecting = ref(false);
-const connectError = ref('');
-const currentPath = ref('');
-const list = ref([]);
-const listError = ref('');
-const loading = ref(false);
-
-const pathParts = computed(() => {
-  const p = (currentPath.value || '').replace(/^\/+/, '').replace(/\/+$/, '');
-  return p ? p.split('/').filter(Boolean) : [];
-});
-
-const sortedList = computed(() => {
-  const items = [...list.value];
-  items.sort((a, b) => {
-    if (a.isDirectory && !b.isDirectory) return -1;
-    if (!a.isDirectory && b.isDirectory) return 1;
-    return (a.name || '').localeCompare(b.name || '', undefined, { sensitivity: 'base' });
-  });
-  return items;
-});
-
-async function refreshStatus() {
-  try {
-    status.value = await api.getFtpStatus?.() ?? { connected: false, host: null };
-  } catch {
-    status.value = { connected: false, host: null };
-  }
-}
-
-async function connect() {
-  if (!api.ftpConnect) return;
-  connectError.value = '';
-  connecting.value = true;
-  try {
-    const result = await api.ftpConnect({
-      host: form.value.host?.trim() || 'localhost',
-      port: form.value.port || 21,
-      user: form.value.user ?? 'anonymous',
-      password: form.value.password ?? 'guest',
-      secure: form.value.secure,
-    });
-    if (result.ok) {
-      await refreshStatus();
-      currentPath.value = '';
-      listError.value = '';
-      await loadList();
-    } else {
-      connectError.value = result.error || 'Connection failed';
-    }
-  } finally {
-    connecting.value = false;
-  }
-}
-
-async function disconnect() {
-  if (!api.ftpDisconnect) return;
-  await api.ftpDisconnect();
-  await refreshStatus();
-  currentPath.value = '';
-  list.value = [];
-  listError.value = '';
-}
-
-function setPath(path) {
-  currentPath.value = path;
-  loadList();
-}
-
-function enterDir(name) {
-  const base = (currentPath.value || '').replace(/\/+$/, '');
-  currentPath.value = base ? `${base}/${name}` : name;
-  loadList();
-}
-
-async function loadList() {
-  if (!api.ftpList || !status.value.connected) return;
-  loading.value = true;
-  listError.value = '';
-  try {
-    const result = await api.ftpList(currentPath.value || '.');
-    if (result.ok) {
-      list.value = result.list || [];
-    } else {
-      listError.value = result.error || 'Failed to list';
-      list.value = [];
-    }
-  } catch (e) {
-    listError.value = e?.message || 'Failed to list';
-    list.value = [];
-  } finally {
-    loading.value = false;
-  }
-}
-
-function remotePathFor(name) {
-  const base = (currentPath.value || '').replace(/\/+$/, '');
-  return base ? `${base}/${name}` : name;
-}
-
-async function downloadFile(item) {
-  if (item.isDirectory || !api.ftpDownload || !api.showSaveDialog) return;
-  const remote = remotePathFor(item.name);
-  const { canceled, filePath } = await api.showSaveDialog({ title: 'Save file', defaultPath: item.name });
-  if (canceled || !filePath) return;
-  try {
-    const result = await api.ftpDownload(remote, filePath);
-    if (!result.ok) listError.value = result.error || 'Download failed';
-  } catch (e) {
-    listError.value = e?.message || 'Download failed';
-  }
-}
-
-async function upload() {
-  if (!api.ftpUpload || !api.showOpenDialog) return;
-  const { canceled, filePaths } = await api.showOpenDialog({ title: 'Select file(s) to upload', multiSelect: true });
-  if (canceled || !filePaths?.length) return;
-  listError.value = '';
-  for (const localPath of filePaths) {
-    const name = localPath.split(/[/\\]/).pop();
-    const remote = remotePathFor(name);
-    try {
-      const result = await api.ftpUpload(localPath, remote);
-      if (!result.ok) {
-        listError.value = result.error || 'Upload failed';
-        break;
-      }
-    } catch (e) {
-      listError.value = e?.message || 'Upload failed';
-      break;
-    }
-  }
-  await loadList();
-}
-
-async function removeFile(item) {
-  if (item.isDirectory || !api.ftpRemove) return;
-  if (!confirm(`Delete "${item.name}" on the server?`)) return;
-  try {
-    const result = await api.ftpRemove(remotePathFor(item.name));
-    if (result.ok) await loadList();
-    else listError.value = result.error || 'Delete failed';
-  } catch (e) {
-    listError.value = e?.message || 'Delete failed';
-  }
-}
-
-function formatSize(bytes) {
-  if (bytes == null) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatDate(iso) {
-  if (!iso) return '';
-  try {
-    const d = new Date(iso);
-    return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
-  } catch {
-    return iso;
-  }
-}
-
-watch(status, (s) => {
-  if (s.connected) loadList();
-}, { immediate: false });
-
-refreshStatus();
+const {
+  status,
+  form,
+  connecting,
+  connectError,
+  currentPath,
+  list,
+  listError,
+  loading,
+  pathParts,
+  sortedList,
+  connect,
+  disconnect,
+  setPath,
+  enterDir,
+  loadList,
+  downloadFile,
+  upload,
+  removeFile,
+} = useFtp();
 </script>
 
 <style scoped>
-.ftp-checkbox {
-  accent-color: rgb(var(--rm-accent));
-}
 .ftp-breadcrumb-item {
   background: none;
   border: none;

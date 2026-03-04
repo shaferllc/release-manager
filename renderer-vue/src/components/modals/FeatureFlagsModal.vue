@@ -1,5 +1,14 @@
 <template>
-  <RmModal title="Hidden options" class="max-w-md" @close="close">
+  <Dialog
+    :visible="true"
+    header="Hidden options"
+    :style="{ width: '28rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-w-md"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div class="flex flex-col gap-4 min-h-0 overflow-x-hidden">
       <section>
         <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-2">Feature flags</h4>
@@ -45,18 +54,18 @@
               </span>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <RmInput v-model="licenseKeyInput" type="password" class="flex-1 min-w-0 max-w-xs" placeholder="License key" autocomplete="off" />
-              <RmButton variant="primary" size="compact" :disabled="licenseSaving" @click="saveLicense">Save</RmButton>
+              <InputText v-model="licenseKeyInput" type="password" class="flex-1 min-w-0 max-w-xs" placeholder="License key" autocomplete="off" />
+              <Button severity="primary" size="small" :disabled="licenseSaving" @click="saveLicense">Save</Button>
             </div>
             <p v-if="licenseMessage" class="mt-1 text-xs" :class="licenseMessageOk ? 'text-rm-success' : 'text-rm-warning'">{{ licenseMessage }}</p>
           </div>
           <div>
             <span class="text-xs font-medium text-rm-muted block mb-1">License server (Laravel Passport)</span>
             <div class="grid gap-2">
-              <RmInput v-model="licenseServerUrl" type="url" placeholder="https://your-app.com" autocomplete="off" @blur="saveLicenseServerConfig" />
+              <InputText v-model="licenseServerUrl" type="url" placeholder="https://your-app.com" autocomplete="off" @blur="saveLicenseServerConfig" />
               <div class="grid grid-cols-2 gap-2">
-                <RmInput v-model="licenseServerClientId" type="text" placeholder="Client ID" autocomplete="off" @blur="saveLicenseServerConfig" />
-                <RmInput v-model="licenseServerClientSecret" type="password" placeholder="Client secret" autocomplete="off" @blur="saveLicenseServerConfig" />
+                <InputText v-model="licenseServerClientId" type="text" placeholder="Client ID" autocomplete="off" @blur="saveLicenseServerConfig" />
+                <InputText v-model="licenseServerClientSecret" type="password" placeholder="Client secret" autocomplete="off" @blur="saveLicenseServerConfig" />
               </div>
             </div>
           </div>
@@ -65,10 +74,10 @@
             <p v-if="licenseRemoteLoggedIn" class="text-xs font-medium text-rm-success m-0 mb-1">Logged in as {{ licenseRemoteEmail || 'your account' }}</p>
             <p v-else class="text-xs text-rm-muted m-0 mb-1">Not logged in</p>
             <div class="flex flex-wrap items-center gap-2">
-              <RmInput v-model="licenseLoginEmail" type="email" class="w-40" placeholder="Email" autocomplete="email" />
-              <RmInput v-model="licenseLoginPassword" type="password" class="w-32" placeholder="Password" autocomplete="current-password" />
-              <RmButton variant="primary" size="compact" :disabled="licenseLoginLoading" @click="loginToLicenseServer">Log in</RmButton>
-              <RmButton variant="secondary" size="compact" :disabled="licenseLoginLoading" @click="logoutFromLicenseServer">Log out</RmButton>
+              <InputText v-model="licenseLoginEmail" type="email" class="w-40" placeholder="Email" autocomplete="email" />
+              <InputText v-model="licenseLoginPassword" type="password" class="w-32" placeholder="Password" autocomplete="current-password" />
+              <Button severity="primary" size="small" :disabled="licenseLoginLoading" @click="loginToLicenseServer">Log in</Button>
+              <Button severity="secondary" size="small" :disabled="licenseLoginLoading" @click="logoutFromLicenseServer">Log out</Button>
             </div>
             <p v-if="licenseLoginError" class="mt-1 text-xs text-rm-warning m-0">{{ licenseLoginError }}</p>
           </div>
@@ -79,12 +88,12 @@
         <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-2">Quick test</h4>
         <p class="text-xs text-rm-muted m-0 mb-3">Run renderer tests next to each area to confirm things work.</p>
         <div class="flex flex-wrap items-center gap-2 mb-3">
-          <RmButton variant="primary" size="compact" :disabled="testRunning" @click="runAllTests">
+          <Button severity="primary" size="small" :disabled="testRunning" @click="runAllTests">
             Run all renderer tests
-          </RmButton>
-          <RmButton variant="secondary" size="compact" @click="testMapOpen = true">
+          </Button>
+          <Button severity="secondary" size="small" @click="testMapOpen = true">
             View test map
-          </RmButton>
+          </Button>
         </div>
         <div class="flex flex-col gap-2">
           <div
@@ -94,25 +103,30 @@
           >
             <span class="text-sm text-rm-text min-w-0 flex-1">{{ entry.label }}</span>
             <span class="text-xs text-rm-muted font-mono truncate max-w-[140px]" :title="entry.testFile">{{ entry.testFile }}</span>
-            <RmButton variant="secondary" size="compact" :disabled="testRunning" @click="runTest(entry)">
+            <Button severity="secondary" size="small" :disabled="testRunning" @click="runTest(entry)">
               Run
-            </RmButton>
+            </Button>
           </div>
         </div>
       </section>
 
       <div class="flex justify-end pt-2">
-        <RmButton variant="secondary" size="compact" @click="close">Done</RmButton>
+        <Button severity="secondary" size="small" @click="close">Done</Button>
       </div>
     </div>
-  </RmModal>
+  </Dialog>
 
   <!-- Test map overlay -->
-  <RmModal
+  <Dialog
     v-if="testMapOpen"
-    title="Test map"
+    :visible="true"
+    header="Test map"
+    :style="{ width: '32rem' }"
+    :modal="true"
+    :dismissableMask="true"
     class="max-w-lg max-h-[80vh]"
-    @close="testMapOpen = false"
+    @update:visible="(v) => { if (!v) testMapOpen = false; }"
+    @hide="testMapOpen = false"
   >
     <p class="text-xs text-rm-muted m-0 mb-3">Which test covers each area.</p>
     <dl class="space-y-2 text-sm">
@@ -121,15 +135,19 @@
         <dd class="font-mono text-rm-muted text-xs break-all m-0">{{ entry.testFile }}</dd>
       </div>
     </dl>
-  </RmModal>
+  </Dialog>
 
   <!-- Test result overlay -->
-  <RmModal
+  <Dialog
     v-if="testResult"
-    :title="(testResult.ok ? 'Test passed' : 'Test failed') + ' — ' + testResult.label"
-    wide
+    :visible="true"
+    :header="(testResult.ok ? 'Test passed' : 'Test failed') + ' — ' + testResult.label"
+    :style="{ width: '42rem' }"
+    :modal="true"
+    :dismissableMask="true"
     class="max-w-2xl"
-    @close="testResult = null"
+    @update:visible="(v) => { if (!v) testResult = null; }"
+    @hide="testResult = null"
   >
     <div class="flex flex-col gap-3">
       <p class="text-sm m-0" :class="testResult.ok ? 'text-rm-success' : 'text-rm-warning'">
@@ -144,15 +162,17 @@
         <pre class="text-xs font-mono bg-rm-surface p-2 overflow-x-auto whitespace-pre-wrap break-words m-0 text-rm-warning rounded-rm-dynamic">{{ testResult.stderr }}</pre>
       </div>
       <div class="flex justify-end pt-2">
-        <RmButton variant="secondary" size="compact" @click="testResult = null">Close</RmButton>
+        <Button severity="secondary" size="small" @click="testResult = null">Close</Button>
       </div>
     </div>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { RmButton, RmInput, RmModal } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
 import { useApi } from '../../composables/useApi';
 import { useFeatureFlags } from '../../composables/useFeatureFlags';
 import { useLicense } from '../../composables/useLicense';

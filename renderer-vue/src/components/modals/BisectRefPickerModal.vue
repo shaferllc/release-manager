@@ -1,5 +1,14 @@
 <template>
-  <RmModal title="Bisect — Step 1: Set refs" class="max-w-lg max-h-[85vh]" @close="close">
+  <Dialog
+    :visible="true"
+    header="Bisect — Step 1: Set refs"
+    :style="{ width: '32rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-w-lg max-h-[85vh]"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div class="flex flex-col gap-4 overflow-hidden">
       <p class="text-xs text-rm-muted m-0">Choose the <strong class="text-rm-text">bad</strong> commit (where the bug exists) and a <strong class="text-rm-text">good</strong> commit (before the bug). Git will then check out commits in between for you to test.</p>
 
@@ -7,18 +16,18 @@
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-medium text-rm-muted">Bad ref (has the bug)</label>
         <div class="flex gap-2 items-center">
-          <RmInput
+          <InputText
             v-model="badRef"
             type="text"
             class="flex-1 min-w-0"
             placeholder="e.g. HEAD"
           />
-          <RmButton variant="secondary" size="compact" class="text-xs whitespace-nowrap" @click="toggleBrowser('bad')">
+          <Button severity="secondary" size="small" class="text-xs whitespace-nowrap" @click="toggleBrowser('bad')">
             {{ browserOpen === 'bad' ? 'Hide' : 'Browse' }}
-          </RmButton>
+          </Button>
         </div>
         <div v-if="browserOpen === 'bad'" class="bisect-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
-          <RmInput
+          <InputText
             v-model="badSearch"
             type="text"
             class="rounded-none border-0 border-b border-rm-border placeholder:text-rm-muted"
@@ -49,18 +58,18 @@
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-medium text-rm-muted">Good ref (no bug)</label>
         <div class="flex gap-2 items-center">
-          <RmInput
+          <InputText
             v-model="goodRef"
             type="text"
             class="flex-1 min-w-0"
             placeholder="e.g. main or a commit SHA"
           />
-          <RmButton variant="secondary" size="compact" class="text-xs whitespace-nowrap" @click="toggleBrowser('good')">
+          <Button severity="secondary" size="small" class="text-xs whitespace-nowrap" @click="toggleBrowser('good')">
             {{ browserOpen === 'good' ? 'Hide' : 'Browse' }}
-          </RmButton>
+          </Button>
         </div>
         <div v-if="browserOpen === 'good'" class="bisect-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
-          <RmInput
+          <InputText
             v-model="goodSearch"
             type="text"
             class="rounded-none border-0 border-b border-rm-border placeholder:text-rm-muted"
@@ -90,15 +99,17 @@
       <p v-if="startBisectError" class="text-xs text-rm-warning m-0">{{ startBisectError }}</p>
     </div>
     <template #footer>
-      <RmButton variant="primary" size="compact" :disabled="!canStartBisect" :title="startBisectError || undefined" @click="confirm">Start bisect</RmButton>
-      <RmButton variant="secondary" size="compact" @click="close">Cancel</RmButton>
+      <Button severity="primary" size="small" :disabled="!canStartBisect" :title="startBisectError || undefined" @click="confirm">Start bisect</Button>
+      <Button severity="secondary" size="small" @click="close">Cancel</Button>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue';
-import { RmButton, RmInput, RmModal } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

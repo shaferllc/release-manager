@@ -200,6 +200,29 @@ describe('useAppStore', () => {
     expect(list[1].name).toBe('B');
   });
 
+  it('filteredProjects sort returns 1 when a is unstarred and b is starred', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/first', name: 'First', starred: false },
+      { path: '/second', name: 'Second', starred: true },
+    ]);
+    const list = store.filteredProjects;
+    expect(list[0].path).toBe('/second');
+    expect(list[1].path).toBe('/first');
+  });
+
+  it('filteredProjects sort uses empty bName when b has no name and no path', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/a', name: 'A' },
+      {},
+    ]);
+    const list = store.filteredProjects;
+    expect(list).toHaveLength(2);
+    expect(list[0]).toEqual({});
+    expect(list[1].name).toBe('A');
+  });
+
   it('filteredProjects sort uses path basename when name missing and path present', () => {
     const store = useAppStore();
     store.setProjects([

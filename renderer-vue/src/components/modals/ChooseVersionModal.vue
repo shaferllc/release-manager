@@ -1,5 +1,13 @@
 <template>
-  <RmModal title="Choose release to download" @close="close">
+  <Dialog
+    :visible="true"
+    header="Choose release to download"
+    :style="{ width: '32rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <p class="text-sm text-rm-muted m-0 mb-2">{{ status }}</p>
     <ul class="list-none m-0 p-0">
       <li
@@ -11,12 +19,12 @@
         {{ r.name || r.tag_name }} <span class="text-rm-muted text-xs">({{ r.published_at ? new Date(r.published_at).toLocaleDateString() : '' }})</span>
       </li>
     </ul>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
-import { RmModal } from '../ui';
+import Dialog from 'primevue/dialog';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

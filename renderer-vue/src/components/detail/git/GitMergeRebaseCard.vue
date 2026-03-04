@@ -1,145 +1,50 @@
 <template>
   <div class="git-card">
-    <RmCardHeader tag="p" class="mb-2">Merge & rebase</RmCardHeader>
-    <template v-if="state.merging || state.rebasing || state.cherryPicking">
+    <p class="card-label mb-2">Merge & rebase</p>
+    <template v-if="mr.state.merging || mr.state.rebasing || mr.state.cherryPicking">
       <p class="text-xs text-rm-muted mb-2">
-        <span v-if="state.merging">Merge in progress.</span>
-        <span v-if="state.rebasing">Rebase in progress.</span>
-        <span v-if="state.cherryPicking">Cherry-pick in progress.</span>
+        <span v-if="mr.state.merging">Merge in progress.</span>
+        <span v-if="mr.state.rebasing">Rebase in progress.</span>
+        <span v-if="mr.state.cherryPicking">Cherry-pick in progress.</span>
       </p>
       <div class="flex flex-wrap gap-2 mb-3">
-        <RmButton v-if="state.merging" variant="primary" size="compact" class="text-xs" @click="mergeContinue">Continue merge</RmButton>
-        <RmButton v-if="state.merging" variant="secondary" size="compact" class="text-xs text-rm-warning" @click="mergeAbort">Abort merge</RmButton>
-        <RmButton v-if="state.rebasing" variant="primary" size="compact" class="text-xs" @click="rebaseContinue">Continue rebase</RmButton>
-        <RmButton v-if="state.rebasing" variant="secondary" size="compact" class="text-xs" @click="rebaseSkip">Skip</RmButton>
-        <RmButton v-if="state.rebasing" variant="secondary" size="compact" class="text-xs text-rm-warning" @click="rebaseAbort">Abort rebase</RmButton>
-        <RmButton v-if="state.cherryPicking" variant="primary" size="compact" class="text-xs" @click="cherryPickContinue">Continue cherry-pick</RmButton>
-        <RmButton v-if="state.cherryPicking" variant="secondary" size="compact" class="text-xs text-rm-warning" @click="cherryPickAbort">Abort cherry-pick</RmButton>
+        <Button v-if="mr.state.merging" severity="primary" size="small" class="text-xs" @click="mr.mergeContinue">Continue merge</Button>
+        <Button v-if="mr.state.merging" severity="secondary" size="small" class="text-xs text-rm-warning" @click="mr.mergeAbort">Abort merge</Button>
+        <Button v-if="mr.state.rebasing" severity="primary" size="small" class="text-xs" @click="mr.rebaseContinue">Continue rebase</Button>
+        <Button v-if="mr.state.rebasing" severity="secondary" size="small" class="text-xs" @click="mr.rebaseSkip">Skip</Button>
+        <Button v-if="mr.state.rebasing" severity="secondary" size="small" class="text-xs text-rm-warning" @click="mr.rebaseAbort">Abort rebase</Button>
+        <Button v-if="mr.state.cherryPicking" severity="primary" size="small" class="text-xs" @click="mr.cherryPickContinue">Continue cherry-pick</Button>
+        <Button v-if="mr.state.cherryPicking" severity="secondary" size="small" class="text-xs text-rm-warning" @click="mr.cherryPickAbort">Abort cherry-pick</Button>
       </div>
     </template>
     <template v-else>
       <div class="mb-3">
         <label class="block text-xs text-rm-muted mb-1">Merge branch</label>
         <div class="flex gap-2">
-          <RmSelect v-model="mergeBranch" :options="mergeBranchOptions" option-label="label" option-value="value" class="flex-1 min-w-0 text-sm" />
-          <RmButton variant="primary" size="compact" class="text-xs" :disabled="!mergeBranch" @click="merge">Merge</RmButton>
+          <Select v-model="mr.mergeBranch" :options="mr.mergeBranchOptions" optionLabel="label" optionValue="value" class="flex-1 min-w-0 text-sm" />
+          <Button severity="primary" size="small" class="text-xs" :disabled="!mr.mergeBranch" @click="mr.merge">Merge</Button>
         </div>
       </div>
       <div class="mb-3">
         <label class="block text-xs text-rm-muted mb-1">Rebase onto</label>
         <div class="flex gap-2">
-          <RmSelect v-model="rebaseOnto" :options="rebaseOntoOptions" option-label="label" option-value="value" class="flex-1 min-w-0 text-sm" />
-          <RmButton variant="primary" size="compact" class="text-xs" :disabled="!rebaseOnto" @click="rebase">Rebase</RmButton>
+          <Select v-model="mr.rebaseOnto" :options="mr.rebaseOntoOptions" optionLabel="label" optionValue="value" class="flex-1 min-w-0 text-sm" />
+          <Button severity="primary" size="small" class="text-xs" :disabled="!mr.rebaseOnto" @click="mr.rebase">Rebase</Button>
         </div>
       </div>
     </template>
-    <p v-if="error" class="m-0 text-xs text-rm-warning">{{ error }}</p>
+    <p v-if="mr.error" class="m-0 text-xs text-rm-warning">{{ mr.error }}</p>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
-import { RmButton, RmCardHeader, RmSelect } from '../../ui';
-import { useAppStore } from '../../../stores/app';
-import { useApi } from '../../../composables/useApi';
+import { computed } from 'vue';
+import Button from 'primevue/button';
+import Select from 'primevue/select';
+import { useMergeRebase } from '../../../composables/useMergeRebase';
 
 const props = defineProps({ currentBranch: { type: String, default: '' } });
 const emit = defineEmits(['refresh']);
-const store = useAppStore();
-const api = useApi();
-const state = ref({ merging: false, rebasing: false, cherryPicking: false });
-const mergeBranches = ref([]);
-const mergeBranch = ref('');
-const rebaseOnto = ref('');
-const error = ref('');
-
-const mergeBranchOptions = computed(() => [
-  { value: '', label: '—' },
-  ...mergeBranches.value.map((b) => ({ value: b, label: b })),
-]);
-const rebaseOntoOptions = computed(() => [
-  { value: '', label: '—' },
-  ...mergeBranches.value.map((b) => ({ value: b, label: b })),
-]);
-
-async function loadState() {
-  const path = store.selectedPath;
-  if (!path || !api.getGitState) return;
-  try {
-    const r = await api.getGitState(path);
-    state.value = { merging: !!r?.merging, rebasing: !!r?.rebasing, cherryPicking: !!r?.cherryPicking };
-  } catch {
-    state.value = { merging: false, rebasing: false, cherryPicking: false };
-  }
-}
-
-async function loadBranches() {
-  const path = store.selectedPath;
-  if (!path || !api.getBranches) return;
-  try {
-    const r = await api.getBranches(path);
-    const list = Array.isArray(r) ? r : (r?.branches || []);
-    mergeBranches.value = list.filter((b) => b !== props.currentBranch);
-  } catch {
-    mergeBranches.value = [];
-  }
-}
-
-watch(() => [store.selectedPath, props.currentBranch], () => { loadState(); loadBranches(); }, { immediate: true });
-
-async function runAction(fn) {
-  const path = store.selectedPath;
-  if (!path) return;
-  error.value = '';
-  try {
-    await fn();
-    emit('refresh');
-    loadState();
-  } catch (e) {
-    error.value = e?.message || 'Failed.';
-  }
-}
-
-function merge() {
-  if (!mergeBranch.value) return;
-  if (!window.confirm(`Merge ${mergeBranch.value} into current branch?`)) return;
-  runAction(() => api.gitMerge?.(store.selectedPath, mergeBranch.value, {}));
-}
-
-function mergeContinue() {
-  runAction(() => api.gitMergeContinue?.(store.selectedPath));
-}
-
-function mergeAbort() {
-  if (!window.confirm('Abort merge?')) return;
-  runAction(() => api.gitMergeAbort?.(store.selectedPath));
-}
-
-function rebase() {
-  if (!rebaseOnto.value) return;
-  if (!window.confirm(`Rebase onto ${rebaseOnto.value}?`)) return;
-  runAction(() => api.gitRebase?.(store.selectedPath, rebaseOnto.value));
-}
-
-function rebaseContinue() {
-  runAction(() => api.gitRebaseContinue?.(store.selectedPath));
-}
-
-function rebaseSkip() {
-  runAction(() => api.gitRebaseSkip?.(store.selectedPath));
-}
-
-function rebaseAbort() {
-  if (!window.confirm('Abort rebase?')) return;
-  runAction(() => api.gitRebaseAbort?.(store.selectedPath));
-}
-
-function cherryPickContinue() {
-  runAction(() => api.gitCherryPickContinue?.(store.selectedPath));
-}
-
-function cherryPickAbort() {
-  if (!window.confirm('Abort cherry-pick?')) return;
-  runAction(() => api.gitCherryPickAbort?.(store.selectedPath));
-}
+const currentBranchRef = computed(() => props.currentBranch);
+const mr = useMergeRebase({ onRefresh: () => emit('refresh'), currentBranchRef });
 </script>

@@ -1,5 +1,14 @@
 <template>
-  <RmModal :title="displayTitle" class="rm-modal-diff-side-by-side flex flex-col max-w-[92vw] max-h-[95vh] min-h-[70vh] w-full" @close="close">
+  <Dialog
+    :visible="true"
+    :header="displayTitle"
+    :style="{ width: '92vw', maxWidth: 'none' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="rm-modal-diff-side-by-side flex flex-col max-w-[92vw] max-h-[95vh] min-h-[70vh] w-full"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div v-if="error" class="p-4 text-sm text-rm-warning">{{ error }}</div>
       <div v-else-if="loading" class="p-4 text-sm text-rm-muted">Loading diff…</div>
       <div v-else class="diff-side-by-side flex-1 min-h-0 flex flex-col border-t border-rm-border">
@@ -81,25 +90,26 @@
         </div>
       </div>
     <template #footer>
-      <RmButton variant="secondary" size="compact" class="text-xs" @click="close">Close</RmButton>
-      <RmButton
+      <Button severity="secondary" size="small" class="text-xs" @click="close">Close</Button>
+      <Button
         v-if="!props.commitSha && props.dirPath && props.filePath"
-        variant="secondary"
-        size="compact"
+        severity="secondary"
+        size="small"
         class="text-xs text-rm-warning hover:bg-rm-warning/10"
         title="Discard all changes in this file"
         @click="discardEntireFile"
       >
         Discard entire file
-      </RmButton>
+      </Button>
       <span v-if="revertStatus" class="text-xs" :class="revertStatus.ok ? 'text-rm-success' : 'text-rm-warning'">{{ revertStatus.ok ? 'Reverted. Refresh to see changes.' : revertStatus.error }}</span>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { RmButton, RmModal } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

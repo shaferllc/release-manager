@@ -1,27 +1,36 @@
 <template>
-  <RmModal title="Create tag" class="max-w-md max-h-[90vh]" @close="close">
+  <Dialog
+    :visible="true"
+    header="Create tag"
+    :style="{ width: '28rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-w-md max-h-[90vh]"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div class="flex flex-col gap-4 overflow-y-auto min-h-0">
       <!-- Tag name -->
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-medium text-rm-muted">Tag name</label>
         <div class="flex gap-2 items-center">
-          <RmInput
+          <InputText
             v-model="tagName"
             type="text"
             class="flex-1 min-w-0"
             placeholder="e.g. v1.0.0"
             @keydown.enter="submit"
           />
-          <RmButton
-            variant="secondary"
-            size="compact"
+          <Button
+            severity="secondary"
+            size="small"
             class="text-xs whitespace-nowrap"
             title="Suggest next version from latest tag"
             :disabled="!dirPath || tagsLoading"
             @click="suggestVersion"
           >
             {{ tagsLoading ? '…' : 'Suggest' }}
-          </RmButton>
+          </Button>
         </div>
       </div>
 
@@ -29,7 +38,7 @@
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-medium text-rm-muted">Message (optional)</label>
         <div class="flex gap-2 items-start">
-          <RmInput
+          <InputText
             v-model="tagMessage"
             type="text"
             class="flex-1 min-w-0"
@@ -37,27 +46,27 @@
             @keydown.enter="submit"
           />
           <div class="flex flex-col gap-1 shrink-0">
-            <RmButton
-              variant="secondary"
-              size="compact"
+            <Button
+              severity="secondary"
+              size="small"
               class="text-xs whitespace-nowrap"
               title="Use commit message at selected ref"
               :disabled="!dirPath || messageFromRefLoading"
               @click="fillMessageFromRef"
             >
               {{ messageFromRefLoading ? '…' : 'From ref' }}
-            </RmButton>
-            <RmButton
+            </Button>
+            <Button
               v-if="aiGenerateAvailable"
-              variant="secondary"
-              size="compact"
+              severity="secondary"
+              size="small"
               class="text-xs whitespace-nowrap"
               title="Generate message from commits (AI)"
               :disabled="!dirPath || aiGenerateLoading"
               @click="generateMessageWithAi"
             >
               {{ aiGenerateLoading ? '…' : 'Generate (AI)' }}
-            </RmButton>
+            </Button>
           </div>
         </div>
       </div>
@@ -66,23 +75,23 @@
       <div class="flex flex-col gap-1.5">
         <label class="text-xs font-medium text-rm-muted">Ref (optional)</label>
         <div class="flex gap-2 items-center">
-          <RmInput
+          <InputText
             v-model="tagRef"
             type="text"
             class="flex-1 min-w-0"
             placeholder="e.g. HEAD or branch name"
           />
-          <RmButton
-            variant="secondary"
-            size="compact"
+          <Button
+            severity="secondary"
+            size="small"
             class="whitespace-nowrap"
             @click="toggleRefBrowser"
           >
             {{ refBrowserOpen ? 'Hide' : 'Browse' }}
-          </RmButton>
+          </Button>
         </div>
         <div v-if="refBrowserOpen" class="create-tag-ref-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
-          <RmInput
+          <InputText
             v-model="refSearch"
             type="text"
             class="rounded-none border-0 border-b border-rm-border placeholder:text-rm-muted"
@@ -110,17 +119,19 @@
       <p v-if="error" class="m-0 text-xs text-rm-warning">{{ error }}</p>
     </div>
     <template #footer>
-      <RmButton variant="primary" size="compact" :disabled="!tagName.trim() || submitting" @click="submit">
+      <Button severity="primary" size="small" :disabled="!tagName.trim() || submitting" @click="submit">
         {{ submitting ? 'Creating…' : 'Create tag' }}
-      </RmButton>
-      <RmButton variant="secondary" size="compact" @click="close">Cancel</RmButton>
+      </Button>
+      <Button severity="secondary" size="small" @click="close">Cancel</Button>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
-import { RmButton, RmInput, RmModal } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
 import { useApi } from '../../composables/useApi';
 import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
 import { useNotifications } from '../../composables/useNotifications';

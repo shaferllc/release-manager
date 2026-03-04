@@ -6,33 +6,39 @@
         Catch outgoing emails from your app. Point your app's SMTP to this server and view messages here.
       </p>
       <div class="email-actions flex items-center gap-2 flex-wrap">
-        <RmStatusPill :variant="smtpStatus.running ? 'accent' : 'muted'">
+        <Tag :severity="smtpStatus.running ? 'info' : 'secondary'">
           {{ smtpStatus.running ? `Running on port ${smtpStatus.port}` : 'Stopped' }}
-        </RmStatusPill>
-        <RmButton
-          variant="primary"
-          size="compact"
+        </Tag>
+        <Button
+          severity="primary"
+          size="small"
           :disabled="smtpStatus.running || startingSmtp"
+          v-tooltip.top="'Start local SMTP server to catch outgoing mail'"
+          aria-label="Start SMTP server"
           @click="startSmtp"
         >
           {{ startingSmtp ? 'Starting…' : 'Start SMTP server' }}
-        </RmButton>
-        <RmButton
-          variant="danger"
-          size="compact"
+        </Button>
+        <Button
+          severity="danger"
+          size="small"
           :disabled="!smtpStatus.running || stoppingSmtp"
+          v-tooltip.top="'Stop the SMTP server'"
+          aria-label="Stop SMTP server"
           @click="stopSmtp"
         >
           {{ stoppingSmtp ? 'Stopping…' : 'Stop' }}
-        </RmButton>
-        <RmButton
-          variant="secondary"
-          size="compact"
+        </Button>
+        <Button
+          severity="secondary"
+          size="small"
           :disabled="emails.length === 0"
+          v-tooltip.top="'Clear all caught emails'"
+          aria-label="Clear all emails"
           @click="clearAll"
         >
           Clear all
-        </RmButton>
+        </Button>
       </div>
     </div>
 
@@ -47,10 +53,13 @@
     </div>
 
     <!-- Inbox + message view -->
-    <RmListPanel class="email-inbox-wrap flex-1">
-      <template #title>Inbox</template>
-      <template #meta>{{ emails.length }} email{{ emails.length === 1 ? '' : 's' }}</template>
-
+    <Panel class="email-inbox-wrap flex-1">
+      <template #header>
+        <div class="flex items-center justify-between gap-3 w-full">
+          <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Inbox</h3>
+          <span class="text-xs text-rm-muted">{{ emails.length }} email{{ emails.length === 1 ? '' : 's' }}</span>
+        </div>
+      </template>
       <div class="email-inbox-body flex min-h-0 flex-1">
         <!-- Email list -->
         <div class="email-list border-r border-rm-border flex flex-col min-w-0 w-80 shrink-0">
@@ -64,17 +73,20 @@
             >
               <div class="email-list-item-from text-rm-text font-medium truncate">{{ email.from || '—' }}</div>
               <div class="email-list-item-subject text-rm-muted text-xs truncate">{{ email.subject }}</div>
-              <div class="email-list-item-date text-rm-muted text-xs">{{ formatDate(email.date) }}</div>
+              <div class="email-list-item-date text-rm-muted text-xs">{{ formatDateWithTime(email.date) }}</div>
             </li>
           </ul>
-          <RmEmptyState v-if="emails.length === 0" title="No emails yet" class="py-12 px-4">
-            <p class="text-sm text-rm-muted m-0">Start the SMTP server and send mail from your app</p>
-            <template #icon>
+          <div v-if="emails.length === 0" class="empty-state py-12 px-4">
+            <div class="empty-state-icon">
               <svg class="w-10 h-10 text-rm-muted opacity-60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
               </svg>
-            </template>
-          </RmEmptyState>
+            </div>
+            <h4 class="empty-state-title">No emails yet</h4>
+            <div class="empty-state-body">
+              <p class="text-sm text-rm-muted m-0">Start the SMTP server and send mail from your app</p>
+            </div>
+          </div>
         </div>
 
         <!-- Message view -->
@@ -95,38 +107,13 @@
               </div>
             </div>
             <div class="email-message-tabs flex gap-1 px-4 py-2 border-b border-rm-border bg-rm-surface/20 shrink-0">
-              <button
-                type="button"
-                class="email-tab"
-                :class="{ 'email-tab-active': viewMode === 'html' }"
-                @click="viewMode = 'html'"
-              >
-                HTML
-              </button>
-              <button
-                type="button"
-                class="email-tab"
-                :class="{ 'email-tab-active': viewMode === 'text' }"
-                @click="viewMode = 'text'"
-              >
-                Plain text
-              </button>
-              <button
-                type="button"
-                class="email-tab"
-                :class="{ 'email-tab-active': viewMode === 'raw' }"
-                @click="viewMode = 'raw'"
-              >
-                Raw
-              </button>
-              <button
-                type="button"
-                class="email-tab"
-                :class="{ 'email-tab-active': viewMode === 'headers' }"
-                @click="viewMode = 'headers'"
-              >
-                Headers
-              </button>
+              <SelectButton
+                v-model="viewMode"
+                :options="viewModeOptions"
+                option-label="label"
+                option-value="value"
+                class="email-view-mode-select"
+              />
             </div>
             <div class="email-message-content flex-1 overflow-auto p-4 min-h-0">
               <div v-if="viewMode === 'html'" class="email-html-body prose prose-invert max-w-none" v-html="selectedEmail.sanitizedHtml || '<p class=\'text-rm-muted\'>No HTML content</p>'"></div>
@@ -140,87 +127,30 @@
           </div>
         </div>
       </div>
-    </RmListPanel>
+    </Panel>
   </section>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { RmButton, RmEmptyState, RmListPanel, RmStatusPill } from '../ui';
-import { useApi } from '../../composables/useApi';
+import Button from 'primevue/button';
+import Panel from 'primevue/panel';
+import Tag from 'primevue/tag';
+import SelectButton from 'primevue/selectbutton';
+import { useEmail } from '../../composables/useEmail';
+import { formatDateWithTime } from '../../utils/formatDate';
 
-const api = useApi();
-
-const smtpStatus = ref({ running: false, port: null, defaultPort: 1025 });
-const emails = ref([]);
-const selectedEmail = ref(null);
-const viewMode = ref('html');
-const startingSmtp = ref(false);
-const stoppingSmtp = ref(false);
-
-function formatDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  const now = new Date();
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-async function refreshSmtpStatus() {
-  try {
-    const s = await api.getEmailSmtpStatus?.() ?? {};
-    smtpStatus.value = { running: !!s.running, port: s.port ?? null, defaultPort: s.defaultPort ?? 1025 };
-  } catch {
-    smtpStatus.value = { running: false, port: null, defaultPort: 1025 };
-  }
-}
-
-async function refreshEmails() {
-  try {
-    const list = await api.getEmails?.() ?? [];
-    emails.value = list;
-    const stillSelected = selectedEmail.value && list.find((e) => e.id === selectedEmail.value.id);
-    if (!stillSelected) selectedEmail.value = list[0] || null;
-  } catch {
-    emails.value = [];
-  }
-}
-
-async function startSmtp() {
-  startingSmtp.value = true;
-  try {
-    await api.startEmailSmtpServer?.(smtpStatus.value.defaultPort);
-    await refreshSmtpStatus();
-  } finally {
-    startingSmtp.value = false;
-  }
-}
-
-async function stopSmtp() {
-  stoppingSmtp.value = true;
-  try {
-    await api.stopEmailSmtpServer?.();
-    await refreshSmtpStatus();
-  } finally {
-    stoppingSmtp.value = false;
-  }
-}
-
-async function clearAll() {
-  if (emails.value.length === 0) return;
-  await api.clearEmails?.();
-  selectedEmail.value = null;
-  await refreshEmails();
-}
-
-onMounted(async () => {
-  await refreshSmtpStatus();
-  await refreshEmails();
-  if (api.onEmailReceived) api.onEmailReceived(refreshEmails);
-});
-
-onUnmounted(() => {});
+const {
+  smtpStatus,
+  emails,
+  selectedEmail,
+  viewMode,
+  viewModeOptions,
+  startingSmtp,
+  stoppingSmtp,
+  startSmtp,
+  stopSmtp,
+  clearAll,
+} = useEmail();
 </script>
 
 <style scoped>
@@ -246,7 +176,7 @@ onUnmounted(() => {});
   border-left: 3px solid rgb(var(--rm-accent));
   padding-left: 9px;
 }
-.email-tab {
+.email-view-mode-select :deep(button) {
   padding: 6px 12px;
   border-radius: 4px;
   font-size: 12px;
@@ -254,14 +184,13 @@ onUnmounted(() => {});
   background: transparent;
   border: none;
   color: rgb(var(--rm-muted));
-  cursor: pointer;
   transition: color 0.15s, background 0.15s;
 }
-.email-tab:hover {
+.email-view-mode-select :deep(button:hover) {
   color: rgb(var(--rm-text));
   background: rgb(var(--rm-surface));
 }
-.email-tab-active {
+.email-view-mode-select :deep(button[data-p-active="true"]) {
   color: rgb(var(--rm-accent));
   background: rgb(var(--rm-accent) / 0.1);
 }

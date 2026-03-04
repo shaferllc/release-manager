@@ -3,7 +3,7 @@ import { config } from '@vue/test-utils';
 import PrimeVue from 'primevue/config';
 import { primevuePt } from '../primevue-pt';
 
-// PrimeVue is required by RmSelect, RmCheckbox, RmStatusPill, RmListPanel, etc.
+// PrimeVue is required by Button, Select, Dialog, Checkbox, etc.
 config.global.plugins = config.global.plugins || [];
 config.global.plugins.push([PrimeVue, { unstyled: true, pt: primevuePt }]);
 

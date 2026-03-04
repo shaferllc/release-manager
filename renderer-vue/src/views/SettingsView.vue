@@ -26,18 +26,26 @@
           <h3 class="settings-section-title">Application</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Startup and quit behavior.</p>
           <div class="settings-card space-y-5">
-            <RmCheckbox v-model="launchAtLogin" row-layout label="Launch at login" description="Start the app when you log in to your computer." @change="saveLaunchAtLogin" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="launchAtLogin" binary @update:model-value="saveLaunchAtLogin" />
+              <span class="settings-label block text-rm-text">Launch at login</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Start the app when you log in to your computer.</p>
+            </label>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Open to</span>
               <p class="settings-desc">Default view when the app starts.</p>
-              <RmSelect v-model="defaultView" :options="defaultViewOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveDefaultView" />
+              <Select v-model="defaultView" :options="defaultViewOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveDefaultView" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Check for updates</span>
               <p class="settings-desc">When to look for new versions.</p>
-              <RmSelect v-model="checkForUpdates" :options="checkForUpdatesOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveCheckForUpdates" />
+              <Select v-model="checkForUpdates" :options="checkForUpdatesOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveCheckForUpdates" />
             </div>
-            <RmCheckbox v-model="confirmBeforeQuit" row-layout label="Confirm before closing" description="Ask for confirmation when quitting the app." class="pt-2 border-t border-rm-border" @change="saveConfirmBeforeQuit" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="confirmBeforeQuit" binary @update:model-value="saveConfirmBeforeQuit" />
+              <span class="settings-label block text-rm-text">Confirm before closing</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Ask for confirmation when quitting the app.</p>
+            </label>
           </div>
         </section>
 
@@ -46,9 +54,21 @@
           <h3 class="settings-section-title">Notifications</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">In-app and system notifications.</p>
           <div class="settings-card space-y-5">
-            <RmCheckbox v-model="notificationsEnabled" row-layout label="Enable notifications" description="Show in-app and system notifications for releases and errors." @change="saveNotificationsEnabled" />
-            <RmCheckbox v-model="notificationSound" row-layout label="Notification sound" description="Play a sound when a notification appears." class="pt-2 border-t border-rm-border" @change="saveNotificationSound" />
-            <RmCheckbox v-model="notificationsOnlyWhenNotFocused" row-layout label="Only when app is in background" description="Show system notifications only when the app is not focused." class="pt-2 border-t border-rm-border" @change="saveNotificationsOnlyWhenNotFocused" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="notificationsEnabled" binary @update:model-value="saveNotificationsEnabled" />
+              <span class="settings-label block text-rm-text">Enable notifications</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Show in-app and system notifications for releases and errors.</p>
+            </label>
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="notificationSound" binary @update:model-value="saveNotificationSound" />
+              <span class="settings-label block text-rm-text">Notification sound</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Play a sound when a notification appears.</p>
+            </label>
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="notificationsOnlyWhenNotFocused" binary @update:model-value="saveNotificationsOnlyWhenNotFocused" />
+              <span class="settings-label block text-rm-text">Only when app is in background</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Show system notifications only when the app is not focused.</p>
+            </label>
           </div>
         </section>
 
@@ -57,19 +77,31 @@
           <h3 class="settings-section-title">Behavior</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">How you interact with projects and the UI.</p>
           <div class="settings-card space-y-5">
-            <RmCheckbox v-model="doubleClickToOpenProject" row-layout label="Double-click to open project" description="Require double-click to open a project in the sidebar (single-click to select only)." @change="saveDoubleClickToOpenProject" />
-            <RmCheckbox v-model="confirmDestructiveActions" row-layout label="Confirm destructive actions" description="Ask for confirmation before delete, release, or batch release." class="pt-2 border-t border-rm-border" @change="saveConfirmDestructiveActions" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="doubleClickToOpenProject" binary @update:model-value="saveDoubleClickToOpenProject" />
+              <span class="settings-label block text-rm-text">Double-click to open project</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Require double-click to open a project in the sidebar (single-click to select only).</p>
+            </label>
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="confirmDestructiveActions" binary @update:model-value="saveConfirmDestructiveActions" />
+              <span class="settings-label block text-rm-text">Confirm destructive actions</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Ask for confirmation before delete, release, or batch release.</p>
+            </label>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Auto-refresh interval</span>
               <p class="settings-desc">How often to refresh project list and dashboard (0 = off).</p>
-              <RmSelect v-model="autoRefreshIntervalSeconds" :options="autoRefreshIntervalOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveAutoRefreshInterval" />
+              <Select v-model="autoRefreshIntervalSeconds" :options="autoRefreshIntervalOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveAutoRefreshInterval" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Recent projects list length</span>
               <p class="settings-desc">Maximum number of recent projects to remember.</p>
-              <RmSelect v-model="recentListLength" :options="recentListLengthOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveRecentListLength" />
+              <Select v-model="recentListLength" :options="recentListLengthOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveRecentListLength" />
             </div>
-            <RmCheckbox v-model="showTips" row-layout label="Show tips and onboarding" description="Show first-run tips and occasional hints. Uncheck to hide permanently." class="pt-2 border-t border-rm-border" @change="saveShowTips" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="showTips" binary @update:model-value="saveShowTips" />
+              <span class="settings-label block text-rm-text">Show tips and onboarding</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Show first-run tips and occasional hints. Uncheck to hide permanently.</p>
+            </label>
           </div>
         </section>
 
@@ -79,32 +111,36 @@
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Commit and repository options.</p>
 
           <div class="settings-card space-y-5">
-            <RmCheckbox v-model="signCommits" row-layout label="Sign commits (GPG/SSH)" description="Use git commit -S when committing." @change="saveSignCommits" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="signCommits" binary @update:model-value="saveSignCommits" />
+              <span class="settings-label block text-rm-text">Sign commits (GPG/SSH)</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Use git commit -S when committing.</p>
+            </label>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Default branch name</span>
               <p class="settings-desc">Default branch to use when creating or referring to repos (e.g. main, master).</p>
-              <RmInput v-model="gitDefaultBranch" type="text" class="max-w-xs mt-2" placeholder="main" @blur="saveGitDefaultBranch" />
+              <InputText v-model="gitDefaultBranch" type="text" class="max-w-xs mt-2" placeholder="main" @blur="saveGitDefaultBranch" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Auto-fetch interval</span>
               <p class="settings-desc">How often to run git fetch in the background (0 = off).</p>
-              <RmSelect v-model="gitAutoFetchIntervalMinutes" :options="gitAutoFetchIntervalOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveGitAutoFetchInterval" />
+              <Select v-model="gitAutoFetchIntervalMinutes" :options="gitAutoFetchIntervalOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveGitAutoFetchInterval" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">SSH key path (optional)</span>
               <p class="settings-desc">Path to SSH private key for Git operations. Leave empty for default.</p>
-              <RmInput v-model="gitSshKeyPath" type="text" class="mt-2" placeholder="~/.ssh/id_rsa" @blur="saveGitSshKeyPath" />
+              <InputText v-model="gitSshKeyPath" type="text" class="mt-2" placeholder="~/.ssh/id_rsa" @blur="saveGitSshKeyPath" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Diff / merge tool (optional)</span>
               <p class="settings-desc">External diff or merge tool command (e.g. code --diff).</p>
-              <RmInput v-model="gitDiffTool" type="text" class="mt-2" placeholder="" @blur="saveGitDiffTool" />
+              <InputText v-model="gitDiffTool" type="text" class="mt-2" placeholder="" @blur="saveGitDiffTool" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">GitHub token (default)</span>
               <p class="settings-desc">Optional. Higher API limits and ability to create or update releases. Stored locally.</p>
               <div class="settings-controls flex flex-wrap items-center gap-2 mt-2">
-                <RmInput v-model="githubToken" type="password" class="flex-1 min-w-0" placeholder="ghp_..." autocomplete="off" @blur="saveToken" />
+                <InputText v-model="githubToken" type="password" class="flex-1 min-w-0" placeholder="ghp_..." autocomplete="off" @blur="saveToken" />
                 <a href="#" class="text-xs text-rm-accent hover:underline shrink-0" @click.prevent="openUrl('https://github.com/settings/tokens')">Create token</a>
               </div>
             </div>
@@ -123,7 +159,7 @@
             <div class="settings-row">
               <span class="settings-label">Provider</span>
               <p class="settings-desc">Choose where to send prompts.</p>
-              <RmSelect v-model="aiProvider" :options="aiProviderOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveAiProvider" />
+              <Select v-model="aiProvider" :options="aiProviderOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveAiProvider" />
             </div>
 
             <!-- Ollama -->
@@ -133,13 +169,13 @@
               <div class="grid gap-3 mt-3">
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Base URL</label>
-                  <RmInput v-model="ollamaBaseUrl" type="text" placeholder="http://localhost:11434" autocomplete="off" @blur="saveOllama" />
+                  <InputText v-model="ollamaBaseUrl" type="text" placeholder="http://localhost:11434" autocomplete="off" @blur="saveOllama" />
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
                   <div class="flex flex-wrap items-center gap-2">
-                    <RmInput v-model="ollamaModel" type="text" class="flex-1 min-w-0" placeholder="llama3.2" autocomplete="off" @blur="saveOllama" />
-                    <RmButton variant="secondary" size="compact" class="text-xs" :disabled="ollamaListLoading" @click="listOllamaModels">List models</RmButton>
+                    <InputText v-model="ollamaModel" type="text" class="flex-1 min-w-0" placeholder="llama3.2" autocomplete="off" @blur="saveOllama" />
+                    <Button severity="secondary" size="small" class="text-xs" :disabled="ollamaListLoading" @click="listOllamaModels">List models</Button>
                   </div>
                   <p v-if="ollamaModels.length" class="mt-1 text-xs text-rm-muted">Available: {{ ollamaModels.join(', ') }}</p>
                   <p v-else-if="ollamaListError" class="mt-1 text-xs text-rm-warning">{{ ollamaListError }}</p>
@@ -154,12 +190,12 @@
               <div class="grid gap-3 mt-3">
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">API key</label>
-                  <RmInput v-model="claudeApiKey" type="password" placeholder="sk-ant-..." autocomplete="off" @blur="saveClaude" />
+                  <InputText v-model="claudeApiKey" type="password" placeholder="sk-ant-..." autocomplete="off" @blur="saveClaude" />
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
-                  <RmSelect v-model="claudeModelPreset" :options="claudeModelPresetOptions" option-label="label" option-value="value" class="max-w-xs" @change="onClaudeModelPresetChange" />
-                  <RmInput v-if="claudeModelPreset === 'custom'" v-model="claudeModel" type="text" class="mt-2" placeholder="claude-sonnet-4-20250514" autocomplete="off" @blur="saveClaude" />
+                  <Select v-model="claudeModelPreset" :options="claudeModelPresetOptions" optionLabel="label" optionValue="value" class="max-w-xs" @change="onClaudeModelPresetChange" />
+                  <InputText v-if="claudeModelPreset === 'custom'" v-model="claudeModel" type="text" class="mt-2" placeholder="claude-sonnet-4-20250514" autocomplete="off" @blur="saveClaude" />
                 </div>
               </div>
             </div>
@@ -171,12 +207,12 @@
               <div class="grid gap-3 mt-3">
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">API key</label>
-                  <RmInput v-model="openaiApiKey" type="password" placeholder="sk-..." autocomplete="off" @blur="saveOpenAI" />
+                  <InputText v-model="openaiApiKey" type="password" placeholder="sk-..." autocomplete="off" @blur="saveOpenAI" />
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
-                  <RmSelect v-model="openaiModelPreset" :options="openaiModelPresetOptions" option-label="label" option-value="value" class="max-w-xs" @change="onOpenAiModelPresetChange" />
-                  <RmInput v-if="openaiModelPreset === 'custom'" v-model="openaiModel" type="text" class="mt-2" placeholder="gpt-4o-mini" autocomplete="off" @blur="saveOpenAI" />
+                  <Select v-model="openaiModelPreset" :options="openaiModelPresetOptions" optionLabel="label" optionValue="value" class="max-w-xs" @change="onOpenAiModelPresetChange" />
+                  <InputText v-if="openaiModelPreset === 'custom'" v-model="openaiModel" type="text" class="mt-2" placeholder="gpt-4o-mini" autocomplete="off" @blur="saveOpenAI" />
                 </div>
               </div>
             </div>
@@ -188,12 +224,12 @@
               <div class="grid gap-3 mt-3">
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">API key</label>
-                  <RmInput v-model="geminiApiKey" type="password" placeholder="AIza..." autocomplete="off" @blur="saveGemini" />
+                  <InputText v-model="geminiApiKey" type="password" placeholder="AIza..." autocomplete="off" @blur="saveGemini" />
                 </div>
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
-                  <RmSelect v-model="geminiModelPreset" :options="geminiModelPresetOptions" option-label="label" option-value="value" class="max-w-xs" @change="onGeminiModelPresetChange" />
-                  <RmInput v-if="geminiModelPreset === 'custom'" v-model="geminiModel" type="text" class="mt-2" placeholder="gemini-1.5-flash" autocomplete="off" @blur="saveGemini" />
+                  <Select v-model="geminiModelPreset" :options="geminiModelPresetOptions" optionLabel="label" optionValue="value" class="max-w-xs" @change="onGeminiModelPresetChange" />
+                  <InputText v-if="geminiModelPreset === 'custom'" v-model="geminiModel" type="text" class="mt-2" placeholder="gemini-1.5-flash" autocomplete="off" @blur="saveGemini" />
                 </div>
               </div>
             </div>
@@ -209,12 +245,12 @@
             <div class="settings-row">
               <span class="settings-label">Preferred editor</span>
               <p class="settings-desc">When opening a project or file from the Git section. Cursor and VS Code must be in your PATH.</p>
-              <RmSelect v-model="preferredEditor" :options="preferredEditorOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="savePreferredEditor" />
+              <Select v-model="preferredEditor" :options="preferredEditorOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="savePreferredEditor" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">PHP executable (default)</span>
               <p class="settings-desc">Used for Composer and Pest.</p>
-              <RmInput v-model="phpPath" type="text" class="mt-2" placeholder="/opt/homebrew/opt/php/bin/php" autocomplete="off" @blur="savePhpPath" />
+              <InputText v-model="phpPath" type="text" class="mt-2" placeholder="/opt/homebrew/opt/php/bin/php" autocomplete="off" @blur="savePhpPath" />
             </div>
           </div>
         </section>
@@ -261,29 +297,45 @@
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Density</span>
               <p class="settings-desc">Base font and spacing. Tighter fits more on screen; relaxed is easier to read.</p>
-              <RmSelect v-model="fontSize" :options="fontSizeOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveFontSize" />
+              <Select v-model="fontSize" :options="fontSizeOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveFontSize" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">UI zoom</span>
               <p class="settings-desc">Scale the entire interface (Electron webContents). Useful for high-DPI or accessibility.</p>
-              <RmSelect v-model="zoomFactor" :options="zoomOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveZoomFactor" />
+              <Select v-model="zoomFactor" :options="zoomOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveZoomFactor" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Corner style</span>
               <p class="settings-desc">Sharp, rounded, or pill-shaped buttons and inputs.</p>
-              <RmSelect v-model="borderRadius" :options="borderRadiusOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveBorderRadius" />
+              <Select v-model="borderRadius" :options="borderRadiusOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveBorderRadius" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <RmCheckbox v-model="reducedMotion" row-layout label="Reduce motion" description="Minimize animations and transitions. Aligns with system accessibility preferences." @change="saveReducedMotion" />
+              <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="reducedMotion" binary @update:model-value="saveReducedMotion" />
+              <span class="settings-label block text-rm-text">Reduce motion</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Minimize animations and transitions. Aligns with system accessibility preferences.</p>
+            </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <RmCheckbox v-model="reduceTransparency" row-layout label="Reduce transparency" description="Use solid backgrounds instead of semi-transparent panels. Improves readability (Electron / macOS-style)." @change="saveReduceTransparency" />
+              <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="reduceTransparency" binary @update:model-value="saveReduceTransparency" />
+              <span class="settings-label block text-rm-text">Reduce transparency</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Use solid backgrounds instead of semi-transparent panels. Improves readability (Electron / macOS-style).</p>
+            </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <RmCheckbox v-model="highContrast" row-layout label="High contrast" description="Stronger borders and higher-contrast text. Helps with visibility (Electron / accessibility)." @change="saveHighContrast" />
+              <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="highContrast" binary @update:model-value="saveHighContrast" />
+              <span class="settings-label block text-rm-text">High contrast</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Stronger borders and higher-contrast text. Helps with visibility (Electron / accessibility).</p>
+            </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <RmCheckbox v-model="useDetailTabs" row-layout label="Use tabs in project detail" description="Switch between Git, Version & release, and other sections with tabs." @change="saveUseTabs" />
+              <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="useDetailTabs" binary @update:model-value="saveUseTabs" />
+              <span class="settings-label block text-rm-text">Use tabs in project detail</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Switch between Git, Version & release, and other sections with tabs.</p>
+            </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label block mb-1">Terminal popout</span>
@@ -291,10 +343,18 @@
               <div class="space-y-3">
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Size</label>
-                  <RmSelect v-model="terminalPopoutSize" :options="terminalPopoutSizeOptions" option-label="label" option-value="value" class="max-w-xs" @change="saveTerminalPopoutSize" />
+                  <Select v-model="terminalPopoutSize" :options="terminalPopoutSizeOptions" optionLabel="label" optionValue="value" class="max-w-xs" @change="saveTerminalPopoutSize" />
                 </div>
-                <RmCheckbox v-model="terminalPopoutAlwaysOnTop" row-layout label="Always on top" description="Keep the terminal window above other windows." @change="saveTerminalPopoutAlwaysOnTop" />
-                <RmCheckbox v-model="terminalPopoutFullscreenable" row-layout label="Allow fullscreen" description="Allow the terminal window to enter fullscreen (e.g. green traffic light on macOS)." @change="saveTerminalPopoutFullscreenable" />
+                <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="terminalPopoutAlwaysOnTop" binary @update:model-value="saveTerminalPopoutAlwaysOnTop" />
+              <span class="settings-label block text-rm-text">Always on top</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Keep the terminal window above other windows.</p>
+            </label>
+                <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="terminalPopoutFullscreenable" binary @update:model-value="saveTerminalPopoutFullscreenable" />
+              <span class="settings-label block text-rm-text">Allow fullscreen</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Allow the terminal window to enter fullscreen (e.g. green traffic light on macOS).</p>
+            </label>
               </div>
             </div>
           </div>
@@ -308,13 +368,17 @@
             <div class="settings-row">
               <span class="settings-label">Proxy</span>
               <p class="settings-desc">Use system proxy or set custom (e.g. http://proxy:8080). Leave empty for system.</p>
-              <RmInput v-model="proxy" type="text" class="mt-2" placeholder="System or http://host:port" @blur="saveProxy" />
+              <InputText v-model="proxy" type="text" class="mt-2" placeholder="System or http://host:port" @blur="saveProxy" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Request timeout (seconds)</span>
-              <RmSelect v-model="requestTimeoutSeconds" :options="requestTimeoutOptions" option-label="label" option-value="value" class="max-w-xs mt-2" @change="saveRequestTimeout" />
+              <Select v-model="requestTimeoutSeconds" :options="requestTimeoutOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveRequestTimeout" />
             </div>
-            <RmCheckbox v-model="offlineMode" row-layout label="Offline mode" description="Disable network-dependent features." class="pt-2 border-t border-rm-border" @change="saveOfflineMode" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="offlineMode" binary @update:model-value="saveOfflineMode" />
+              <span class="settings-label block text-rm-text">Offline mode</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Disable network-dependent features.</p>
+            </label>
           </div>
         </section>
 
@@ -332,30 +396,38 @@
           <h3 class="settings-section-title">Data &amp; privacy</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Telemetry, crash reports, and settings backup.</p>
           <div class="settings-card space-y-5">
-            <RmCheckbox v-model="telemetry" row-layout label="Telemetry / usage data" description="Send usage events (e.g. app opened, feature used). Requires an endpoint URL (POST /api/telemetry, no auth). Throttle: 120/min per IP." @change="saveTelemetry" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="telemetry" binary @update:model-value="saveTelemetry" />
+              <span class="settings-label block text-rm-text">Telemetry / usage data</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Send usage events (e.g. app opened, feature used). Requires an endpoint URL (POST /api/telemetry, no auth). Throttle: 120/min per IP.</p>
+            </label>
             <div v-if="telemetry" class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Telemetry endpoint</span>
               <p class="settings-desc">Full URL to the telemetry API (e.g. https://your-server.com/api/telemetry).</p>
-              <RmInput v-model="telemetryEndpoint" type="url" class="mt-2" placeholder="https://your-server.com/api/telemetry" autocomplete="off" @blur="saveTelemetryEndpoint" />
+              <InputText v-model="telemetryEndpoint" type="url" class="mt-2" placeholder="https://your-server.com/api/telemetry" autocomplete="off" @blur="saveTelemetryEndpoint" />
             </div>
             <div v-if="telemetry" class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">User identifier (optional)</span>
               <p class="settings-desc">Email or ID for context in events. Leave empty for anonymous.</p>
-              <RmInput v-model="telemetryUserIdentifier" type="text" class="mt-2 max-w-md" placeholder="user@example.com" autocomplete="off" @blur="saveTelemetryUserIdentifier" />
+              <InputText v-model="telemetryUserIdentifier" type="text" class="mt-2 max-w-md" placeholder="user@example.com" autocomplete="off" @blur="saveTelemetryUserIdentifier" />
             </div>
-            <RmCheckbox v-model="crashReports" row-layout label="Crash reports" description="Send crash reports to help fix bugs. Requires an ingestion endpoint URL (POST /api/crash-reports, no auth)." class="pt-2 border-t border-rm-border" @change="saveCrashReports" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="crashReports" binary @update:model-value="saveCrashReports" />
+              <span class="settings-label block text-rm-text">Crash reports</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Send crash reports to help fix bugs. Requires an ingestion endpoint URL (POST /api/crash-reports, no auth).</p>
+            </label>
             <div v-if="crashReports" class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Crash report endpoint</span>
               <p class="settings-desc">Full URL to the crash report API (e.g. https://your-server.com/api/crash-reports). Throttling is per-IP on the server.</p>
-              <RmInput v-model="crashReportEndpoint" type="url" class="mt-2" placeholder="https://your-server.com/api/crash-reports" autocomplete="off" @blur="saveCrashReportEndpoint" />
+              <InputText v-model="crashReportEndpoint" type="url" class="mt-2" placeholder="https://your-server.com/api/crash-reports" autocomplete="off" @blur="saveCrashReportEndpoint" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Settings backup</span>
               <p class="settings-desc">Export or import preferences. Reset restores defaults (does not remove projects).</p>
               <div class="flex flex-wrap gap-2 mt-2">
-                <RmButton variant="secondary" size="compact" @click="exportSettingsToFile">Export</RmButton>
-                <RmButton variant="secondary" size="compact" @click="importSettingsFromFile">Import</RmButton>
-                <RmButton variant="secondary" size="compact" class="text-rm-warning" @click="confirmResetSettings">Reset</RmButton>
+                <Button severity="secondary" size="small" @click="exportSettingsToFile">Export</Button>
+                <Button severity="secondary" size="small" @click="importSettingsFromFile">Import</Button>
+                <Button severity="secondary" size="small" class="text-rm-warning" @click="confirmResetSettings">Reset</Button>
               </div>
               <p v-if="dataPrivacyMessage" class="mt-2 text-sm m-0" :class="dataPrivacyMessageOk ? 'text-rm-success' : 'text-rm-warning'">{{ dataPrivacyMessage }}</p>
             </div>
@@ -367,8 +439,16 @@
           <h3 class="settings-section-title">Window</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Window behavior and tray.</p>
           <div class="settings-card space-y-5">
-            <RmCheckbox v-model="alwaysOnTop" row-layout label="Always on top" description="Keep the app window above other windows." @change="saveAlwaysOnTop" />
-            <RmCheckbox v-model="minimizeToTray" row-layout label="Minimize to tray" description="Closing the window hides it to the system tray instead of quitting." class="pt-2 border-t border-rm-border" @change="saveMinimizeToTray" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="alwaysOnTop" binary @update:model-value="saveAlwaysOnTop" />
+              <span class="settings-label block text-rm-text">Always on top</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Keep the app window above other windows.</p>
+            </label>
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="minimizeToTray" binary @update:model-value="saveMinimizeToTray" />
+              <span class="settings-label block text-rm-text">Minimize to tray</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Closing the window hides it to the system tray instead of quitting.</p>
+            </label>
           </div>
         </section>
 
@@ -377,9 +457,21 @@
           <h3 class="settings-section-title">Accessibility</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Focus, cursor, and screen reader support.</p>
           <div class="settings-card space-y-5">
-            <RmCheckbox v-model="focusOutlineVisible" row-layout label="Always show focus outline" description="Show a visible focus ring on keyboard focus." @change="saveFocusOutlineVisible" />
-            <RmCheckbox v-model="largeCursor" row-layout label="Large cursor in inputs" description="Use a larger text cursor in input fields." class="pt-2 border-t border-rm-border" @change="saveLargeCursor" />
-            <RmCheckbox v-model="screenReaderSupport" row-layout label="Screen reader support" description="Announce live regions for assistive technologies." class="pt-2 border-t border-rm-border" @change="saveScreenReaderSupport" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="focusOutlineVisible" binary @update:model-value="saveFocusOutlineVisible" />
+              <span class="settings-label block text-rm-text">Always show focus outline</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Show a visible focus ring on keyboard focus.</p>
+            </label>
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="largeCursor" binary @update:model-value="saveLargeCursor" />
+              <span class="settings-label block text-rm-text">Large cursor in inputs</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Use a larger text cursor in input fields.</p>
+            </label>
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
+              <Checkbox v-model="screenReaderSupport" binary @update:model-value="saveScreenReaderSupport" />
+              <span class="settings-label block text-rm-text">Screen reader support</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted">Announce live regions for assistive technologies.</p>
+            </label>
           </div>
         </section>
 
@@ -389,7 +481,11 @@
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Options for debugging and troubleshooting.</p>
 
           <div class="settings-card">
-            <RmCheckbox v-model="debugLogging" row-layout label="Enable debug logging" description="Log app actions (project load, IPC, preferences, nav). Renderer logs in DevTools; main process in terminal." @change="saveDebugLogging" />
+            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
+              <Checkbox v-model="debugLogging" binary @update:model-value="saveDebugLogging" />
+              <span class="settings-label block text-rm-text">Enable debug logging</span>
+              <p class="settings-desc m-0 text-sm text-rm-muted col-start-2">Log app actions (project load, IPC, preferences, nav). Renderer logs in DevTools; main process in terminal.</p>
+            </label>
           </div>
         </section>
       </div>
@@ -399,7 +495,10 @@
 
 <script setup>
 import { ref, onMounted } from 'vue';
-import { RmButton, RmCheckbox, RmInput, RmSelect } from '../components/ui';
+import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useLicense } from '../composables/useLicense';

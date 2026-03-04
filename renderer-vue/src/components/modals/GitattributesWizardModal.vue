@@ -1,5 +1,14 @@
 <template>
-  <RmModal title=".gitattributes — create or edit" class="max-w-2xl max-h-[90vh]" @close="close">
+  <Dialog
+    :visible="true"
+    header=".gitattributes — create or edit"
+    :style="{ width: '36rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-w-2xl max-h-[90vh]"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div class="flex flex-col gap-4 overflow-y-auto min-h-0">
         <!-- Wizard: check then add -->
         <div class="rounded-rm border border-rm-border bg-rm-surface/20 p-3">
@@ -26,25 +35,22 @@
               </span>
             </label>
           </div>
-          <RmButton
-            variant="primary"
-            size="compact"
+          <Button
+            severity="primary"
+            size="small"
             class="text-xs"
             :disabled="wizardSelected.length === 0"
             @click="addSelected"
           >
             Add selected
-          </RmButton>
+          </Button>
         </div>
 
         <!-- Presets -->
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-[11px] font-medium text-rm-muted uppercase tracking-wider">Presets</span>
-          <RmSelect v-model="selectedPresetId" class="text-xs py-1.5 px-2 min-w-0 max-w-[14rem]">
-            <option value="">Choose preset…</option>
-            <option v-for="p in presets" :key="p.id" :value="p.id">{{ p.label }}</option>
-          </RmSelect>
-          <RmButton variant="secondary" size="compact" class="text-xs" :disabled="!selectedPresetId" @click="appendPreset">Add preset</RmButton>
+          <Select v-model="selectedPresetId" :options="presetSelectOptions" optionLabel="label" optionValue="value" class="text-xs py-1.5 px-2 min-w-0 max-w-[14rem]" />
+          <Button severity="secondary" size="small" class="text-xs" :disabled="!selectedPresetId" @click="appendPreset">Add preset</Button>
         </div>
 
         <!-- Inline diff: removed / added vs HEAD -->
@@ -65,7 +71,7 @@
         <!-- Editable content -->
         <div class="flex flex-col gap-1.5 min-h-0 flex-1">
           <label class="text-[11px] font-medium text-rm-muted uppercase tracking-wider">Content (edit below)</label>
-          <RmTextarea
+          <Textarea
             v-model="localContent"
             class="w-full text-sm font-mono min-h-[14rem] flex-1"
             placeholder="No .gitattributes or add rules above"
@@ -74,15 +80,18 @@
         </div>
     </div>
     <template #footer>
-      <RmButton variant="secondary" size="compact" class="text-xs" @click="close">Cancel</RmButton>
-      <RmButton variant="primary" size="compact" class="text-xs" @click="save">Save</RmButton>
+      <Button severity="secondary" size="small" class="text-xs" @click="close">Cancel</Button>
+      <Button severity="primary" size="small" class="text-xs" @click="save">Save</Button>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { ref, watch, computed } from 'vue';
-import { RmButton, RmModal, RmSelect, RmTextarea } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import Select from 'primevue/select';
+import Textarea from 'primevue/textarea';
 import { GITATTRIBUTES_PRESETS, GITATTRIBUTES_WIZARD_OPTIONS } from '../detail/git/gitattributesPresets.js';
 
 const props = defineProps({
@@ -94,6 +103,10 @@ const emit = defineEmits(['close', 'applyAndSave']);
 
 const wizardOptions = GITATTRIBUTES_WIZARD_OPTIONS;
 const presets = GITATTRIBUTES_PRESETS;
+const presetSelectOptions = computed(() => [
+  { value: '', label: 'Choose preset…' },
+  ...presets.map((p) => ({ value: p.id, label: p.label })),
+]);
 const localContent = ref(props.initialContent || '');
 const wizardSelected = ref([]);
 const selectedPresetId = ref('');

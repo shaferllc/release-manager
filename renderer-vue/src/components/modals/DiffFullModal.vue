@@ -1,15 +1,25 @@
 <template>
-  <RmModal :title="title || 'Diff'" wide class="max-h-[85vh] flex flex-col" @close="close">
+  <Dialog
+    :visible="true"
+    :header="title || 'Diff'"
+    :style="{ width: '42rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-h-[85vh] flex flex-col"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <pre class="m-0 flex-1 overflow-auto text-xs font-mono border-t border-rm-border whitespace-pre-wrap p-4">{{ content }}</pre>
     <template #footer>
-      <RmButton v-if="content" variant="secondary" size="compact" class="text-xs shrink-0" @click="copyContent">Copy</RmButton>
-      <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="close">Close</RmButton>
+      <Button v-if="content" severity="secondary" size="small" class="text-xs shrink-0" @click="copyContent">Copy</Button>
+      <Button severity="secondary" size="small" class="text-xs shrink-0" @click="close">Close</Button>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
-import { RmButton, RmModal } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

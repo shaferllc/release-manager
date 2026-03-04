@@ -14,19 +14,22 @@
 
       <section class="card mb-6">
         <div class="card-section">
-          <RmCardHeader>API server</RmCardHeader>
+          <span class="card-label">API server</span>
           <div class="api-server-row flex flex-wrap items-center gap-6">
-            <RmCheckbox v-model="enabled" label="Enable API server" class="text-sm font-medium" @change="onToggleEnabled" />
+            <label class="flex items-center gap-2 cursor-pointer text-sm font-medium">
+              <Checkbox v-model="enabled" binary @update:model-value="onToggleEnabled" />
+              Enable API server
+            </label>
             <div class="flex items-center gap-2">
               <label class="text-xs font-medium text-rm-muted">Port</label>
-              <RmInput v-model.number="port" type="number" min="1" max="65535" class="w-20 text-center" @blur="onPortBlur" />
+              <InputText v-model.number="port" type="number" min="1" max="65535" class="w-20 text-center" @blur="onPortBlur" />
             </div>
-            <RmStatusPill v-if="status.running" variant="accent">Running</RmStatusPill>
+            <Tag v-if="status.running" severity="info">Running</Tag>
           </div>
           <div v-if="status.running" class="mt-4 flex flex-wrap items-center gap-2">
             <label class="text-xs font-medium text-rm-muted">Base URL</label>
             <pre class="api-url-block m-0 flex-1 min-w-0 p-3 rounded-rm bg-rm-bg text-sm text-rm-text overflow-x-auto">{{ baseUrl }}</pre>
-            <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="copyBaseUrl">Copy</RmButton>
+            <Button severity="secondary" size="small" class="text-xs shrink-0" @click="copyBaseUrl">Copy</Button>
           </div>
           <p v-else class="m-0 mt-4 text-sm text-rm-muted">Server is stopped. Enable it to get a base URL.</p>
           <p v-if="copyStatus" class="m-0 mt-2 text-xs font-medium text-rm-accent">{{ copyStatus }}</p>
@@ -35,7 +38,7 @@
 
       <section class="card mb-6">
         <div class="card-section">
-          <RmCardHeader>MCP server</RmCardHeader>
+          <span class="card-label">MCP server</span>
           <p class="m-0 mb-4 text-sm text-rm-muted">
             Start or stop the Model Context Protocol server used by Cursor and other MCP clients. When running from source, you can start it here or open a terminal and run <code class="bg-rm-surface px-1 rounded text-xs">npm run mcp</code>.
           </p>
@@ -46,34 +49,34 @@
             >
               {{ mcpStatus.running ? `Running (PID ${mcpStatus.pid ?? '?'})` : 'Not running' }}
             </span>
-            <RmButton
-              variant="primary"
-              size="compact"
+            <Button
+              severity="primary"
+              size="small"
               class="text-xs"
               :disabled="mcpStatus.running || mcpBusy"
               @click="startMcp"
             >
               {{ mcpBusy ? 'Starting…' : 'Start' }}
-            </RmButton>
-            <RmButton
-              variant="secondary"
-              size="compact"
+            </Button>
+            <Button
+              severity="secondary"
+              size="small"
               class="text-xs"
               :disabled="!mcpStatus.running || mcpBusy"
               @click="stopMcp"
             >
               Stop
-            </RmButton>
-            <RmButton
-              variant="secondary"
-              size="compact"
+            </Button>
+            <Button
+              severity="secondary"
+              size="small"
               class="text-xs"
               :disabled="!appPath"
               title="Open terminal at app folder; run npm run mcp there"
               @click="openTerminalForMcp"
             >
               Open in Terminal
-            </RmButton>
+            </Button>
           </div>
           <p v-if="mcpError" class="m-0 text-xs text-rm-warning">{{ mcpError }}</p>
           <p v-if="appPath" class="m-0 text-xs text-rm-muted">
@@ -84,18 +87,18 @@
 
       <section class="card mb-6">
         <div class="card-section">
-          <RmCardHeader>API Tester</RmCardHeader>
+          <span class="card-label">API Tester</span>
           <p class="m-0 mb-5 text-sm text-rm-muted">Select a method, set parameters, and send a request. Works via the app; enable the API server above to test over HTTP.</p>
           <div class="tester-row mb-4">
             <label class="text-xs font-medium text-rm-muted shrink-0">Method</label>
-            <RmSelect v-model="selectedMethod" :options="methodOptions" option-label="label" option-value="value" class="flex-1 min-w-0 max-w-md" />
+            <Select v-model="selectedMethod" :options="methodOptions" optionLabel="label" optionValue="value" class="flex-1 min-w-0 max-w-md" />
           </div>
           <div v-if="selectedDoc && selectedDoc.params && selectedDoc.params.length" class="tester-params mb-4 space-y-3">
             <h4 class="api-doc-section-title m-0">Parameters</h4>
             <div v-for="p in selectedDoc.params" :key="p.name" class="tester-param flex flex-col gap-1 sm:flex-row sm:items-center">
               <label class="sm:w-40 font-mono text-xs font-medium text-rm-text shrink-0">{{ p.name }}</label>
               <template v-if="isJsonParam(p)">
-                <RmTextarea
+                <Textarea
                   v-model="builderParamValues[p.name]"
                   class="flex-1 font-mono text-xs min-h-[3.5rem]"
                   :placeholder="jsonPlaceholder(p)"
@@ -103,13 +106,20 @@
                 />
               </template>
               <template v-else-if="p.type === 'boolean'">
-                <RmCheckbox v-model="builderParamValues[p.name]" :true-value="'true'" :false-value="'false'" :label="builderParamValues[p.name] === 'true' ? 'true' : 'false'" class="text-sm text-rm-muted" />
+                <label class="flex items-center gap-2 cursor-pointer text-sm text-rm-muted">
+                  <Checkbox
+                    :model-value="builderParamValues[p.name] === 'true'"
+                    binary
+                    @update:model-value="(v) => (builderParamValues[p.name] = v ? 'true' : 'false')"
+                  />
+                  {{ builderParamValues[p.name] === 'true' ? 'true' : 'false' }}
+                </label>
               </template>
               <template v-else-if="p.type === 'number'">
-                <RmInput v-model="builderParamValues[p.name]" type="number" class="flex-1 max-w-xs" />
+                <InputText v-model="builderParamValues[p.name]" type="number" class="flex-1 max-w-xs" />
               </template>
               <template v-else>
-                <RmInput v-model="builderParamValues[p.name]" type="text" class="flex-1" :placeholder="defaultPlaceholder(p)" />
+                <InputText v-model="builderParamValues[p.name]" type="text" class="flex-1" :placeholder="defaultPlaceholder(p)" />
               </template>
               <span v-if="p.description" class="sm:col-span-2 text-xs text-rm-muted mt-0.5 sm:mt-0 sm:ml-2">{{ p.description }}</span>
             </div>
@@ -119,16 +129,16 @@
             <pre class="api-code-block m-0 p-4 bg-rm-bg text-xs overflow-x-auto">{{ requestBodyPreview || '{}' }}</pre>
           </details>
           <div class="flex flex-wrap items-center gap-2 mb-4">
-            <RmButton
-              variant="primary"
-              size="compact"
+            <Button
+              severity="primary"
+              size="small"
               class="text-sm"
               :disabled="!selectedMethod || sending"
               @click="sendRequest"
             >
               {{ sending ? 'Sending…' : 'Send request' }}
-            </RmButton>
-            <RmButton variant="secondary" size="compact" class="text-sm" @click="fillSampleParams" :disabled="!selectedDoc">Fill sample</RmButton>
+            </Button>
+            <Button severity="secondary" size="small" class="text-sm" @click="fillSampleParams" :disabled="!selectedDoc">Fill sample</Button>
           </div>
           <div v-if="lastResponse !== null" class="tester-response rounded-rm border border-rm-border overflow-hidden">
             <div class="flex flex-wrap items-center gap-3 px-3 py-2.5 bg-rm-surface/60 border-b border-rm-border">
@@ -137,7 +147,7 @@
               </span>
               <span v-if="lastResponse.duration !== undefined" class="text-xs text-rm-muted">{{ lastResponse.duration }} ms</span>
               <span v-if="lastResponse.via" class="text-xs text-rm-muted">{{ lastResponse.via }}</span>
-              <RmButton variant="secondary" size="compact" class="text-xs ml-auto" @click="copyResponse">Copy response</RmButton>
+              <Button severity="secondary" size="small" class="text-xs ml-auto" @click="copyResponse">Copy response</Button>
             </div>
             <pre class="api-code-block m-0 p-4 text-xs overflow-x-auto max-h-80 overflow-y-auto">{{ responseBodyDisplay }}</pre>
           </div>
@@ -146,16 +156,16 @@
 
       <section class="card mb-6">
         <div class="card-section">
-          <RmCardHeader>Method documentation</RmCardHeader>
+          <span class="card-label">Method documentation</span>
           <p class="m-0 mb-4 text-sm text-rm-muted">Pick a category or search, then click a method for full docs and a copy-paste example.</p>
           <div class="api-filters flex flex-wrap items-center gap-4 mb-4">
             <div class="flex items-center gap-2">
               <label class="text-xs font-medium text-rm-muted shrink-0">Category</label>
-              <RmSelect v-model="selectedCategory" :options="selectedCategoryOptions" option-label="label" option-value="value" class="api-select min-w-[12rem]" />
+              <Select v-model="selectedCategory" :options="selectedCategoryOptions" optionLabel="label" optionValue="value" class="api-select min-w-[12rem]" />
             </div>
             <div class="flex items-center gap-2 flex-1 min-w-[10rem]">
               <label class="text-xs font-medium text-rm-muted shrink-0">Search</label>
-              <RmInput
+              <InputText
                 v-model="methodFilter"
                 type="text"
                 class="flex-1"
@@ -204,16 +214,16 @@
                   <h4 class="api-doc-section-title">Sample response</h4>
                   <pre class="api-code-block m-0 mt-1 p-4 rounded-rm bg-rm-bg text-xs text-rm-text overflow-x-auto">{{ selectedDoc.sampleResponse }}</pre>
                   <div class="flex flex-wrap items-center gap-2 mt-2">
-                    <RmButton variant="secondary" size="compact" class="text-xs" @click="copySampleResponse(selectedDoc.sampleResponse)">Copy JSON</RmButton>
-                    <RmButton
-                      variant="secondary"
-                      size="compact"
+                    <Button severity="secondary" size="small" class="text-xs" @click="copySampleResponse(selectedDoc.sampleResponse)">Copy JSON</Button>
+                    <Button
+                      severity="secondary"
+                      size="small"
                       class="text-xs"
                       :disabled="!baseUrl || sampleLoading"
                       @click="trySample(selectedDoc.name)"
                     >
                       {{ sampleLoading ? 'Calling…' : 'Try sample' }}
-                    </RmButton>
+                    </Button>
                   </div>
                   <div v-if="sampleResult !== null" class="mt-3">
                     <h5 class="api-doc-section-title m-0 mb-1">Live response</h5>
@@ -223,7 +233,7 @@
                 <div class="api-doc-section pt-4 border-t border-rm-border">
                   <h4 class="api-doc-section-title">Example</h4>
                   <pre class="api-code-block m-0 mt-1 p-4 rounded-rm bg-rm-bg text-xs text-rm-text overflow-x-auto">{{ exampleForMethod(selectedDoc.name) }}</pre>
-                  <RmButton variant="secondary" size="compact" class="text-xs mt-2" @click="copyExample(selectedDoc.name)">Copy curl</RmButton>
+                  <Button severity="secondary" size="small" class="text-xs mt-2" @click="copyExample(selectedDoc.name)">Copy curl</Button>
                 </div>
               </div>
               <p v-else-if="selectedMethod && !selectedDoc" class="m-0 text-sm text-rm-muted">No documentation for this method.</p>
@@ -238,7 +248,12 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
-import { RmButton, RmCardHeader, RmCheckbox, RmInput, RmSelect, RmStatusPill, RmTextarea } from '../components/ui';
+import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
+import Tag from 'primevue/tag';
+import Textarea from 'primevue/textarea';
 import { useApi } from '../composables/useApi';
 
 const api = useApi();

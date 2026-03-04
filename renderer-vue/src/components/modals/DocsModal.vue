@@ -1,15 +1,25 @@
 <template>
-  <RmModal :title="entry?.title || 'Documentation'" wide class="max-h-[85vh] flex flex-col" @close="close">
+  <Dialog
+    :visible="true"
+    :header="entry?.title || 'Documentation'"
+    :style="{ width: '42rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-h-[85vh] flex flex-col"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div class="prose-docs flex-1 overflow-auto border-t border-rm-border p-5" v-html="renderedBody"></div>
     <template #footer>
-      <RmButton variant="secondary" size="compact" @click="close">Close</RmButton>
+      <Button severity="secondary" size="small" @click="close">Close</Button>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { computed } from 'vue';
-import { RmButton, RmModal } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
 import { DOCS } from '../../docsContent';
 import { renderMarkdown } from '../../composables/useMarkdown';
 

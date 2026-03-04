@@ -1,12 +1,3 @@
-export { default as RmButton } from './RmButton.vue';
-export { default as RmInput } from './RmInput.vue';
-export { default as RmTextarea } from './RmTextarea.vue';
-export { default as RmSelect } from './RmSelect.vue';
-export { default as RmCard } from './RmCard.vue';
-export { default as RmModal } from './RmModal.vue';
-export { default as RmEmptyState } from './RmEmptyState.vue';
-export { default as RmStatusPill } from './RmStatusPill.vue';
-export { default as RmListPanel } from './RmListPanel.vue';
-export { default as RmStatusDot } from './RmStatusDot.vue';
-export { default as RmCheckbox } from './RmCheckbox.vue';
-export { default as RmCardHeader } from './RmCardHeader.vue';
+// UI is PrimeVue + inline/CSS only. No Rm* exports.
+// Import components from 'primevue/button', 'primevue/inputtext', etc.
+// Use classes: card-label, empty-state, status-dot (see input.css and PRIMEVUE.md).

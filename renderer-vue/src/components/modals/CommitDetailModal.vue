@@ -1,26 +1,35 @@
 <template>
-  <RmModal :title="title" wide class="max-h-[85vh] flex flex-col" @close="close">
+  <Dialog
+    :visible="true"
+    :header="title"
+    :style="{ width: '42rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-h-[85vh] flex flex-col"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div class="m-0 flex-1 overflow-auto text-xs font-mono border-t border-rm-border whitespace-pre-wrap p-4">{{ content }}</div>
     <template #footer>
-      <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="copySha">Copy SHA</RmButton>
-      <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="cherryPick">Cherry-pick</RmButton>
-      <RmButton variant="secondary" size="compact" class="text-xs shrink-0 text-rm-warning hover:bg-rm-warning/10" @click="revert">Revert</RmButton>
-      <RmButton v-if="isHead" variant="secondary" size="compact" class="text-xs shrink-0" title="Amend this commit (only for HEAD)" @click="amend">Amend</RmButton>
+      <Button severity="secondary" size="small" class="text-xs shrink-0" @click="copySha">Copy SHA</Button>
+      <Button severity="secondary" size="small" class="text-xs shrink-0" @click="cherryPick">Cherry-pick</Button>
+      <Button severity="secondary" size="small" class="text-xs shrink-0 text-rm-warning hover:bg-rm-warning/10" @click="revert">Revert</Button>
+      <Button v-if="isHead" severity="secondary" size="small" class="text-xs shrink-0" title="Amend this commit (only for HEAD)" @click="amend">Amend</Button>
       <template v-if="commitFiles.length">
         <span class="text-xs text-rm-muted shrink-0">Side-by-side:</span>
-        <RmSelect v-model="sideBySideFile" class="text-xs px-2 py-1 max-w-[14rem] truncate">
-          <option v-for="f in commitFiles" :key="f" :value="f">{{ f }}</option>
-        </RmSelect>
-        <RmButton variant="primary" size="compact" class="text-xs shrink-0" title="Open side-by-side diff (old | new) with copy and revert line" @click="openSideBySide">Open</RmButton>
+        <Select v-model="sideBySideFile" :options="sideBySideFileOptions" optionLabel="label" optionValue="value" class="text-xs px-2 py-1 max-w-[14rem] truncate" />
+        <Button severity="primary" size="small" class="text-xs shrink-0" title="Open side-by-side diff (old | new) with copy and revert line" @click="openSideBySide">Open</Button>
       </template>
-      <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="close">Close</RmButton>
+      <Button severity="secondary" size="small" class="text-xs shrink-0" @click="close">Close</Button>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
-import { watch, ref } from 'vue';
-import { RmButton, RmModal, RmSelect } from '../ui';
+import { watch, ref, computed } from 'vue';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import Select from 'primevue/select';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({
@@ -34,6 +43,7 @@ const content = ref('');
 const title = ref('');
 const commitFiles = ref([]);
 const sideBySideFile = ref('');
+const sideBySideFileOptions = computed(() => commitFiles.value.map((f) => ({ value: f, label: f })));
 
 const emit = defineEmits(['close', 'refresh', 'open-diff-side-by-side']);
 

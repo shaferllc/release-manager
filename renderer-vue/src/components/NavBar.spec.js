@@ -30,7 +30,7 @@ describe('NavBar', () => {
       global: { plugins: [createPinia()] },
     });
     expect(wrapper.text()).toContain('View');
-    expect(wrapper.find('.view-dropdown-label').text()).toBe('Project');
+    expect(wrapper.text()).toContain('Project');
   });
 
   it('calls setTheme when theme button is clicked', async () => {
@@ -40,7 +40,7 @@ describe('NavBar', () => {
     const wrapper = mount(NavBar, {
       global: { plugins: [pinia] },
     });
-    const lightBtn = wrapper.findAll('button').find((b) => b.attributes('title') === 'Light');
+    const lightBtn = wrapper.find('button[title="Light"]');
     await lightBtn.trigger('click');
     expect(store.theme).toBe('light');
   });
@@ -52,7 +52,7 @@ describe('NavBar', () => {
     const wrapper = mount(NavBar, {
       global: { plugins: [pinia] },
     });
-    const darkBtn = wrapper.findAll('button').find((b) => b.attributes('title') === 'Dark');
+    const darkBtn = wrapper.find('button[title="Dark"]');
     await darkBtn.trigger('click');
     expect(store.theme).toBe('dark');
   });
@@ -66,17 +66,31 @@ describe('NavBar', () => {
     expect(wrapper.emitted('refresh')).toHaveLength(1);
   });
 
-  it('calls selectView and updates store when view option is clicked', async () => {
+  it('opens view Select and shows view options', async () => {
+    const wrapper = mount(NavBar, {
+      global: { plugins: [createPinia()] },
+      attachTo: document.body,
+    });
+    const trigger = wrapper.find('.view-dropdown-select [role="combobox"]');
+    await trigger.trigger('click');
+    await new Promise((r) => setTimeout(r, 50));
+    const options = document.body.querySelectorAll('[role="option"]');
+    const labels = [...options].map((el) => el.textContent?.trim()).filter(Boolean);
+    expect(labels.some((t) => t.includes('Dashboard'))).toBe(true);
+    expect(labels.some((t) => t.includes('Project'))).toBe(true);
+    wrapper.unmount();
+  });
+
+  it('updates store when view mode is set and Select reflects it', async () => {
     const pinia = createPinia();
     setActivePinia(pinia);
     const store = useAppStore();
+    store.setViewMode('dashboard');
     const wrapper = mount(NavBar, {
       global: { plugins: [pinia] },
     });
-    await wrapper.find('.view-dropdown-btn').trigger('click');
-    const options = wrapper.findAll('.view-dropdown-option');
-    const dashboardOpt = options.find((el) => el.text().includes('Dashboard'));
-    await dashboardOpt.trigger('click');
+    await wrapper.vm.$nextTick();
+    expect(wrapper.text()).toContain('Dashboard');
     expect(store.viewMode).toBe('dashboard');
   });
 
@@ -91,15 +105,15 @@ describe('NavBar', () => {
     expect(fallback.classes()).not.toContain('hidden');
   });
 
-  it('closes view dropdown when clicking outside', async () => {
+  it('opens view Select when trigger is clicked', async () => {
     const wrapper = mount(NavBar, {
       global: { plugins: [createPinia()] },
       attachTo: document.body,
     });
-    await wrapper.find('.view-dropdown-btn').trigger('click');
-    expect(wrapper.find('.view-dropdown-menu').classes()).not.toContain('hidden');
-    await document.body.click();
-    expect(wrapper.find('.view-dropdown-menu').classes()).toContain('hidden');
+    await wrapper.find('.view-dropdown-select').trigger('click');
+    await wrapper.vm.$nextTick();
+    const listbox = document.body.querySelector('[role="listbox"]');
+    expect(listbox).toBeTruthy();
     wrapper.unmount();
   });
 

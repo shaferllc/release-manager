@@ -1,18 +1,28 @@
 <template>
-  <RmModal :title="filePath || 'File'" wide class="max-h-[85vh] flex flex-col" @close="close">
+  <Dialog
+    :visible="true"
+    :header="filePath || 'File'"
+    :style="{ width: '42rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-h-[85vh] flex flex-col"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div class="modal-file-content m-0 flex-1 overflow-auto text-xs font-mono border-t border-rm-border p-4" v-html="renderedContent"></div>
     <template #footer>
-      <RmButton variant="secondary" size="compact" class="text-xs" @click="openInEditor">Open in editor</RmButton>
-      <RmButton variant="secondary" size="compact" class="text-xs" title="Show line-by-line blame" @click="showBlame">Blame</RmButton>
-      <RmButton v-if="showDiffBtn" variant="secondary" size="compact" class="text-xs" title="Back to diff view" @click="showDiff">Show diff</RmButton>
-      <RmButton variant="secondary" size="compact" class="text-xs" @click="close">Close</RmButton>
+      <Button severity="secondary" size="small" class="text-xs" @click="openInEditor">Open in editor</Button>
+      <Button severity="secondary" size="small" class="text-xs" title="Show line-by-line blame" @click="showBlame">Blame</Button>
+      <Button v-if="showDiffBtn" severity="secondary" size="small" class="text-xs" title="Back to diff view" @click="showDiff">Show diff</Button>
+      <Button severity="secondary" size="small" class="text-xs" @click="close">Close</Button>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
-import { RmButton, RmModal } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

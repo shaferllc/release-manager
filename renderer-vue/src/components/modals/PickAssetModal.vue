@@ -1,5 +1,14 @@
 <template>
-  <RmModal title="Choose asset" class="max-h-[85vh] flex flex-col" @close="close">
+  <Dialog
+    :visible="true"
+    header="Choose asset"
+    :style="{ width: '32rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-h-[85vh] flex flex-col"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <ul class="list-none m-0 flex-1 overflow-auto p-0">
       <li
         v-for="asset in assets"
@@ -10,12 +19,13 @@
         {{ asset.name }} <span class="text-rm-muted text-xs">({{ formatSize(asset.size) }})</span>
       </li>
     </ul>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
-import { RmModal } from '../ui';
+import Dialog from 'primevue/dialog';
 import { useApi } from '../../composables/useApi';
+import { formatSize } from '../../utils/formatSize';
 
 const props = defineProps({
   assets: { type: Array, default: () => [] },
@@ -23,13 +33,6 @@ const props = defineProps({
 const emit = defineEmits(['close', 'select']);
 
 const api = useApi();
-
-function formatSize(bytes) {
-  if (bytes == null) return '';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function close() {
   emit('close');

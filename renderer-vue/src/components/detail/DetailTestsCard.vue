@@ -20,7 +20,7 @@
           severity="primary"
           size="small"
           class="text-xs"
-          :disabled="running !== '' || suggestingFix || !api.ollamaSuggestTestFix"
+          :disabled="running !== '' || suggestingFix || !ollamaSuggestAvailable"
           @click="runAndSuggestFix"
         >
           {{ suggestingFix ? 'Asking AI…' : 'Run & suggest fix' }}
@@ -33,88 +33,26 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
 import Button from 'primevue/button';
 import { useAppStore } from '../../stores/app';
-import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
-import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
+import { useTests } from '../../composables/useTests';
 
 const props = defineProps({ info: { type: Object, default: null } });
 
 const store = useAppStore();
-const api = useApi();
 const modals = useModals();
 const { runWithOverlay } = useLongActionOverlay();
-const { aiGenerateAvailable } = useAiGenerateAvailable();
-const scripts = ref([]);
-const running = ref('');
-const suggestingFix = ref(false);
-const output = ref('');
 
-async function load() {
-  const path = store.selectedPath;
-  const type = (props.info?.projectType || '').toLowerCase();
-  if (!path || !api.getProjectTestScripts || (type !== 'npm' && type !== 'php')) {
-    scripts.value = [];
-    return;
-  }
-  try {
-    const result = await api.getProjectTestScripts(path, type);
-    scripts.value = result?.ok && Array.isArray(result?.scripts) ? result.scripts : [];
-  } catch {
-    scripts.value = [];
-  }
-}
-
-watch(() => [store.selectedPath, props.info?.projectType], load, { immediate: true });
-
-async function run(scriptName) {
-  const path = store.selectedPath;
-  const type = (props.info?.projectType || '').toLowerCase();
-  if (!path || !api.runProjectTests) return;
-  running.value = scriptName;
-  output.value = '';
-  try {
-    const result = await runWithOverlay(api.runProjectTests(path, type, scriptName));
-    output.value = result?.stdout != null ? result.stdout : (result?.stderr || result?.error || 'No output');
-  } catch (e) {
-    output.value = e?.message || 'Run failed.';
-  } finally {
-    running.value = '';
-  }
-}
-
-async function runAndSuggestFix() {
-  const path = store.selectedPath;
-  const type = (props.info?.projectType || '').toLowerCase();
-  const scriptName = scripts.value[0] || 'test';
-  if (!path || !api.runProjectTests || !api.ollamaSuggestTestFix) return;
-  suggestingFix.value = true;
-  output.value = '';
-  try {
-    const result = await runWithOverlay(api.runProjectTests(path, type, scriptName));
-    const stdout = result?.stdout ?? '';
-    const stderr = result?.stderr ?? '';
-    const combined = [stdout, stderr].filter(Boolean).join('\n');
-    output.value = combined || result?.error || 'No output';
-    const failed = result?.ok === false || (result?.exitCode != null && result.exitCode !== 0);
-    if (failed) {
-      const fixResult = await runWithOverlay(api.ollamaSuggestTestFix(scriptName, stdout, stderr));
-      if (fixResult?.ok && fixResult?.text) {
-        modals.openModal('diffFull', { title: 'Suggested fix (AI)', content: fixResult.text });
-      } else {
-        modals.openModal('diffFull', {
-          title: 'Suggested fix (AI)',
-          content: fixResult?.error || 'Could not get suggestion. Check Ollama in Settings.',
-        });
-      }
-    }
-  } catch (e) {
-    output.value = e?.message || 'Run failed.';
-  } finally {
-    suggestingFix.value = false;
-  }
-}
+const {
+  scripts,
+  running,
+  suggestingFix,
+  output,
+  aiGenerateAvailable,
+  ollamaSuggestAvailable,
+  run,
+  runAndSuggestFix,
+} = useTests(store, () => props.info, modals, runWithOverlay);
 </script>

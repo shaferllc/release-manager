@@ -1,10 +1,19 @@
 <template>
-  <RmModal title="Add worktree" class="max-w-md" @close="close">
+  <Dialog
+    :visible="true"
+    header="Add worktree"
+    :style="{ width: '28rem' }"
+    :modal="true"
+    :dismissableMask="true"
+    class="max-w-md"
+    @update:visible="(v) => { if (!v) close(); }"
+    @hide="close"
+  >
     <div class="flex flex-col gap-4">
         <p class="text-xs text-rm-muted m-0">Create a new working directory for this repo. Path can be relative to the repo’s parent or absolute.</p>
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-medium text-rm-muted">Path</label>
-          <RmInput
+          <InputText
             v-model="worktreePath"
             type="text"
             class="flex-1 min-w-0"
@@ -14,7 +23,7 @@
         </div>
         <div class="flex flex-col gap-1.5">
           <label class="text-xs font-medium text-rm-muted">Branch (optional)</label>
-          <RmInput
+          <InputText
             v-model="branch"
             type="text"
             class="flex-1 min-w-0"
@@ -25,17 +34,19 @@
         <p v-if="error" class="m-0 text-xs text-rm-warning">{{ error }}</p>
     </div>
     <template #footer>
-      <RmButton variant="primary" size="compact" :disabled="!worktreePath.trim() || submitting" @click="submit">
+      <Button severity="primary" size="small" :disabled="!worktreePath.trim() || submitting" @click="submit">
         {{ submitting ? 'Adding…' : 'Add worktree' }}
-      </RmButton>
-      <RmButton variant="secondary" size="compact" @click="close">Cancel</RmButton>
+      </Button>
+      <Button severity="secondary" size="small" @click="close">Cancel</Button>
     </template>
-  </RmModal>
+  </Dialog>
 </template>
 
 <script setup>
 import { ref } from 'vue';
-import { RmButton, RmInput, RmModal } from '../ui';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({
