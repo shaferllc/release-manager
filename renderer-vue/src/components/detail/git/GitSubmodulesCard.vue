@@ -1,25 +1,27 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">Submodules</p>
+    <RmCardHeader tag="p" class="mb-2">Submodules</RmCardHeader>
     <div class="flex flex-wrap gap-2 mb-2">
-      <button
-        type="button"
-        class="btn-primary btn-compact text-xs"
+      <RmButton
+        variant="primary"
+        size="compact"
+        class="text-xs"
         :disabled="updating"
         title="Initialize and clone any new submodules, then update all to the commits recorded in this repo. Use after clone or when new submodules were added."
         @click="update(true)"
       >
         {{ updating ? 'Updating…' : 'Update (init)' }}
-      </button>
-      <button
-        type="button"
-        class="btn-secondary btn-compact text-xs"
+      </RmButton>
+      <RmButton
+        variant="secondary"
+        size="compact"
+        class="text-xs"
         :disabled="updating || !submodules.length"
         title="Update already-initialized submodules only. Does not clone new ones. Use when submodules are already present."
         @click="update(false)"
       >
         Update (no init)
-      </button>
+      </RmButton>
     </div>
     <p class="text-[11px] text-rm-muted m-0 mb-3 leading-snug">
       <strong class="text-rm-muted">Update (init):</strong> clone any missing submodules, then update all to the commits recorded in the parent repo. Use after a fresh clone or when submodules were added.
@@ -77,6 +79,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import { RmButton, RmCardHeader } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 

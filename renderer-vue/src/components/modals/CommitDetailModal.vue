@@ -1,31 +1,26 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card modal-card-wide flex flex-col max-h-[85vh]">
-      <div class="modal-header flex-shrink-0">
-        <h3 class="modal-title truncate flex-1 min-w-0">{{ title }}</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
-      </div>
-      <div class="m-0 p-4 flex-1 overflow-auto text-xs font-mono border-t border-rm-border whitespace-pre-wrap">{{ content }}</div>
-      <div class="modal-footer flex-shrink-0 flex flex-wrap items-center gap-2 p-3 border-t border-rm-border">
-        <button type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="copySha">Copy SHA</button>
-        <button type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="cherryPick">Cherry-pick</button>
-        <button type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0 text-rm-warning hover:bg-rm-warning/10" @click="revert">Revert</button>
-        <button v-if="isHead" type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" title="Amend this commit (only for HEAD)" @click="amend">Amend</button>
-        <template v-if="commitFiles.length">
-          <span class="text-xs text-rm-muted shrink-0">Side-by-side:</span>
-          <select v-model="sideBySideFile" class="text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 max-w-[14rem] truncate">
-            <option v-for="f in commitFiles" :key="f" :value="f">{{ f }}</option>
-          </select>
-          <button type="button" class="btn-primary btn-compact text-xs shrink-0" title="Open side-by-side diff (old | new) with copy and revert line" @click="openSideBySide">Open</button>
-        </template>
-        <button type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="close">Close</button>
-      </div>
-    </div>
-  </div>
+  <RmModal :title="title" wide class="max-h-[85vh] flex flex-col" @close="close">
+    <div class="m-0 flex-1 overflow-auto text-xs font-mono border-t border-rm-border whitespace-pre-wrap p-4">{{ content }}</div>
+    <template #footer>
+      <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="copySha">Copy SHA</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="cherryPick">Cherry-pick</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs shrink-0 text-rm-warning hover:bg-rm-warning/10" @click="revert">Revert</RmButton>
+      <RmButton v-if="isHead" variant="secondary" size="compact" class="text-xs shrink-0" title="Amend this commit (only for HEAD)" @click="amend">Amend</RmButton>
+      <template v-if="commitFiles.length">
+        <span class="text-xs text-rm-muted shrink-0">Side-by-side:</span>
+        <RmSelect v-model="sideBySideFile" class="text-xs px-2 py-1 max-w-[14rem] truncate">
+          <option v-for="f in commitFiles" :key="f" :value="f">{{ f }}</option>
+        </RmSelect>
+        <RmButton variant="primary" size="compact" class="text-xs shrink-0" title="Open side-by-side diff (old | new) with copy and revert line" @click="openSideBySide">Open</RmButton>
+      </template>
+      <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="close">Close</RmButton>
+    </template>
+  </RmModal>
 </template>
 
 <script setup>
-import { computed, watch, ref } from 'vue';
+import { watch, ref } from 'vue';
+import { RmButton, RmModal, RmSelect } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

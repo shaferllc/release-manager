@@ -1,94 +1,93 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card flex flex-col max-w-md max-h-[90vh]">
-      <div class="modal-header flex-shrink-0">
-        <h3 class="modal-title">Create tag</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
+  <RmModal title="Create tag" class="max-w-md max-h-[90vh]" @close="close">
+    <div class="flex flex-col gap-4 overflow-y-auto min-h-0">
+      <!-- Tag name -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-rm-muted">Tag name</label>
+        <div class="flex gap-2 items-center">
+          <RmInput
+            v-model="tagName"
+            type="text"
+            class="flex-1 min-w-0"
+            placeholder="e.g. v1.0.0"
+            @keydown.enter="submit"
+          />
+          <RmButton
+            variant="secondary"
+            size="compact"
+            class="text-xs whitespace-nowrap"
+            title="Suggest next version from latest tag"
+            :disabled="!dirPath || tagsLoading"
+            @click="suggestVersion"
+          >
+            {{ tagsLoading ? '…' : 'Suggest' }}
+          </RmButton>
+        </div>
       </div>
-      <div class="modal-body flex flex-col gap-4 p-4 overflow-y-auto min-h-0">
-        <!-- Tag name -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-rm-muted">Tag name</label>
-          <div class="flex gap-2 items-center">
-            <input
-              v-model="tagName"
-              type="text"
-              class="flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5"
-              placeholder="e.g. v1.0.0"
-              @keydown.enter="submit"
-            />
-            <button
-              type="button"
-              class="btn-secondary btn-compact text-xs whitespace-nowrap"
-              title="Suggest next version from latest tag"
-              :disabled="!dirPath || tagsLoading"
-              @click="suggestVersion"
+
+      <!-- Message -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-rm-muted">Message (optional)</label>
+        <div class="flex gap-2 items-start">
+          <RmInput
+            v-model="tagMessage"
+            type="text"
+            class="flex-1 min-w-0"
+            placeholder="Annotated tag message"
+            @keydown.enter="submit"
+          />
+          <div class="flex flex-col gap-1 shrink-0">
+            <RmButton
+              variant="secondary"
+              size="compact"
+              class="text-xs whitespace-nowrap"
+              title="Use commit message at selected ref"
+              :disabled="!dirPath || messageFromRefLoading"
+              @click="fillMessageFromRef"
             >
-              {{ tagsLoading ? '…' : 'Suggest' }}
-            </button>
+              {{ messageFromRefLoading ? '…' : 'From ref' }}
+            </RmButton>
+            <RmButton
+              v-if="aiGenerateAvailable"
+              variant="secondary"
+              size="compact"
+              class="text-xs whitespace-nowrap"
+              title="Generate message from commits (AI)"
+              :disabled="!dirPath || aiGenerateLoading"
+              @click="generateMessageWithAi"
+            >
+              {{ aiGenerateLoading ? '…' : 'Generate (AI)' }}
+            </RmButton>
           </div>
         </div>
+      </div>
 
-        <!-- Message -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-rm-muted">Message (optional)</label>
-          <div class="flex gap-2 items-start">
-            <input
-              v-model="tagMessage"
-              type="text"
-              class="flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5"
-              placeholder="Annotated tag message"
-              @keydown.enter="submit"
-            />
-            <div class="flex flex-col gap-1 shrink-0">
-              <button
-                type="button"
-                class="btn-secondary btn-compact text-xs whitespace-nowrap"
-                title="Use commit message at selected ref"
-                :disabled="!dirPath || messageFromRefLoading"
-                @click="fillMessageFromRef"
-              >
-                {{ messageFromRefLoading ? '…' : 'From ref' }}
-              </button>
-              <button
-                v-if="aiGenerateAvailable"
-                type="button"
-                class="btn-secondary btn-compact text-xs whitespace-nowrap"
-                title="Generate message from commits (AI)"
-                :disabled="!dirPath || aiGenerateLoading"
-                @click="generateMessageWithAi"
-              >
-                {{ aiGenerateLoading ? '…' : 'Generate (AI)' }}
-              </button>
-            </div>
-          </div>
+      <!-- Ref with browser -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-rm-muted">Ref (optional)</label>
+        <div class="flex gap-2 items-center">
+          <RmInput
+            v-model="tagRef"
+            type="text"
+            class="flex-1 min-w-0"
+            placeholder="e.g. HEAD or branch name"
+          />
+          <RmButton
+            variant="secondary"
+            size="compact"
+            class="whitespace-nowrap"
+            @click="toggleRefBrowser"
+          >
+            {{ refBrowserOpen ? 'Hide' : 'Browse' }}
+          </RmButton>
         </div>
-
-        <!-- Ref with browser -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-rm-muted">Ref (optional)</label>
-          <div class="flex gap-2 items-center">
-            <input
-              v-model="tagRef"
-              type="text"
-              class="flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5"
-              placeholder="e.g. HEAD or branch name"
-            />
-            <button
-              type="button"
-              class="btn-secondary btn-compact text-xs whitespace-nowrap"
-              @click="toggleRefBrowser"
-            >
-              {{ refBrowserOpen ? 'Hide' : 'Browse' }}
-            </button>
-          </div>
-          <div v-if="refBrowserOpen" class="create-tag-ref-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
-            <input
-              v-model="refSearch"
-              type="text"
-              class="text-sm rounded-none border-0 border-b border-rm-border bg-rm-bg text-rm-text px-2 py-1.5 placeholder:text-rm-muted"
-              placeholder="Search by hash, title, description or author"
-            />
+        <div v-if="refBrowserOpen" class="create-tag-ref-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
+          <RmInput
+            v-model="refSearch"
+            type="text"
+            class="rounded-none border-0 border-b border-rm-border placeholder:text-rm-muted"
+            placeholder="Search by hash, title, description or author"
+          />
             <div class="overflow-auto max-h-48 min-h-0">
               <button
                 v-for="c in filteredRefCommits"
@@ -108,20 +107,20 @@
           </div>
         </div>
 
-        <p v-if="error" class="m-0 text-xs text-rm-warning">{{ error }}</p>
-        <div class="flex gap-2 flex-shrink-0">
-          <button type="button" class="btn-primary btn-compact text-sm" :disabled="!tagName.trim() || submitting" @click="submit">
-            {{ submitting ? 'Creating…' : 'Create tag' }}
-          </button>
-          <button type="button" class="btn-secondary btn-compact text-sm" @click="close">Cancel</button>
-        </div>
-      </div>
+      <p v-if="error" class="m-0 text-xs text-rm-warning">{{ error }}</p>
     </div>
-  </div>
+    <template #footer>
+      <RmButton variant="primary" size="compact" :disabled="!tagName.trim() || submitting" @click="submit">
+        {{ submitting ? 'Creating…' : 'Create tag' }}
+      </RmButton>
+      <RmButton variant="secondary" size="compact" @click="close">Cancel</RmButton>
+    </template>
+  </RmModal>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
+import { RmButton, RmInput, RmModal } from '../ui';
 import { useApi } from '../../composables/useApi';
 import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
 import { useNotifications } from '../../composables/useNotifications';

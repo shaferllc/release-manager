@@ -1,11 +1,6 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card modal-card-diff-side-by-side flex flex-col max-w-[92vw] max-h-[95vh] min-h-[70vh] w-full">
-      <div class="modal-header flex-shrink-0">
-        <h3 class="modal-title truncate flex-1 min-w-0">{{ displayTitle }}</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
-      </div>
-      <div v-if="error" class="p-4 text-sm text-rm-warning">{{ error }}</div>
+  <RmModal :title="displayTitle" class="rm-modal-diff-side-by-side flex flex-col max-w-[92vw] max-h-[95vh] min-h-[70vh] w-full" @close="close">
+    <div v-if="error" class="p-4 text-sm text-rm-warning">{{ error }}</div>
       <div v-else-if="loading" class="p-4 text-sm text-rm-muted">Loading diff…</div>
       <div v-else class="diff-side-by-side flex-1 min-h-0 flex flex-col border-t border-rm-border">
         <!-- Column headers -->
@@ -85,25 +80,26 @@
           </table>
         </div>
       </div>
-      <div class="modal-footer flex-shrink-0 flex flex-wrap items-center gap-2 p-3 border-t border-rm-border">
-        <button type="button" class="btn-secondary btn-compact text-xs" @click="close">Close</button>
-        <button
-          v-if="!props.commitSha && props.dirPath && props.filePath"
-          type="button"
-          class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10"
-          title="Discard all changes in this file"
-          @click="discardEntireFile"
-        >
-          Discard entire file
-        </button>
-        <span v-if="revertStatus" class="text-xs" :class="revertStatus.ok ? 'text-rm-success' : 'text-rm-warning'">{{ revertStatus.ok ? 'Reverted. Refresh to see changes.' : revertStatus.error }}</span>
-      </div>
-    </div>
-  </div>
+    <template #footer>
+      <RmButton variant="secondary" size="compact" class="text-xs" @click="close">Close</RmButton>
+      <RmButton
+        v-if="!props.commitSha && props.dirPath && props.filePath"
+        variant="secondary"
+        size="compact"
+        class="text-xs text-rm-warning hover:bg-rm-warning/10"
+        title="Discard all changes in this file"
+        @click="discardEntireFile"
+      >
+        Discard entire file
+      </RmButton>
+      <span v-if="revertStatus" class="text-xs" :class="revertStatus.ok ? 'text-rm-success' : 'text-rm-warning'">{{ revertStatus.ok ? 'Reverted. Refresh to see changes.' : revertStatus.error }}</span>
+    </template>
+  </RmModal>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { RmButton, RmModal } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({
@@ -300,7 +296,7 @@ function close() {
 </script>
 
 <style scoped>
-.modal-card-diff-side-by-side {
+.rm-modal-diff-side-by-side {
   max-width: 92vw;
   max-height: 95vh;
   min-height: 70vh;

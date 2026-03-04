@@ -1,34 +1,29 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card flex flex-col max-w-lg max-h-[85vh]">
-      <div class="modal-header flex-shrink-0">
-        <h3 class="modal-title">Bisect — Step 1: Set refs</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
-      </div>
-      <div class="modal-body flex flex-col gap-4 p-4 overflow-hidden">
-        <p class="text-xs text-rm-muted m-0">Choose the <strong class="text-rm-text">bad</strong> commit (where the bug exists) and a <strong class="text-rm-text">good</strong> commit (before the bug). Git will then check out commits in between for you to test.</p>
+  <RmModal title="Bisect — Step 1: Set refs" class="max-w-lg max-h-[85vh]" @close="close">
+    <div class="flex flex-col gap-4 overflow-hidden">
+      <p class="text-xs text-rm-muted m-0">Choose the <strong class="text-rm-text">bad</strong> commit (where the bug exists) and a <strong class="text-rm-text">good</strong> commit (before the bug). Git will then check out commits in between for you to test.</p>
 
-        <!-- Bad ref -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-rm-muted">Bad ref (has the bug)</label>
-          <div class="flex gap-2 items-center">
-            <input
-              v-model="badRef"
-              type="text"
-              class="flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5"
-              placeholder="e.g. HEAD"
-            />
-            <button type="button" class="btn-secondary btn-compact text-xs whitespace-nowrap" @click="toggleBrowser('bad')">
-              {{ browserOpen === 'bad' ? 'Hide' : 'Browse' }}
-            </button>
-          </div>
-          <div v-if="browserOpen === 'bad'" class="bisect-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
-            <input
-              v-model="badSearch"
-              type="text"
-              class="text-sm rounded-none border-0 border-b border-rm-border bg-rm-bg text-rm-text px-2 py-1.5 placeholder:text-rm-muted"
-              placeholder="Search by hash, title, description or author"
-            />
+      <!-- Bad ref -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-rm-muted">Bad ref (has the bug)</label>
+        <div class="flex gap-2 items-center">
+          <RmInput
+            v-model="badRef"
+            type="text"
+            class="flex-1 min-w-0"
+            placeholder="e.g. HEAD"
+          />
+          <RmButton variant="secondary" size="compact" class="text-xs whitespace-nowrap" @click="toggleBrowser('bad')">
+            {{ browserOpen === 'bad' ? 'Hide' : 'Browse' }}
+          </RmButton>
+        </div>
+        <div v-if="browserOpen === 'bad'" class="bisect-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
+          <RmInput
+            v-model="badSearch"
+            type="text"
+            class="rounded-none border-0 border-b border-rm-border placeholder:text-rm-muted"
+            placeholder="Search by hash, title, description or author"
+          />
             <div class="overflow-auto max-h-48 min-h-0">
               <button
                 v-for="c in filteredBadCommits"
@@ -47,30 +42,30 @@
               <p v-if="commitsLoading" class="text-xs text-rm-muted p-2 m-0">Loading commits…</p>
               <p v-else-if="filteredBadCommits.length === 0" class="text-xs text-rm-muted p-2 m-0">No commits match.</p>
             </div>
-          </div>
         </div>
+      </div>
 
-        <!-- Good ref -->
-        <div class="flex flex-col gap-1.5">
-          <label class="text-xs font-medium text-rm-muted">Good ref (no bug)</label>
-          <div class="flex gap-2 items-center">
-            <input
-              v-model="goodRef"
-              type="text"
-              class="flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5"
-              placeholder="e.g. main or a commit SHA"
-            />
-            <button type="button" class="btn-secondary btn-compact text-xs whitespace-nowrap" @click="toggleBrowser('good')">
-              {{ browserOpen === 'good' ? 'Hide' : 'Browse' }}
-            </button>
-          </div>
-          <div v-if="browserOpen === 'good'" class="bisect-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
-            <input
-              v-model="goodSearch"
-              type="text"
-              class="text-sm rounded-none border-0 border-b border-rm-border bg-rm-bg text-rm-text px-2 py-1.5 placeholder:text-rm-muted"
-              placeholder="Search by hash, title, description or author"
-            />
+      <!-- Good ref -->
+      <div class="flex flex-col gap-1.5">
+        <label class="text-xs font-medium text-rm-muted">Good ref (no bug)</label>
+        <div class="flex gap-2 items-center">
+          <RmInput
+            v-model="goodRef"
+            type="text"
+            class="flex-1 min-w-0"
+            placeholder="e.g. main or a commit SHA"
+          />
+          <RmButton variant="secondary" size="compact" class="text-xs whitespace-nowrap" @click="toggleBrowser('good')">
+            {{ browserOpen === 'good' ? 'Hide' : 'Browse' }}
+          </RmButton>
+        </div>
+        <div v-if="browserOpen === 'good'" class="bisect-browser rounded-rm border border-rm-border bg-rm-surface/50 flex flex-col overflow-hidden">
+          <RmInput
+            v-model="goodSearch"
+            type="text"
+            class="rounded-none border-0 border-b border-rm-border placeholder:text-rm-muted"
+            placeholder="Search by hash, title, description or author"
+          />
             <div class="overflow-auto max-h-48 min-h-0">
               <button
                 v-for="c in filteredGoodCommits"
@@ -89,21 +84,21 @@
               <p v-if="commitsLoading" class="text-xs text-rm-muted p-2 m-0">Loading commits…</p>
               <p v-else-if="filteredGoodCommits.length === 0" class="text-xs text-rm-muted p-2 m-0">No commits match.</p>
             </div>
-          </div>
-        </div>
-
-        <p v-if="startBisectError" class="text-xs text-rm-warning m-0">{{ startBisectError }}</p>
-        <div class="flex gap-2 flex-shrink-0">
-          <button type="button" class="btn-primary btn-compact text-sm" :disabled="!canStartBisect" :title="startBisectError || undefined" @click="confirm">Start bisect</button>
-          <button type="button" class="btn-secondary btn-compact text-sm" @click="close">Cancel</button>
         </div>
       </div>
+
+      <p v-if="startBisectError" class="text-xs text-rm-warning m-0">{{ startBisectError }}</p>
     </div>
-  </div>
+    <template #footer>
+      <RmButton variant="primary" size="compact" :disabled="!canStartBisect" :title="startBisectError || undefined" @click="confirm">Start bisect</RmButton>
+      <RmButton variant="secondary" size="compact" @click="close">Cancel</RmButton>
+    </template>
+  </RmModal>
 </template>
 
 <script setup>
 import { ref, watch, computed, onMounted } from 'vue';
+import { RmButton, RmInput, RmModal } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

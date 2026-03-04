@@ -1,10 +1,10 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">Remotes</p>
+    <RmCardHeader tag="p" class="mb-2">Remotes</RmCardHeader>
     <div class="flex flex-wrap gap-2 mb-3">
-      <input v-model="newName" type="text" class="input-field text-sm w-24" placeholder="Name" />
-      <input v-model="newUrl" type="text" class="input-field flex-1 min-w-0 text-sm" placeholder="URL" />
-      <button type="button" class="btn-primary btn-compact text-xs" @click="addRemote">Add</button>
+      <RmInput v-model="newName" type="text" class="text-sm w-24" placeholder="Name" />
+      <RmInput v-model="newUrl" type="text" class="flex-1 min-w-0 text-sm" placeholder="URL" />
+      <RmButton variant="primary" size="compact" class="text-xs" @click="addRemote">Add</RmButton>
     </div>
     <ul v-if="remotes.length" class="list-none m-0 p-0 space-y-1 text-sm">
       <li v-for="r in remotes" :key="r.name" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
@@ -26,6 +26,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import { RmButton, RmCardHeader, RmInput } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 

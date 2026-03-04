@@ -17,14 +17,15 @@
           <span class="license-upgrade-benefit-desc">Bump and release multiple projects at once</span>
         </div>
       </div>
-      <button type="button" class="license-upgrade-cta btn-primary" @click="goToSettings">
+      <Button severity="primary" class="license-upgrade-cta" @click="goToSettings">
         Add license
-      </button>
+      </Button>
     </div>
   </div>
 </template>
 
 <script setup>
+import Button from 'primevue/button';
 import { useAppStore } from '../stores/app';
 import { useLicense } from '../composables/useLicense';
 

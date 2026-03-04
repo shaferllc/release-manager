@@ -1,20 +1,15 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card modal-card-wide flex flex-col max-h-[85vh]">
-      <div class="modal-header flex-shrink-0">
-        <h3 class="modal-title truncate flex-1 min-w-0">{{ title || 'Diff' }}</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
-      </div>
-      <pre class="m-0 p-4 flex-1 overflow-auto text-xs font-mono border-t border-rm-border whitespace-pre-wrap">{{ content }}</pre>
-      <div class="modal-footer flex-shrink-0 p-3 border-t border-rm-border flex flex-wrap items-center gap-2">
-        <button v-if="content" type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="copyContent">Copy</button>
-        <button type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="close">Close</button>
-      </div>
-    </div>
-  </div>
+  <RmModal :title="title || 'Diff'" wide class="max-h-[85vh] flex flex-col" @close="close">
+    <pre class="m-0 flex-1 overflow-auto text-xs font-mono border-t border-rm-border whitespace-pre-wrap p-4">{{ content }}</pre>
+    <template #footer>
+      <RmButton v-if="content" variant="secondary" size="compact" class="text-xs shrink-0" @click="copyContent">Copy</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs shrink-0" @click="close">Close</RmButton>
+    </template>
+  </RmModal>
 </template>
 
 <script setup>
+import { RmButton, RmModal } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

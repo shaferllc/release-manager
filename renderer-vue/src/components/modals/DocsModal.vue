@@ -1,20 +1,15 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card modal-card-wide flex flex-col max-h-[85vh]">
-      <div class="modal-header flex-shrink-0">
-        <h3 class="modal-title flex-1 min-w-0">{{ entry?.title || 'Documentation' }}</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
-      </div>
-      <div class="modal-docs-body prose-docs flex-1 overflow-auto p-5 border-t border-rm-border" v-html="renderedBody"></div>
-      <div class="modal-footer flex-shrink-0 p-3 border-t border-rm-border">
-        <button type="button" class="btn-secondary btn-compact" @click="close">Close</button>
-      </div>
-    </div>
-  </div>
+  <RmModal :title="entry?.title || 'Documentation'" wide class="max-h-[85vh] flex flex-col" @close="close">
+    <div class="prose-docs flex-1 overflow-auto border-t border-rm-border p-5" v-html="renderedBody"></div>
+    <template #footer>
+      <RmButton variant="secondary" size="compact" @click="close">Close</RmButton>
+    </template>
+  </RmModal>
 </template>
 
 <script setup>
 import { computed } from 'vue';
+import { RmButton, RmModal } from '../ui';
 import { DOCS } from '../../docsContent';
 import { renderMarkdown } from '../../composables/useMarkdown';
 

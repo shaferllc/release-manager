@@ -1,7 +1,7 @@
 <template>
   <section class="card mb-6 detail-tab-panel detail-api-card" data-detail-tab="api">
     <div class="card-section">
-      <span class="card-label">Project API & MCP</span>
+      <RmCardHeader>Project API & MCP</RmCardHeader>
       <p class="m-0 mb-4 text-sm text-rm-muted">
         Call Shipwell API methods for this project, and see how MCP tools would invoke them. This panel always
         uses the currently selected project path.
@@ -23,52 +23,48 @@
         <div class="flex flex-col gap-3">
           <div>
             <label class="block text-xs font-medium text-rm-muted mb-1">API method</label>
-            <select v-model="methodName" class="input-field text-xs">
-              <option value="getProjectInfo">getProjectInfo (project overview)</option>
-              <option value="getGitStatus">getGitStatus (git clean / dirty)</option>
-              <option value="runProjectTests">runProjectTests (test script)</option>
-              <option value="runProjectCoverage">runProjectCoverage (coverage script)</option>
-              <option value="release">release (bump & release)</option>
-              <option value="invokeApi">invokeApi (raw call)</option>
-            </select>
+              <RmSelect v-model="methodName" :options="methodOptions" option-label="label" option-value="value" class="text-xs" />
           </div>
 
           <div>
             <div class="flex items-center justify-between mb-1">
               <label class="block text-xs font-medium text-rm-muted">Params (JSON array)</label>
               <div class="flex gap-2">
-                <button
-                  type="button"
-                  class="btn-ghost text-[11px]"
+                <RmButton
+                  variant="ghost"
+                  size="compact"
+                  class="text-[11px]"
                   title="Set params to [projectPath]"
                   @click="usePathOnly"
-                >[path]</button>
-                <button
-                  type="button"
-                  class="btn-ghost text-[11px]"
+                >[path]</RmButton>
+                <RmButton
+                  variant="ghost"
+                  size="compact"
+                  class="text-[11px]"
                   title="Set params to [projectPath, projectType]"
                   @click="usePathAndType"
-                >[path, type]</button>
+                >[path, type]</RmButton>
               </div>
             </div>
-            <textarea
+            <RmTextarea
               v-model="paramsText"
-              class="input-field font-mono text-xs min-h-[96px]"
+              class="font-mono text-xs min-h-[96px]"
               spellcheck="false"
-            ></textarea>
+            />
             <p v-if="presetStatus" class="m-0 mt-1 text-[11px] text-rm-accent">{{ presetStatus }}</p>
           </div>
 
           <div class="flex items-center gap-2 mt-1">
-            <button
-              type="button"
-              class="btn-primary btn-compact text-xs"
+            <RmButton
+              variant="primary"
+              size="compact"
+              class="text-xs"
               :disabled="busy || !projectPath"
               title="Call the selected API method for this project"
               @click="callApi"
             >
               {{ busy ? 'Calling…' : 'Call API' }}
-            </button>
+            </RmButton>
             <span v-if="error" class="text-xs text-rm-warning truncate" :title="error">{{ error }}</span>
           </div>
         </div>
@@ -77,15 +73,16 @@
         <div class="flex flex-col gap-2">
           <div class="flex items-center justify-between gap-2">
             <span class="text-xs font-medium text-rm-muted">Response</span>
-            <button
-              type="button"
-              class="btn-secondary btn-compact text-[11px]"
+            <RmButton
+              variant="secondary"
+              size="compact"
+              class="text-[11px]"
               :disabled="!formattedResponse"
               title="Copy response JSON to clipboard"
               @click="copyResponse"
             >
               Copy
-            </button>
+            </RmButton>
           </div>
           <pre
             class="detail-api-output m-0 p-3 rounded-rm bg-rm-surface text-xs font-mono text-rm-text min-h-[8rem] border border-rm-border whitespace-pre-wrap break-words"
@@ -94,7 +91,7 @@
       </div>
 
       <div class="card-section mt-4 border-t border-rm-border pt-4">
-        <span class="card-label block mb-2">MCP tool preview (per project)</span>
+        <RmCardHeader class="block mb-2">MCP tool preview (per project)</RmCardHeader>
         <p class="m-0 mb-3 text-xs text-rm-muted">
           This shows how an MCP client (like Cursor) would call the
           <code class="bg-rm-surface px-1 rounded text-[10px]">release_manager_call</code>
@@ -111,6 +108,7 @@
 
 <script setup>
 import { computed, ref, watch } from 'vue';
+import { RmButton, RmCardHeader, RmSelect, RmTextarea } from '../ui';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import * as debug from '../../utils/debug';
@@ -118,6 +116,14 @@ import * as debug from '../../utils/debug';
 const store = useAppStore();
 const api = useApi();
 
+const methodOptions = [
+  { value: 'getProjectInfo', label: 'getProjectInfo (project overview)' },
+  { value: 'getGitStatus', label: 'getGitStatus (git clean / dirty)' },
+  { value: 'runProjectTests', label: 'runProjectTests (test script)' },
+  { value: 'runProjectCoverage', label: 'runProjectCoverage (coverage script)' },
+  { value: 'release', label: 'release (bump & release)' },
+  { value: 'invokeApi', label: 'invokeApi (raw call)' },
+];
 const methodName = ref('getProjectInfo');
 const paramsText = ref('');
 const busy = ref(false);

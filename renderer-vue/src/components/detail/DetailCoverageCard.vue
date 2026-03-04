@@ -1,14 +1,7 @@
 <template>
-  <section class="card mb-6 collapsible-card detail-tab-panel detail-coverage-card" data-detail-tab="coverage" :class="{ 'is-collapsed': collapsed }">
-    <div class="collapsible-card-header-row shrink-0">
-      <button type="button" class="collapsible-card-header" :aria-expanded="!collapsed" @click="toggle">
-        <span class="collapsible-card-title">Coverage</span>
-        <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-    </div>
-    <div class="collapsible-card-body">
+  <section class="card mb-6 detail-tab-panel detail-coverage-card" data-detail-tab="coverage">
     <div class="card-section">
-      <span class="card-label shrink-0">Coverage</span>
+      <RmCardHeader class="shrink-0 mb-0">Coverage</RmCardHeader>
       <p class="m-0 mb-4 text-sm text-rm-muted shrink-0">Run coverage for this project (npm: typically <code class="bg-rm-surface px-1 rounded text-xs">test:coverage</code> or similar; PHP: Pest/PHPUnit).</p>
 
       <!-- No coverage yet: suggest AI -->
@@ -43,17 +36,17 @@
       </div>
 
       <div class="flex flex-wrap items-center gap-2 mb-4 shrink-0">
-        <button type="button" class="btn-primary btn-compact text-xs" :disabled="running" @click="run">{{ running ? 'Running…' : 'Run coverage' }}</button>
+        <RmButton variant="primary" size="compact" class="text-xs" :disabled="running" @click="run">{{ running ? 'Running…' : 'Run coverage' }}</RmButton>
         <span class="inline-flex items-center gap-2">
-          <button type="button" class="btn-secondary btn-compact text-xs" :disabled="!(output || lastOutput)" title="Copy full output" @click="copyOutput">Copy output</button>
+          <RmButton variant="secondary" size="compact" class="text-xs" :disabled="!(output || lastOutput)" title="Copy full output" @click="copyOutput">Copy output</RmButton>
           <span v-if="copyOutputStatus" class="text-xs" :class="copyOutputStatus === 'Copied!' ? 'text-rm-success' : 'text-rm-warning'">{{ copyOutputStatus }}</span>
         </span>
         <span class="inline-flex items-center gap-2">
-          <button type="button" class="btn-secondary btn-compact text-xs" :disabled="!lastEntry" title="Copy one-line summary" @click="copySummary">Copy summary</button>
+          <RmButton variant="secondary" size="compact" class="text-xs" :disabled="!lastEntry" title="Copy one-line summary" @click="copySummary">Copy summary</RmButton>
           <span v-if="copySummaryStatus" class="text-xs" :class="copySummaryStatus === 'Copied!' ? 'text-rm-success' : 'text-rm-warning'">{{ copySummaryStatus }}</span>
         </span>
         <span class="inline-flex items-center gap-2">
-          <button type="button" class="btn-secondary btn-compact text-xs" :disabled="history.length === 0" title="Download history as CSV" @click="exportHistoryCsv">Export CSV</button>
+          <RmButton variant="secondary" size="compact" class="text-xs" :disabled="history.length === 0" title="Download history as CSV" @click="exportHistoryCsv">Export CSV</RmButton>
           <span v-if="exportStatus" class="text-xs" :class="exportStatus === 'Exported!' ? 'text-rm-success' : 'text-rm-warning'">{{ exportStatus }}</span>
         </span>
         <span v-if="running" class="detail-coverage-progress inline-flex items-center gap-1.5 text-sm text-rm-muted" aria-live="polite">
@@ -78,35 +71,21 @@
       <div class="flex flex-wrap items-center gap-3 mb-4 shrink-0 text-sm">
         <label class="inline-flex items-center gap-2 text-rm-muted">
           <span class="font-medium">Show:</span>
-          <select v-model="displayRangeDays" class="text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1">
-            <option :value="7">Last 7 days</option>
-            <option :value="30">Last 30 days</option>
-            <option :value="90">Last 90 days</option>
-            <option :value="365">Last year</option>
-            <option :value="0">All time</option>
-          </select>
+          <RmSelect v-model="displayRangeDays" :options="displayRangeOptions" option-label="label" option-value="value" class="text-xs px-2 py-1" />
         </label>
         <label class="inline-flex items-center gap-2 text-rm-muted">
           <span class="font-medium">Branch:</span>
-          <select v-model="branchFilter" class="text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[8rem]">
-            <option value="">All branches</option>
-            <option v-for="b in branchOptions" :key="b" :value="b">{{ b }}</option>
-          </select>
+          <RmSelect v-model="branchFilter" :options="branchFilterSelectOptions" option-label="label" option-value="value" class="text-xs px-2 py-1 min-w-[8rem]" />
         </label>
         <label class="inline-flex items-center gap-2 text-rm-muted">
           <span class="font-medium">Keep history:</span>
-          <select v-model="retentionDays" class="text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1" @change="saveRetentionAndTrim">
-            <option :value="30">30 days</option>
-            <option :value="90">90 days</option>
-            <option :value="365">1 year</option>
-            <option :value="0">Forever</option>
-          </select>
+          <RmSelect v-model="retentionDays" :options="retentionOptions" option-label="label" option-value="value" class="text-xs px-2 py-1" @change="saveRetentionAndTrim" />
         </label>
       </div>
 
       <!-- Coverage over time graph -->
       <div v-if="chartPoints.length >= 2" class="detail-coverage-chart-wrap mb-4 shrink-0 rounded-rm border border-rm-border bg-rm-surface/50 p-4">
-        <span class="card-label text-rm-muted text-xs block mb-2">Coverage over time (by run date)</span>
+        <RmCardHeader tag="span" muted class="text-xs block mb-2">Coverage over time (by run date)</RmCardHeader>
         <div ref="chartEl" class="detail-coverage-chart relative" :style="{ height: chartHeight + 'px' }">
           <svg class="w-full h-full" viewBox="0 0 400 120" preserveAspectRatio="none" @mouseleave="hoveredPoint = null">
             <defs>
@@ -187,13 +166,12 @@
       <p v-if="(output || lastOutput) && lastEntry?.date && !running" class="text-xs text-rm-muted mb-2 shrink-0">Run at {{ formatDate(lastEntry.date) }}</p>
       <pre v-if="running || output || lastOutput" class="detail-coverage-output m-0 p-4 rounded-rm bg-rm-surface text-xs font-mono text-rm-text min-h-[12rem] border border-rm-border whitespace-pre-wrap break-words">{{ running && !output ? 'Running coverage…' : (output || lastOutput) }}</pre>
     </div>
-    </div>
   </section>
 </template>
 
 <script setup>
 import { ref, watch, computed } from 'vue';
-import { useCollapsible } from '../../composables/useCollapsible';
+import { RmButton, RmCardHeader, RmSelect } from '../ui';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
@@ -214,7 +192,6 @@ const props = defineProps({ info: { type: Object, default: null } });
 const store = useAppStore();
 const api = useApi();
 const modals = useModals();
-const { collapsed, toggle } = useCollapsible('coverage');
 const running = ref(false);
 const output = ref('');
 const history = ref([]);
@@ -322,12 +299,30 @@ function goToAiSettings() {
   store.setViewMode('settings');
 }
 
+const displayRangeOptions = [
+  { value: 7, label: 'Last 7 days' },
+  { value: 30, label: 'Last 30 days' },
+  { value: 90, label: 'Last 90 days' },
+  { value: 365, label: 'Last year' },
+  { value: 0, label: 'All time' },
+];
+const retentionOptions = [
+  { value: 30, label: '30 days' },
+  { value: 90, label: '90 days' },
+  { value: 365, label: '1 year' },
+  { value: 0, label: 'Forever' },
+];
+
 /** Branch options: from Git (getBranches) plus any in history not in the list. */
 const branchOptions = computed(() => {
   const set = new Set(branchesFromGit.value);
   history.value.forEach((e) => { if (e.branch) set.add(e.branch); });
   return [...set].sort();
 });
+const branchFilterSelectOptions = computed(() => [
+  { value: '', label: 'All branches' },
+  ...branchOptions.value.map((b) => ({ value: b, label: b })),
+]);
 
 /** days: number (7,30,90,365) or 0 / null / undefined for no limit */
 function isDateWithinDays(isoDate, days) {

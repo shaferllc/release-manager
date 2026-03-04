@@ -1,11 +1,11 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">Delete branch</p>
+    <RmCardHeader tag="p" class="mb-2">Delete branch</RmCardHeader>
     <p class="text-xs text-rm-muted mb-2">Rename or delete local branches. Cannot delete current branch.</p>
     <div v-if="branchToRename" class="flex gap-2 mb-3">
-      <input v-model="renameNewName" type="text" class="input-field flex-1 text-sm" placeholder="New name" />
-      <button type="button" class="btn-primary btn-compact text-xs" @click="renameBranch">Rename</button>
-      <button type="button" class="btn-secondary btn-compact text-xs" @click="branchToRename = null">Cancel</button>
+      <RmInput v-model="renameNewName" type="text" class="flex-1 text-sm" placeholder="New name" />
+      <RmButton variant="primary" size="compact" class="text-xs" @click="renameBranch">Rename</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs" @click="branchToRename = null">Cancel</RmButton>
     </div>
     <ul v-else class="list-none m-0 p-0 space-y-1 text-sm max-h-48 overflow-y-auto">
       <li v-for="b in branches" :key="b" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
@@ -23,6 +23,7 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue';
+import { RmButton, RmCardHeader, RmInput } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 

@@ -1,24 +1,18 @@
 <template>
-  <section class="card mb-6 collapsible-card detail-tab-panel flex flex-col min-h-0" data-detail-tab="git" :class="{ 'is-collapsed': collapsed }">
-    <div class="collapsible-card-header-row">
-      <button type="button" class="collapsible-card-header" :aria-expanded="!collapsed" @click="toggle">
-        <span class="collapsible-card-title">Git</span>
-        <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-    </div>
-    <div class="collapsible-card-body flex flex-col flex-1 min-h-0">
+  <section class="card mb-6 detail-tab-panel flex flex-col min-h-0" data-detail-tab="git">
+    <div class="flex flex-col flex-1 min-h-0">
     <!-- Empty repo: show init CTA -->
     <div v-if="info && !info.hasGit" class="flex flex-col items-center justify-center gap-4 py-12 px-6 text-center">
       <p class="text-sm text-rm-muted m-0">This folder is not a Git repository.</p>
       <p class="text-xs text-rm-muted m-0 max-w-md">Initialize a repository here to use branches, commits, tags, and the rest of the Git tools.</p>
-      <button
-        type="button"
-        class="btn-primary btn-compact"
+      <RmButton
+        variant="primary"
+        size="compact"
         :disabled="!info?.path || initLoading"
         @click="initializeRepo"
       >
         {{ initLoading ? 'Initializing…' : 'Initialize repository' }}
-      </button>
+      </RmButton>
       <p v-if="initError" class="text-xs text-rm-warning m-0">{{ initError }}</p>
     </div>
     <!-- Full Git UI when repo exists -->
@@ -29,11 +23,11 @@
         <span class="text-sm text-rm-text truncate max-w-[8rem]" :title="repoName">{{ repoName }}</span>
         <span class="text-rm-border/70 mx-0.5">|</span>
         <span class="text-xs text-rm-muted">branch:</span>
-        <select ref="branchSelectRef" v-model="selectedBranch" class="detail-git-toolbar-select text-sm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[10rem]" @change="onBranchChangeSelect">
+        <RmSelect ref="branchSelectRef" v-model="selectedBranch" class="detail-git-toolbar-select text-sm px-2 py-1 min-w-[10rem]" @change="onBranchChangeSelect">
           <option value="">—</option>
           <option value="__new__">+ New branch…</option>
           <option v-for="b in filteredBranches" :key="b" :value="b">{{ b }}</option>
-        </select>
+        </RmSelect>
         <span v-if="aheadBehind" class="text-xs text-rm-muted">{{ aheadBehind }}</span>
         <template v-if="gitUser.name || gitUser.email">
           <span class="text-rm-border/70 mx-0.5">|</span>
@@ -726,13 +720,13 @@
                   <span class="detail-git-commit-count">{{ commitSummary.length }}/72</span>
                 </label>
                 <div class="detail-git-commit-summary-wrap">
-                  <textarea
+                  <RmTextarea
                     v-model="commitSummary"
-                    class="input-field detail-git-commit-summary-input"
+                    class="detail-git-commit-summary-input"
                     rows="2"
                     placeholder="e.g. feat: add X"
                     maxlength="72"
-                  ></textarea>
+                  />
                   <button v-if="aiGenerateAvailable" type="button" class="detail-git-commit-ai-btn" title="Generate commit message (AI)" @click="generateCommitMessage">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9z"/></svg>
                   </button>
@@ -740,12 +734,12 @@
               </div>
               <div class="detail-git-commit-row">
                 <label class="detail-git-commit-label">Description <span class="text-rm-muted font-normal">(optional)</span></label>
-                <textarea
+                <RmTextarea
                   v-model="commitDescription"
-                  class="input-field detail-git-commit-desc-input"
+                  class="detail-git-commit-desc-input"
                   rows="3"
                   placeholder="Add more context…"
-                ></textarea>
+                />
               </div>
               <div class="detail-git-commit-options">
                 <label class="detail-git-commit-option">
@@ -758,15 +752,16 @@
                 </label>
               </div>
               <div class="detail-git-commit-actions">
-                <button
-                  type="button"
-                  class="btn-primary detail-git-commit-submit"
+                <RmButton
+                  variant="primary"
+                  size="compact"
+                  class="detail-git-commit-submit"
                   :disabled="!canCommit"
                   @click="commit"
                 >
                   {{ staged.length > 0 ? `Commit ${staged.length} file${staged.length === 1 ? '' : 's'}` : 'Commit' }}
-                </button>
-                <button type="button" class="btn-secondary detail-git-commit-push" title="Push" @click="pushFromFooter">Push</button>
+                </RmButton>
+                <RmButton variant="secondary" size="compact" class="detail-git-commit-push" title="Push" @click="pushFromFooter">Push</RmButton>
               </div>
               <p v-if="gitActionStatus" class="detail-git-commit-status">{{ gitActionStatus }}</p>
             </div>
@@ -1274,10 +1269,10 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
+import { RmButton, RmSelect, RmTextarea } from '../ui';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
-import { useCollapsible } from '../../composables/useCollapsible';
 import { useResizableSidebar } from '../../composables/useResizableSidebar';
 import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
 import { formatAheadBehind } from '../../utils';
@@ -1303,7 +1298,6 @@ const emit = defineEmits(['refresh']);
 const store = useAppStore();
 const api = useApi();
 const modals = useModals();
-const { collapsed, toggle } = useCollapsible('git');
 const { sidebarStyle: gitSidebarStyle, onResizerPointerDown: onGitSidebarResize } = useResizableSidebar({
   preferenceKey: 'detailSidebarWidthGit',
   defaultWidth: 208,

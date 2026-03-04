@@ -1,8 +1,8 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">Worktrees</p>
+    <RmCardHeader tag="p" class="mb-2">Worktrees</RmCardHeader>
     <div class="flex flex-wrap gap-2 mb-3">
-      <button type="button" class="btn-primary btn-compact text-xs" @click="openAddWorktreeModal">Add worktree</button>
+      <RmButton variant="primary" size="compact" class="text-xs" @click="openAddWorktreeModal">Add worktree</RmButton>
     </div>
     <ul v-if="worktrees.length" class="list-none m-0 p-0 space-y-1 text-sm max-h-48 overflow-y-auto">
       <li v-for="w in worktrees" :key="w.path" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
@@ -18,6 +18,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import { RmButton, RmCardHeader } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 import { useModals } from '../../../composables/useModals';

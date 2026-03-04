@@ -1,6 +1,9 @@
+import PrimeUI from 'tailwindcss-primeui';
+
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
+  darkMode: ['selector', '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {
@@ -28,6 +31,7 @@ export default {
       borderRadius: {
         rm: '10px',
         'rm-lg': '12px',
+        'rm-dynamic': 'var(--rm-radius)',
       },
       boxShadow: {
         'rm-sm': '0 1px 2px rgba(0, 0, 0, 0.2)',
@@ -36,5 +40,5 @@ export default {
       },
     },
   },
-  plugins: [],
+  plugins: [PrimeUI],
 };

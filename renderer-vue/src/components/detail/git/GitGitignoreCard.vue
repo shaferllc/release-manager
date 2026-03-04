@@ -1,6 +1,6 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">.gitignore</p>
+    <RmCardHeader tag="p" class="mb-2">.gitignore</RmCardHeader>
 
     <!-- Smart suggestions: found in project, not yet ignored -->
     <div v-if="suggestions.length > 0" class="mb-3 p-3 rounded-rm border border-rm-border bg-rm-surface/20">
@@ -18,24 +18,24 @@
           <span class="text-[10px] text-rm-muted shrink-0">({{ s.category }})</span>
         </label>
       </div>
-      <button type="button" class="btn-primary btn-compact text-xs" :disabled="selectedSuggestions.length === 0" @click="addSelectedSuggestions">
+      <RmButton variant="primary" size="compact" class="text-xs" :disabled="selectedSuggestions.length === 0" @click="addSelectedSuggestions">
         Add {{ selectedSuggestions.length ? selectedSuggestions.length : '' }} selected to .gitignore
-      </button>
+      </RmButton>
     </div>
 
     <!-- Presets: append or replace -->
     <div class="flex flex-wrap items-center gap-2 mb-3">
       <span class="text-[11px] font-medium text-rm-muted uppercase tracking-wider">Presets</span>
-      <select v-model="selectedPresetId" class="input-field text-xs py-1.5 px-2 rounded-rm border border-rm-border bg-rm-bg text-rm-text min-w-0 max-w-[11rem]">
-        <option value="">Choose preset…</option>
-        <option v-for="p in presets" :key="p.id" :value="p.id">{{ p.label }}</option>
-      </select>
-      <button type="button" class="btn-secondary btn-compact text-xs" :disabled="!selectedPresetId" @click="appendPreset">
-        Append preset
-      </button>
-      <button type="button" class="btn-secondary btn-compact text-xs" :disabled="!selectedPresetId" title="Replace entire file with preset" @click="replaceWithPreset">
-        Replace with preset
-      </button>
+      <RmSelect
+        v-model="selectedPresetId"
+        :options="presetSelectOptions"
+        option-label="label"
+        option-value="value"
+        placeholder="Choose preset…"
+        class="text-xs py-1.5 px-2 min-w-0 max-w-[11rem]"
+      />
+      <RmButton variant="secondary" size="compact" class="text-xs" :disabled="!selectedPresetId" @click="appendPreset">Append preset</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs" :disabled="!selectedPresetId" title="Replace entire file with preset" @click="replaceWithPreset">Replace with preset</RmButton>
     </div>
 
     <!-- Quick add: single patterns -->
@@ -53,12 +53,10 @@
       </button>
     </div>
 
-    <textarea v-model="content" class="input-field w-full text-sm font-mono resize-y min-h-[12rem]" placeholder="No .gitignore or load failed"></textarea>
+    <RmTextarea v-model="content" class="w-full text-sm font-mono min-h-[12rem]" placeholder="No .gitignore or load failed" />
     <div class="flex flex-wrap items-center gap-2 mt-2">
-      <button type="button" class="btn-primary btn-compact text-xs" :disabled="saving" @click="save">
-        {{ saving ? 'Saving…' : 'Save' }}
-      </button>
-      <button type="button" class="btn-secondary btn-compact text-xs" :disabled="saving" @click="load">Reload</button>
+      <RmButton variant="primary" size="compact" class="text-xs" :disabled="saving" @click="save">{{ saving ? 'Saving…' : 'Save' }}</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs" :disabled="saving" @click="load">Reload</RmButton>
       <span v-if="successMessage" class="text-xs font-medium text-rm-accent">{{ successMessage }}</span>
     </div>
     <p v-if="error" class="m-0 mt-2 text-xs text-rm-warning">{{ error }}</p>
@@ -66,7 +64,8 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { RmButton, RmCardHeader, RmSelect, RmTextarea } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 import { GITIGNORE_PRESETS, GITIGNORE_QUICK_ADD } from './gitignorePresets.js';
@@ -83,6 +82,10 @@ const suggestions = ref([]);
 const selectedSuggestions = ref([]);
 
 const presets = GITIGNORE_PRESETS;
+const presetSelectOptions = computed(() => [
+  { value: '', label: 'Choose preset…' },
+  ...presets.map((p) => ({ value: p.id, label: p.label })),
+]);
 const quickAdd = GITIGNORE_QUICK_ADD;
 
 async function load() {

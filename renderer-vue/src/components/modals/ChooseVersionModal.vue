@@ -1,29 +1,22 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card">
-      <div class="modal-header">
-        <h3 class="modal-title">Choose release to download</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
-      </div>
-      <div class="modal-body">
-        <p class="modal-status">{{ status }}</p>
-        <ul class="modal-list list-none m-0 p-0">
-          <li
-            v-for="r in releases"
-            :key="r.tag_name"
-            class="cursor-pointer"
-            @click="select(r)"
-          >
-            {{ r.name || r.tag_name }} <span class="text-rm-muted text-xs">({{ r.published_at ? new Date(r.published_at).toLocaleDateString() : '' }})</span>
-          </li>
-        </ul>
-      </div>
-    </div>
-  </div>
+  <RmModal title="Choose release to download" @close="close">
+    <p class="text-sm text-rm-muted m-0 mb-2">{{ status }}</p>
+    <ul class="list-none m-0 p-0">
+      <li
+        v-for="r in releases"
+        :key="r.tag_name"
+        class="cursor-pointer py-1.5 px-2 rounded-rm hover:bg-rm-accent/15 text-rm-text"
+        @click="select(r)"
+      >
+        {{ r.name || r.tag_name }} <span class="text-rm-muted text-xs">({{ r.published_at ? new Date(r.published_at).toLocaleDateString() : '' }})</span>
+      </li>
+    </ul>
+  </RmModal>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
+import { RmModal } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

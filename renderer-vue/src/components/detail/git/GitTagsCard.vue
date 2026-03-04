@@ -1,8 +1,8 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">Tags</p>
+    <RmCardHeader tag="p" class="mb-2">Tags</RmCardHeader>
     <div class="flex flex-wrap gap-2 mb-3">
-      <button type="button" class="btn-primary btn-compact text-xs" @click="openCreateTagModal">Create tag</button>
+      <RmButton variant="primary" size="compact" class="text-xs" @click="openCreateTagModal">Create tag</RmButton>
     </div>
     <ul v-if="tags.length" class="list-none m-0 p-0 space-y-1 text-sm max-h-48 overflow-y-auto">
       <li v-for="t in tags" :key="t" class="flex items-center justify-between gap-2 py-1 border-b border-rm-border">
@@ -20,6 +20,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import { RmButton, RmCardHeader } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 import { useModals } from '../../../composables/useModals';

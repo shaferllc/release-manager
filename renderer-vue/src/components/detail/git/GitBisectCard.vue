@@ -1,6 +1,6 @@
 <template>
   <div class="git-card bisect-card">
-    <p class="card-label mb-2">Bisect</p>
+    <RmCardHeader tag="p" class="mb-2">Bisect</RmCardHeader>
 
     <!-- Active session: test & mark -->
     <template v-if="status.active">
@@ -11,27 +11,25 @@
       <p class="text-xs text-rm-muted mb-1 font-mono">{{ status.current }}</p>
       <p v-if="status.remaining" class="text-xs text-rm-muted mb-3">~{{ status.remaining }} revisions left to test</p>
       <div class="flex flex-wrap gap-2 mb-2">
-        <button type="button" class="btn-primary btn-compact text-xs" @click="markGood">Good</button>
-        <button type="button" class="btn-secondary btn-compact text-xs text-rm-warning hover:bg-rm-warning/10" @click="markBad">Bad</button>
-        <button type="button" class="btn-secondary btn-compact text-xs" title="Skip this commit (e.g. does not build)" @click="markSkip">Skip</button>
-        <button type="button" class="btn-secondary btn-compact text-xs" @click="resetBisect">Reset bisect</button>
+        <RmButton variant="primary" size="compact" class="text-xs" @click="markGood">Good</RmButton>
+        <RmButton variant="secondary" size="compact" class="text-xs text-rm-warning hover:bg-rm-warning/10" @click="markBad">Bad</RmButton>
+        <RmButton variant="secondary" size="compact" class="text-xs" title="Skip this commit (e.g. does not build)" @click="markSkip">Skip</RmButton>
+        <RmButton variant="secondary" size="compact" class="text-xs" @click="resetBisect">Reset bisect</RmButton>
       </div>
       <div v-if="canRunTests" class="mb-3">
-        <button type="button" class="btn-secondary btn-compact text-xs" :disabled="runTestsBusy" @click="runTestsHere">
+        <RmButton variant="secondary" size="compact" class="text-xs" :disabled="runTestsBusy" @click="runTestsHere">
           {{ runTestsBusy ? 'Running…' : 'Run tests' }}
-        </button>
+        </RmButton>
         <span v-if="lastTestResult" class="ml-2 text-[11px]" :class="lastTestResult.ok ? 'text-rm-success' : 'text-rm-warning'">{{ lastTestResult.ok ? 'Passed (mark Good)' : 'Failed (mark Bad)' }}</span>
       </div>
       <div v-if="canRunTests && testScripts.length > 0" class="mb-3 p-2.5 rounded-rm border border-rm-border bg-rm-surface/20">
         <p class="text-[11px] font-medium text-rm-text m-0 mb-1.5">Automated bisect</p>
         <p class="text-[11px] text-rm-muted m-0 mb-2">Run bisect with a script: exit 0 = good, non-zero = bad.</p>
         <div class="flex flex-wrap items-center gap-2">
-          <select v-model="selectedBisectScript" class="input-field text-xs py-1 px-2 rounded-rm border border-rm-border bg-rm-bg text-rm-text min-w-0 max-w-[10rem]">
-            <option v-for="s in testScripts" :key="s" :value="s">{{ s }}</option>
-          </select>
-          <button type="button" class="btn-primary btn-compact text-xs" :disabled="bisectRunBusy" @click="runAutomatedBisect">
+          <RmSelect v-model="selectedBisectScript" :options="bisectScriptOptions" option-label="label" option-value="value" class="text-xs py-1 px-2 min-w-0 max-w-[10rem]" />
+          <RmButton variant="primary" size="compact" class="text-xs" :disabled="bisectRunBusy" @click="runAutomatedBisect">
             {{ bisectRunBusy ? 'Running…' : 'Run bisect' }}
-          </button>
+          </RmButton>
         </div>
       </div>
       <p v-if="status.good || status.bad" class="text-[11px] text-rm-muted mt-2">
@@ -62,7 +60,7 @@
         <button type="button" class="text-[11px] text-rm-muted hover:text-rm-accent border-0 bg-transparent cursor-pointer p-0" @click="showIntro = true">What is bisect?</button>
       </div>
       <p class="text-xs text-rm-muted mb-3">Mark a “bad” ref (has the bug) and a “good” ref (no bug), then test each checkout and mark Good or Bad.</p>
-      <button type="button" class="btn-primary btn-compact text-xs" @click="startBisect">Start bisect</button>
+      <RmButton variant="primary" size="compact" class="text-xs" @click="startBisect">Start bisect</RmButton>
     </template>
 
     <p v-if="error" class="m-0 mt-2 text-xs text-rm-warning">{{ error }}</p>
@@ -71,6 +69,7 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue';
+import { RmButton, RmCardHeader, RmSelect } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 import { useModals } from '../../../composables/useModals';
@@ -87,6 +86,7 @@ const projectType = computed(() => (props.info?.projectType || '').toLowerCase()
 const canRunTests = computed(() => status.value.active && (projectType.value === 'npm' || projectType.value === 'php'));
 const testScripts = ref([]);
 const selectedBisectScript = ref('');
+const bisectScriptOptions = computed(() => testScripts.value.map((s) => ({ value: s, label: s })));
 const runTestsBusy = ref(false);
 const bisectRunBusy = ref(false);
 const lastTestResult = ref(null);

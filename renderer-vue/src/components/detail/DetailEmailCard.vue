@@ -6,36 +6,33 @@
         Catch outgoing emails from your app. Point your app's SMTP to this server and view messages here.
       </p>
       <div class="email-actions flex items-center gap-2 flex-wrap">
-        <span
-          class="email-status-pill text-xs font-medium px-2.5 py-1 rounded-full border"
-          :class="smtpStatus.running ? 'bg-rm-accent/15 text-rm-accent border-rm-accent/30' : 'bg-rm-surface/50 text-rm-muted border-rm-border'"
-        >
+        <RmStatusPill :variant="smtpStatus.running ? 'accent' : 'muted'">
           {{ smtpStatus.running ? `Running on port ${smtpStatus.port}` : 'Stopped' }}
-        </span>
-        <button
-          type="button"
-          class="email-btn email-btn-primary"
+        </RmStatusPill>
+        <RmButton
+          variant="primary"
+          size="compact"
           :disabled="smtpStatus.running || startingSmtp"
           @click="startSmtp"
         >
           {{ startingSmtp ? 'Starting…' : 'Start SMTP server' }}
-        </button>
-        <button
-          type="button"
-          class="email-btn email-btn-stop"
+        </RmButton>
+        <RmButton
+          variant="danger"
+          size="compact"
           :disabled="!smtpStatus.running || stoppingSmtp"
           @click="stopSmtp"
         >
           {{ stoppingSmtp ? 'Stopping…' : 'Stop' }}
-        </button>
-        <button
-          type="button"
-          class="email-btn email-btn-secondary"
+        </RmButton>
+        <RmButton
+          variant="secondary"
+          size="compact"
           :disabled="emails.length === 0"
           @click="clearAll"
         >
           Clear all
-        </button>
+        </RmButton>
       </div>
     </div>
 
@@ -50,11 +47,9 @@
     </div>
 
     <!-- Inbox + message view -->
-    <div class="email-inbox-wrap rounded-rm border border-rm-border bg-rm-surface/30 overflow-hidden shadow-sm flex flex-col min-h-0 flex-1">
-      <div class="email-inbox-header flex items-center justify-between gap-3 px-4 py-3 border-b border-rm-border bg-rm-surface/50">
-        <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Inbox</h3>
-        <span v-if="emails.length" class="text-xs text-rm-muted">{{ emails.length }} email{{ emails.length === 1 ? '' : 's' }}</span>
-      </div>
+    <RmListPanel class="email-inbox-wrap flex-1">
+      <template #title>Inbox</template>
+      <template #meta>{{ emails.length }} email{{ emails.length === 1 ? '' : 's' }}</template>
 
       <div class="email-inbox-body flex min-h-0 flex-1">
         <!-- Email list -->
@@ -72,13 +67,14 @@
               <div class="email-list-item-date text-rm-muted text-xs">{{ formatDate(email.date) }}</div>
             </li>
           </ul>
-          <div v-if="emails.length === 0" class="email-empty-list flex flex-col items-center justify-center py-12 px-4 text-center">
-            <svg class="w-10 h-10 text-rm-muted mb-3 opacity-60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
-            </svg>
-            <p class="text-sm text-rm-muted m-0">No emails yet</p>
-            <p class="text-xs text-rm-muted m-0 mt-1">Start the SMTP server and send mail from your app</p>
-          </div>
+          <RmEmptyState v-if="emails.length === 0" title="No emails yet" class="py-12 px-4">
+            <p class="text-sm text-rm-muted m-0">Start the SMTP server and send mail from your app</p>
+            <template #icon>
+              <svg class="w-10 h-10 text-rm-muted opacity-60" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/>
+              </svg>
+            </template>
+          </RmEmptyState>
         </div>
 
         <!-- Message view -->
@@ -144,12 +140,13 @@
           </div>
         </div>
       </div>
-    </div>
+    </RmListPanel>
   </section>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { RmButton, RmEmptyState, RmListPanel, RmStatusPill } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const api = useApi();
@@ -227,50 +224,6 @@ onUnmounted(() => {});
 </script>
 
 <style scoped>
-.email-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
-}
-.email-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.email-btn-primary {
-  background: rgb(var(--rm-accent));
-  color: white;
-  border-color: rgb(var(--rm-accent));
-}
-.email-btn-primary:hover:not(:disabled) {
-  background: rgb(var(--rm-accent-hover));
-  border-color: rgb(var(--rm-accent-hover));
-}
-.email-btn-stop {
-  background: rgb(var(--rm-surface));
-  color: rgb(var(--rm-text));
-  border-color: rgb(var(--rm-border));
-}
-.email-btn-stop:hover:not(:disabled) {
-  background: rgba(var(--rm-danger), 0.12);
-  border-color: rgba(var(--rm-danger), 0.4);
-  color: rgb(var(--rm-danger));
-}
-.email-btn-secondary {
-  background: rgb(var(--rm-surface));
-  color: rgb(var(--rm-text));
-  border-color: rgb(var(--rm-border));
-}
-.email-btn-secondary:hover:not(:disabled) {
-  background: rgb(var(--rm-surface-hover));
-}
 .email-code {
   padding: 2px 8px;
   border-radius: 4px;

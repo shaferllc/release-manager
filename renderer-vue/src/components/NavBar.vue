@@ -74,16 +74,16 @@
         </svg>
         <span class="tooltip-bubble">Sync all projects from Git</span>
       </button>
-      <button
-        type="button"
-        class="btn-primary flex items-center gap-2"
+      <Button
+        severity="primary"
+        class="rm-btn flex items-center gap-2"
         title="Add a new project folder"
         aria-label="Add project"
         @click="onAddProject"
       >
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add project
-      </button>
+      </Button>
       <span v-if="navStatus" class="text-[11px] text-rm-muted whitespace-nowrap">{{ navStatus }}</span>
     </div>
   </nav>
@@ -91,6 +91,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
+import Button from 'primevue/button';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useFeatureFlags } from '../composables/useFeatureFlags';

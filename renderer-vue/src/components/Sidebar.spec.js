@@ -106,7 +106,7 @@ describe('Sidebar', () => {
     const wrapper = mount(Sidebar, {
       global: { plugins: [pinia] },
     });
-    const patchBtn = wrapper.find('.batch-bar-buttons .btn-primary');
+    const patchBtn = wrapper.find('.batch-bar-buttons button');
     await patchBtn.trigger('click');
     expect(confirmSpy).toHaveBeenCalled();
     expect(releaseSpy).toHaveBeenCalledWith('/a', 'patch', false, {});
@@ -132,7 +132,7 @@ describe('Sidebar', () => {
     const wrapper = mount(Sidebar, {
       global: { plugins: [pinia] },
     });
-    const patchBtn = wrapper.find('.batch-bar-buttons .btn-primary');
+    const patchBtn = wrapper.find('.batch-bar-buttons button');
     await patchBtn.trigger('click');
     expect(releaseSpy).not.toHaveBeenCalled();
   });

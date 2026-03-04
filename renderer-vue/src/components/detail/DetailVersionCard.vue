@@ -1,16 +1,7 @@
 <template>
-  <section class="card mb-6 collapsible-card detail-tab-panel" data-detail-tab="version" :class="{ 'is-collapsed': collapsed }">
-    <div class="collapsible-card-header-row">
-      <button type="button" class="collapsible-card-header" :aria-expanded="!collapsed" @click="toggle">
-        <span class="collapsible-card-title">Version &amp; release</span>
-        <span class="flex items-center gap-1 shrink-0">
-          <button type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal" title="Documentation" aria-label="Documentation" @click.stop="openDocs('version-release')">(i)</button>
-          <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-        </span>
-      </button>
-    </div>
-    <div class="collapsible-card-body">
-      <div class="card-section flex flex-wrap items-center gap-x-5 gap-y-3 pt-0">
+  <section class="card mb-6 detail-tab-panel" data-detail-tab="version">
+    <div class="card-section flex flex-wrap items-center gap-x-5 gap-y-3 pt-0">
+        <button type="button" class="doc-trigger p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal shrink-0" title="Documentation" aria-label="Documentation" @click="openDocs('version-release')">(i)</button>
         <div class="flex items-center gap-2.5">
           <span class="card-label text-rm-muted mb-0">Version</span>
           <span class="text-xl font-mono font-semibold text-rm-accent">{{ info?.version || '—' }}</span>
@@ -89,20 +80,14 @@
           <textarea v-model="releaseNotes" class="release-notes-input w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[5rem]" rows="3" placeholder="Optional. Used as GitHub release body."></textarea>
         </div>
         <div v-if="canBump" class="flex flex-wrap gap-6 mb-5 text-sm">
-          <label class="checkbox-label">
-            <input v-model="draft" type="checkbox" class="checkbox-input" />
-            <span>Draft release</span>
-          </label>
-          <label class="checkbox-label">
-            <input v-model="prerelease" type="checkbox" class="checkbox-input" />
-            <span>Pre-release</span>
-          </label>
+          <RmCheckbox v-model="draft" label="Draft release" />
+          <RmCheckbox v-model="prerelease" label="Pre-release" />
         </div>
         <div class="flex flex-wrap gap-3">
-          <button v-if="canBump" type="button" class="btn-primary inline-flex items-center gap-x-1.5 shrink-0" @click="release('patch')">Patch</button>
-          <button v-if="canBump" type="button" class="btn-secondary inline-flex items-center gap-x-1.5 shrink-0" @click="release('minor')">Minor</button>
-          <button v-if="canBump" type="button" class="btn-secondary inline-flex items-center gap-x-1.5 shrink-0" @click="release('major')">Major</button>
-          <button v-if="!canBump" type="button" class="btn-primary inline-flex items-center gap-x-1.5 shrink-0" @click="tagAndPush">Tag and push</button>
+          <RmButton v-if="canBump" variant="primary" class="inline-flex items-center gap-x-1.5 shrink-0" @click="release('patch')">Patch</RmButton>
+          <RmButton v-if="canBump" variant="secondary" class="inline-flex items-center gap-x-1.5 shrink-0" @click="release('minor')">Minor</RmButton>
+          <RmButton v-if="canBump" variant="secondary" class="inline-flex items-center gap-x-1.5 shrink-0" @click="release('major')">Major</RmButton>
+          <RmButton v-if="!canBump" variant="primary" class="inline-flex items-center gap-x-1.5 shrink-0" @click="tagAndPush">Tag and push</RmButton>
         </div>
         <p v-if="canBump" class="mt-3 text-xs text-rm-muted">Shortcuts: <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘1</kbd> Patch, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘2</kbd> Minor, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘3</kbd> Major, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘S</kbd> Sync, <kbd class="px-1 rounded bg-rm-surface font-mono text-xs">⌘D</kbd> Download</p>
         <p class="release-status mt-4 text-sm" :class="releaseStatusSuccess ? 'text-rm-success' : 'text-rm-muted'">{{ releaseStatus }}</p>
@@ -113,19 +98,18 @@
 
       <!-- Per-project GitHub token -->
       <div class="card-section card-section-muted border-t border-rm-border">
-        <label class="card-label text-rm-muted mb-3">GitHub token (optional override)</label>
-        <input v-model="projectToken" type="password" class="input-field w-full" placeholder="Leave empty to use token from Settings." autocomplete="off" @blur="saveProjectToken" />
+        <RmCardHeader tag="label" muted class="mb-3">GitHub token (optional override)</RmCardHeader>
+        <RmInput v-model="projectToken" type="password" class="w-full" placeholder="Leave empty to use token from Settings." autocomplete="off" @blur="saveProjectToken" />
       </div>
-    </div>
   </section>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { RmButton, RmCardHeader, RmCheckbox, RmInput } from '../ui';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
-import { useCollapsible } from '../../composables/useCollapsible';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
 import { useAiGenerateAvailable } from '../../composables/useAiGenerateAvailable';
 import { useNotifications } from '../../composables/useNotifications';
@@ -138,7 +122,6 @@ const store = useAppStore();
 const api = useApi();
 const modals = useModals();
 const { runWithOverlay } = useLongActionOverlay();
-const { collapsed, toggle } = useCollapsible('version');
 const { aiGenerateAvailable } = useAiGenerateAvailable();
 const notifications = useNotifications();
 

@@ -6,23 +6,17 @@
     </div>
     <div v-show="store.projects.length > 0" class="project-filters px-3 pt-3 pb-2 border-b border-rm-border">
       <label class="block text-[11px] font-medium text-rm-muted uppercase tracking-wider mb-1">Type</label>
-      <select v-model="filterType" class="filter-select mb-2">
-        <option value="">All types</option>
-        <option v-for="t in store.allTypes" :key="t" :value="t">{{ t }}</option>
-      </select>
+      <Select v-model="filterType" :options="filterTypeOptions" optionLabel="label" optionValue="value" class="filter-select mb-2" />
       <label class="block text-[11px] font-medium text-rm-muted uppercase tracking-wider mb-1">Tag</label>
-      <select v-model="filterTag" class="filter-select">
-        <option value="">All tags</option>
-        <option v-for="tag in store.allTags" :key="tag" :value="tag">{{ tag }}</option>
-      </select>
+      <Select v-model="filterTag" :options="filterTagOptions" optionLabel="label" optionValue="value" class="filter-select" />
     </div>
     <div v-if="license.hasLicense?.value && batchCount >= 2" class="batch-bar px-4 py-4 border-b border-rm-border flex-shrink-0" style="background: rgb(var(--rm-accent) / 0.06); border-left: 3px solid rgb(var(--rm-accent) / 0.5);">
       <p class="batch-bar-label m-0 text-xs font-semibold text-rm-text">{{ batchCount }} selected</p>
       <p class="batch-bar-hint m-0 mt-1.5 text-xs text-rm-muted">Release:</p>
       <div class="batch-bar-buttons flex flex-wrap gap-3 mt-3">
-        <button type="button" class="btn-primary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="batchRelease('patch')">Patch</button>
-        <button type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="batchRelease('minor')">Minor</button>
-        <button type="button" class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="batchRelease('major')">Major</button>
+        <Button severity="primary" size="small" class="text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="batchRelease('patch')">Patch</Button>
+        <Button severity="secondary" size="small" class="text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="batchRelease('minor')">Minor</Button>
+        <Button severity="secondary" size="small" class="text-xs inline-flex items-center gap-x-1.5 shrink-0" @click="batchRelease('major')">Major</Button>
       </div>
     </div>
     <div class="project-list flex-1 min-h-0 overflow-y-auto">
@@ -81,6 +75,8 @@
 
 <script setup>
 import { computed } from 'vue';
+import Button from 'primevue/button';
+import Select from 'primevue/select';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useLicense } from '../composables/useLicense';
@@ -94,6 +90,16 @@ const store = useAppStore();
 const api = useApi();
 const license = useLicense();
 const notifications = useNotifications();
+
+const filterTypeOptions = computed(() => [
+  { value: '', label: 'All types' },
+  ...store.allTypes.map((t) => ({ value: t, label: t })),
+]);
+const filterTagOptions = computed(() => [
+  { value: '', label: 'All tags' },
+  ...store.allTags.map((tag) => ({ value: tag, label: tag })),
+]);
+
 const { sidebarStyle, onResizerPointerDown } = useResizableSidebar({
   preferenceKey: 'mainSidebarWidth',
   defaultWidth: 256,

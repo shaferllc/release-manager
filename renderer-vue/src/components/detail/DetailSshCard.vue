@@ -13,45 +13,43 @@
     <div class="ssh-form rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-4 mb-5 flex flex-wrap items-end gap-4">
       <label class="ssh-field">
         <span class="text-xs font-medium text-rm-muted block mb-1">Name</span>
-        <input v-model="form.name" type="text" class="ssh-input w-40" placeholder="My server" />
+        <RmInput v-model="form.name" type="text" class="w-40" placeholder="My server" />
       </label>
       <label class="ssh-field">
         <span class="text-xs font-medium text-rm-muted block mb-1">Host</span>
-        <input v-model="form.host" type="text" class="ssh-input w-48" placeholder="host.example.com" />
+        <RmInput v-model="form.host" type="text" class="w-48" placeholder="host.example.com" />
       </label>
       <label class="ssh-field">
         <span class="text-xs font-medium text-rm-muted block mb-1">Port</span>
-        <input v-model.number="form.port" type="number" min="1" max="65535" class="ssh-input w-20" placeholder="22" />
+        <RmInput v-model.number="form.port" type="number" min="1" max="65535" class="w-20" placeholder="22" />
       </label>
       <label class="ssh-field">
         <span class="text-xs font-medium text-rm-muted block mb-1">User</span>
-        <input v-model="form.user" type="text" class="ssh-input w-32" placeholder="root" />
+        <RmInput v-model="form.user" type="text" class="w-32" placeholder="root" />
       </label>
       <label class="ssh-field flex-1 min-w-[200px]">
         <span class="text-xs font-medium text-rm-muted block mb-1">Identity file (optional)</span>
-        <input v-model="form.identityFile" type="text" class="ssh-input w-full" placeholder="~/.ssh/id_rsa" />
+        <RmInput v-model="form.identityFile" type="text" class="w-full" placeholder="~/.ssh/id_rsa" />
       </label>
       <div class="flex items-center gap-2 shrink-0">
-        <button
-          type="button"
-          class="ssh-btn ssh-btn-primary"
+        <RmButton
+          variant="primary"
+          size="compact"
           :disabled="!form.host?.trim()"
           @click="saveConnection"
         >
           {{ editingId ? 'Update' : 'Add connection' }}
-        </button>
-        <button v-if="editingId" type="button" class="ssh-btn ssh-btn-ghost" @click="cancelEdit">
+        </RmButton>
+        <RmButton v-if="editingId" variant="ghost" size="compact" @click="cancelEdit">
           Cancel
-        </button>
+        </RmButton>
       </div>
     </div>
 
     <!-- Connections list -->
-    <div class="ssh-list-wrap rounded-rm border border-rm-border bg-rm-surface/30 overflow-hidden shadow-sm">
-      <div class="ssh-list-header flex items-center justify-between gap-3 px-4 py-3 border-b border-rm-border bg-rm-surface/50">
-        <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Saved connections</h3>
-        <span v-if="connections.length" class="text-xs text-rm-muted">{{ connections.length }} saved</span>
-      </div>
+    <RmListPanel class="ssh-list-wrap">
+      <template #title>Saved connections</template>
+      <template #meta>{{ connections.length }} saved</template>
 
       <ul v-if="connections.length" class="divide-y divide-rm-border">
         <li v-for="c in connections" :key="c.id" class="ssh-item flex flex-wrap items-center gap-3 px-4 py-3">
@@ -64,38 +62,39 @@
             <p v-if="c.identityFile" class="text-xs text-rm-muted m-0 mt-0.5 font-mono truncate">{{ c.identityFile }}</p>
           </div>
           <div class="flex items-center gap-2 shrink-0">
-            <button type="button" class="ssh-btn ssh-btn-primary" title="Open in terminal" @click="connect(c)">
+            <RmButton variant="primary" size="compact" title="Open in terminal" @click="connect(c)">
               Connect
-            </button>
-            <button type="button" class="ssh-btn ssh-btn-ghost" title="Edit" @click="startEdit(c)">
+            </RmButton>
+            <RmButton variant="ghost" size="compact" title="Edit" @click="startEdit(c)">
               Edit
-            </button>
-            <button type="button" class="ssh-btn ssh-btn-danger" title="Remove" @click="removeConnection(c)">
+            </RmButton>
+            <RmButton variant="danger" size="compact" title="Remove" @click="removeConnection(c)">
               Delete
-            </button>
+            </RmButton>
           </div>
         </li>
       </ul>
 
-      <div v-else class="ssh-empty flex flex-col items-center justify-center py-14 px-6 text-center">
-        <div class="ssh-empty-icon mb-4 rounded-full bg-rm-surface border border-rm-border flex items-center justify-center text-rm-muted" aria-hidden="true">
+      <RmEmptyState
+        v-else
+        title="No SSH connections yet"
+      >
+        Add a connection with host, user, and optional port or identity file. Click <strong>Connect</strong> to open an SSH session in your system terminal.
+        <template #icon>
           <svg class="w-10 h-10" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
             <polyline points="10 17 15 12 10 7"/>
             <line x1="15" y1="12" x2="3" y2="12"/>
           </svg>
-        </div>
-        <h4 class="text-base font-semibold text-rm-text m-0 mb-1.5">No SSH connections yet</h4>
-        <p class="text-sm text-rm-muted m-0 max-w-sm">
-          Add a connection with host, user, and optional port or identity file. Click <strong>Connect</strong> to open an SSH session in your system terminal.
-        </p>
-      </div>
-    </div>
+        </template>
+      </RmEmptyState>
+    </RmListPanel>
   </section>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { RmButton, RmInput, RmEmptyState, RmListPanel } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const api = useApi();
@@ -208,63 +207,3 @@ onMounted(() => {
   loadConnections();
 });
 </script>
-
-<style scoped>
-.ssh-input {
-  padding: 8px 12px;
-  border-radius: 6px;
-  border: 1px solid rgb(var(--rm-border));
-  background: rgb(var(--rm-bg));
-  color: rgb(var(--rm-text));
-  font-size: 13px;
-}
-.ssh-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  border: 1px solid transparent;
-  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
-}
-.ssh-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.ssh-btn-primary {
-  background: rgb(var(--rm-accent));
-  color: white;
-  border-color: rgb(var(--rm-accent));
-}
-.ssh-btn-primary:hover:not(:disabled) {
-  background: rgb(var(--rm-accent-hover));
-  border-color: rgb(var(--rm-accent-hover));
-}
-.ssh-btn-ghost {
-  background: transparent;
-  color: rgb(var(--rm-muted));
-  border-color: transparent;
-}
-.ssh-btn-ghost:hover {
-  color: rgb(var(--rm-text));
-  background: rgb(var(--rm-surface));
-}
-.ssh-btn-danger {
-  background: rgb(var(--rm-surface));
-  color: rgb(var(--rm-text));
-  border-color: rgb(var(--rm-border));
-}
-.ssh-btn-danger:hover {
-  background: rgba(var(--rm-danger), 0.12);
-  border-color: rgba(var(--rm-danger), 0.4);
-  color: rgb(var(--rm-danger));
-}
-.ssh-empty-icon {
-  width: 72px;
-  height: 72px;
-}
-</style>

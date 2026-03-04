@@ -1,9 +1,9 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">Stash</p>
+    <RmCardHeader tag="p" class="mb-2">Stash</RmCardHeader>
     <div class="flex flex-wrap gap-2 mb-3">
-      <button type="button" class="btn-primary btn-compact text-xs" @click="stashPush">Stash</button>
-      <button type="button" class="btn-secondary btn-compact text-xs" @click="stashPop">Pop</button>
+      <RmButton variant="primary" size="compact" class="text-xs" @click="stashPush">Stash</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs" @click="stashPop">Pop</RmButton>
     </div>
     <label class="checkbox-label text-xs text-rm-muted cursor-pointer flex items-center gap-2 mb-2">
       <input v-model="includeUntracked" type="checkbox" class="checkbox-input" />
@@ -29,6 +29,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import { RmButton, RmCardHeader } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 

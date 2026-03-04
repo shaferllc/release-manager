@@ -23,18 +23,19 @@
 
       <span class="card-label block mb-3">Quick actions</span>
       <div class="detail-dashboard-actions flex flex-wrap gap-2">
-        <button
+        <Button
           v-for="tab in tabs"
           :key="tab.id"
-          type="button"
-          class="btn-secondary btn-compact text-xs inline-flex items-center gap-x-1.5 tooltip-btn"
+          severity="secondary"
+          size="small"
+          class="text-xs inline-flex items-center gap-x-1.5 tooltip-btn"
           :title="`Go to ${tab.label} tab`"
           @click="goTo(tab.id)"
         >
           <span v-if="tab.icon" class="detail-dashboard-tab-icon shrink-0" v-html="tab.icon" aria-hidden="true"></span>
           {{ tab.label }}
           <span class="tooltip-bubble">Go to {{ tab.label }} tab</span>
-        </button>
+        </Button>
       </div>
     </div>
   </section>
@@ -42,6 +43,7 @@
 
 <script setup>
 import { computed } from 'vue';
+import Button from 'primevue/button';
 import { useAppStore } from '../../stores/app';
 
 const props = defineProps({

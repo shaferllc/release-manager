@@ -6,10 +6,10 @@
         <p class="m-0 mt-1.5 text-sm text-rm-muted font-mono truncate" :title="info?.path">{{ info?.path || '—' }}</p>
         <div class="mt-3 flex items-center gap-2 flex-wrap">
           <label class="text-xs font-medium text-rm-muted shrink-0">Tags</label>
-          <input
+          <InputText
             v-model="tagsInput"
             type="text"
-            class="detail-tags-input flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1"
+            class="flex-1 min-w-0 text-sm"
             placeholder="e.g. frontend, production"
             @blur="saveTags"
           />
@@ -17,29 +17,28 @@
         <div v-if="showPhpSelector || showCoverageHeader" class="mt-2 flex flex-wrap items-center gap-3 text-xs text-rm-muted">
           <div v-if="showPhpSelector" class="flex items-center gap-1">
             <span class="font-medium">PHP</span>
-            <select
+            <Select
               v-model="phpPath"
-              class="text-xs rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1 min-w-[8rem]"
+              :options="phpSelectOptions"
+              optionLabel="label"
+              optionValue="path"
+              class="text-xs px-2 py-1 min-w-[8rem]"
               :disabled="loadingPhp"
               @change="savePhpPath"
-            >
-              <option value="">Use default</option>
-              <option v-for="opt in phpOptions" :key="opt.path" :value="opt.path">
-                PHP {{ opt.version }}
-              </option>
-            </select>
+            />
           </div>
           <div v-if="showCoverageHeader" class="flex items-center gap-1">
             <span class="font-medium">Coverage</span>
             <span>{{ coverageSummaryDisplay }}</span>
-            <button
-              type="button"
-              class="btn-secondary btn-compact text-[11px]"
+            <Button
+              severity="secondary"
+              size="small"
+              class="text-[11px]"
               :disabled="coverageLoading"
               @click="runCoverageHeader"
             >
               {{ coverageLoading ? 'Running…' : 'Run' }}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -70,6 +69,9 @@
 
 <script setup>
 import { ref, watch, computed } from 'vue';
+import Button from 'primevue/button';
+import InputText from 'primevue/inputtext';
+import Select from 'primevue/select';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import * as debug from '../../utils/debug';
@@ -84,6 +86,10 @@ const tagsInput = ref('');
 const copyFeedback = ref(false);
 
 const phpOptions = ref([]);
+const phpSelectOptions = computed(() => [
+  { path: '', label: 'Use default' },
+  ...phpOptions.value.map((o) => ({ path: o.path, label: `PHP ${o.version}` })),
+]);
 const phpPath = ref('');
 const loadingPhp = ref(false);
 const coverageSummary = ref('—');

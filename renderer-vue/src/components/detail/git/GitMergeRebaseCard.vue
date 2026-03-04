@@ -1,6 +1,6 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">Merge & rebase</p>
+    <RmCardHeader tag="p" class="mb-2">Merge & rebase</RmCardHeader>
     <template v-if="state.merging || state.rebasing || state.cherryPicking">
       <p class="text-xs text-rm-muted mb-2">
         <span v-if="state.merging">Merge in progress.</span>
@@ -8,34 +8,28 @@
         <span v-if="state.cherryPicking">Cherry-pick in progress.</span>
       </p>
       <div class="flex flex-wrap gap-2 mb-3">
-        <button v-if="state.merging" type="button" class="btn-primary btn-compact text-xs" @click="mergeContinue">Continue merge</button>
-        <button v-if="state.merging" type="button" class="btn-secondary btn-compact text-xs text-rm-warning" @click="mergeAbort">Abort merge</button>
-        <button v-if="state.rebasing" type="button" class="btn-primary btn-compact text-xs" @click="rebaseContinue">Continue rebase</button>
-        <button v-if="state.rebasing" type="button" class="btn-secondary btn-compact text-xs" @click="rebaseSkip">Skip</button>
-        <button v-if="state.rebasing" type="button" class="btn-secondary btn-compact text-xs text-rm-warning" @click="rebaseAbort">Abort rebase</button>
-        <button v-if="state.cherryPicking" type="button" class="btn-primary btn-compact text-xs" @click="cherryPickContinue">Continue cherry-pick</button>
-        <button v-if="state.cherryPicking" type="button" class="btn-secondary btn-compact text-xs text-rm-warning" @click="cherryPickAbort">Abort cherry-pick</button>
+        <RmButton v-if="state.merging" variant="primary" size="compact" class="text-xs" @click="mergeContinue">Continue merge</RmButton>
+        <RmButton v-if="state.merging" variant="secondary" size="compact" class="text-xs text-rm-warning" @click="mergeAbort">Abort merge</RmButton>
+        <RmButton v-if="state.rebasing" variant="primary" size="compact" class="text-xs" @click="rebaseContinue">Continue rebase</RmButton>
+        <RmButton v-if="state.rebasing" variant="secondary" size="compact" class="text-xs" @click="rebaseSkip">Skip</RmButton>
+        <RmButton v-if="state.rebasing" variant="secondary" size="compact" class="text-xs text-rm-warning" @click="rebaseAbort">Abort rebase</RmButton>
+        <RmButton v-if="state.cherryPicking" variant="primary" size="compact" class="text-xs" @click="cherryPickContinue">Continue cherry-pick</RmButton>
+        <RmButton v-if="state.cherryPicking" variant="secondary" size="compact" class="text-xs text-rm-warning" @click="cherryPickAbort">Abort cherry-pick</RmButton>
       </div>
     </template>
     <template v-else>
       <div class="mb-3">
         <label class="block text-xs text-rm-muted mb-1">Merge branch</label>
         <div class="flex gap-2">
-          <select v-model="mergeBranch" class="flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1">
-            <option value="">—</option>
-            <option v-for="b in mergeBranches" :key="b" :value="b">{{ b }}</option>
-          </select>
-          <button type="button" class="btn-primary btn-compact text-xs" :disabled="!mergeBranch" @click="merge">Merge</button>
+          <RmSelect v-model="mergeBranch" :options="mergeBranchOptions" option-label="label" option-value="value" class="flex-1 min-w-0 text-sm" />
+          <RmButton variant="primary" size="compact" class="text-xs" :disabled="!mergeBranch" @click="merge">Merge</RmButton>
         </div>
       </div>
       <div class="mb-3">
         <label class="block text-xs text-rm-muted mb-1">Rebase onto</label>
         <div class="flex gap-2">
-          <select v-model="rebaseOnto" class="flex-1 min-w-0 text-sm rounded-rm border border-rm-border bg-rm-bg text-rm-text px-2 py-1">
-            <option value="">—</option>
-            <option v-for="b in mergeBranches" :key="b" :value="b">{{ b }}</option>
-          </select>
-          <button type="button" class="btn-primary btn-compact text-xs" :disabled="!rebaseOnto" @click="rebase">Rebase</button>
+          <RmSelect v-model="rebaseOnto" :options="rebaseOntoOptions" option-label="label" option-value="value" class="flex-1 min-w-0 text-sm" />
+          <RmButton variant="primary" size="compact" class="text-xs" :disabled="!rebaseOnto" @click="rebase">Rebase</RmButton>
         </div>
       </div>
     </template>
@@ -44,7 +38,8 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { RmButton, RmCardHeader, RmSelect } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 
@@ -57,6 +52,15 @@ const mergeBranches = ref([]);
 const mergeBranch = ref('');
 const rebaseOnto = ref('');
 const error = ref('');
+
+const mergeBranchOptions = computed(() => [
+  { value: '', label: '—' },
+  ...mergeBranches.value.map((b) => ({ value: b, label: b })),
+]);
+const rebaseOntoOptions = computed(() => [
+  { value: '', label: '—' },
+  ...mergeBranches.value.map((b) => ({ value: b, label: b })),
+]);
 
 async function loadState() {
   const path = store.selectedPath;

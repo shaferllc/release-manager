@@ -1,17 +1,8 @@
 <template>
-  <section class="card mb-6 collapsible-card detail-tab-panel" data-detail-tab="pull-requests" :class="{ 'is-collapsed': collapsed }">
-    <div class="collapsible-card-header-row">
-      <button type="button" class="collapsible-card-header" :aria-expanded="!collapsed" @click="toggle">
-        <span class="collapsible-card-title">Pull requests</span>
-        <span class="flex items-center gap-1 shrink-0">
-          <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-        </span>
-      </button>
-    </div>
-    <div class="collapsible-card-body">
+  <section class="card mb-6 detail-tab-panel" data-detail-tab="pull-requests">
       <div class="card-section flex flex-wrap items-center gap-3">
-        <a v-if="pullRequestsUrl" :href="pullRequestsUrl" class="btn-secondary inline-flex items-center gap-x-1.5 shrink-0" target="_blank" rel="noopener" @click.prevent="openPullRequestsUrl">Open on GitHub</a>
-        <button type="button" class="btn-primary inline-flex items-center gap-x-1.5 shrink-0" :disabled="!canCreatePr" @click="openCreateModal">New pull request</button>
+        <a v-if="pullRequestsUrl" :href="pullRequestsUrl" class="inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 text-sm rounded-rm-dynamic border border-rm-border bg-rm-surface hover:bg-rm-surface-hover text-rm-text no-underline" target="_blank" rel="noopener" @click.prevent="openPullRequestsUrl">Open on GitHub</a>
+        <RmButton variant="primary" class="inline-flex items-center gap-x-1.5 shrink-0" :disabled="!canCreatePr" @click="openCreateModal">New pull request</RmButton>
         <div class="flex items-center gap-2">
           <button
             v-for="s in ['open', 'closed']"
@@ -50,15 +41,16 @@
               </a>
               <span class="text-xs text-rm-muted shrink-0">{{ pr.head?.ref }} → {{ pr.base?.ref }}</span>
               <span v-if="pr.user?.login" class="text-xs text-rm-muted shrink-0">by {{ pr.user.login }}</span>
-              <button
+              <RmButton
                 v-if="prState === 'open' && pr.mergeable !== false"
-                type="button"
-                class="btn-secondary btn-compact text-xs shrink-0"
+                variant="secondary"
+                size="compact"
+                class="text-xs shrink-0"
                 :disabled="mergingPr === pr.number"
                 @click="mergePr(pr)"
               >
                 {{ mergingPr === pr.number ? 'Merging…' : 'Merge' }}
-              </button>
+              </RmButton>
             </li>
           </ul>
         </template>
@@ -69,26 +61,25 @@
         <h4 class="text-sm font-semibold text-rm-text mb-3">Create pull request</h4>
         <p class="text-xs text-rm-muted mb-2">Current branch: <strong class="font-mono">{{ info?.branch || '—' }}</strong></p>
         <label class="block text-xs font-medium text-rm-text mb-1">Base branch</label>
-        <input v-model="newPrBase" type="text" class="input-field w-full mb-3" placeholder="e.g. main" />
+        <RmInput v-model="newPrBase" type="text" class="w-full mb-3" placeholder="e.g. main" />
         <label class="block text-xs font-medium text-rm-text mb-1">Title</label>
-        <input v-model="newPrTitle" type="text" class="input-field w-full mb-3" placeholder="PR title" />
+        <RmInput v-model="newPrTitle" type="text" class="w-full mb-3" placeholder="PR title" />
         <label class="block text-xs font-medium text-rm-text mb-1">Body (optional)</label>
-        <textarea v-model="newPrBody" class="input-field w-full rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm p-2 resize-y min-h-[4rem]" rows="3" placeholder="Description"></textarea>
+        <RmTextarea v-model="newPrBody" class="w-full min-h-[4rem]" rows="3" placeholder="Description" />
         <div class="flex flex-wrap gap-2 mt-3">
-          <button type="button" class="btn-primary btn-compact text-sm" :disabled="createPrLoading" @click="submitCreatePr">{{ createPrLoading ? 'Creating…' : 'Create' }}</button>
-          <button type="button" class="btn-secondary btn-compact text-sm" :disabled="createPrLoading" @click="showCreateModal = false">Cancel</button>
+          <RmButton variant="primary" size="compact" class="text-sm" :disabled="createPrLoading" @click="submitCreatePr">{{ createPrLoading ? 'Creating…' : 'Create' }}</RmButton>
+          <RmButton variant="secondary" size="compact" class="text-sm" :disabled="createPrLoading" @click="showCreateModal = false">Cancel</RmButton>
         </div>
         <p v-if="createPrError" class="text-sm text-rm-warning mt-2">{{ createPrError }}</p>
       </div>
-    </div>
   </section>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { RmButton, RmInput, RmTextarea } from '../ui';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
-import { useCollapsible } from '../../composables/useCollapsible';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
 import { useNotifications } from '../../composables/useNotifications';
 
@@ -98,7 +89,6 @@ const emit = defineEmits(['refresh']);
 const store = useAppStore();
 const api = useApi();
 const { runWithOverlay } = useLongActionOverlay();
-const { collapsed, toggle } = useCollapsible('pull-requests');
 const notifications = useNotifications();
 
 const pullRequestsUrl = ref('');

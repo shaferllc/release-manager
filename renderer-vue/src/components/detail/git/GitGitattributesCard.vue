@@ -1,14 +1,12 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">.gitattributes</p>
+    <RmCardHeader tag="p" class="mb-2">.gitattributes</RmCardHeader>
     <p class="text-xs text-rm-muted m-0 mb-3">
       {{ contentSummary }}
     </p>
     <div class="flex flex-wrap items-center gap-2">
-      <button type="button" class="btn-primary btn-compact text-xs" @click="openWizard">
-        Wizard…
-      </button>
-      <button type="button" class="btn-secondary btn-compact text-xs" :disabled="saving" @click="load">Reload</button>
+      <RmButton variant="primary" size="compact" class="text-xs" @click="openWizard">Wizard…</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs" :disabled="saving" @click="load">Reload</RmButton>
       <span v-if="successMessage" class="text-xs font-medium text-rm-accent">{{ successMessage }}</span>
     </div>
     <p v-if="error" class="m-0 mt-2 text-xs text-rm-warning">{{ error }}</p>
@@ -17,6 +15,7 @@
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { RmButton, RmCardHeader } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 import { useModals } from '../../../composables/useModals';

@@ -12,7 +12,7 @@ describe('DiffFullModal', () => {
     const wrapper = mount(DiffFullModal, {
       props: { title: 'Suggested fix', content: 'Hello world' },
     });
-    expect(wrapper.find('.modal-title').text()).toBe('Suggested fix');
+    expect(wrapper.find('h2').text()).toBe('Suggested fix');
     expect(wrapper.find('pre').text()).toBe('Hello world');
   });
 
@@ -20,14 +20,14 @@ describe('DiffFullModal', () => {
     const wrapper = mount(DiffFullModal, {
       props: { content: 'x' },
     });
-    expect(wrapper.find('.modal-title').text()).toBe('Diff');
+    expect(wrapper.find('h2').text()).toBe('Diff');
   });
 
   it('shows Diff when title is empty string', () => {
     const wrapper = mount(DiffFullModal, {
       props: { title: '', content: 'x' },
     });
-    expect(wrapper.find('.modal-title').text()).toBe('Diff');
+    expect(wrapper.find('h2').text()).toBe('Diff');
   });
 
   it('emits close when Close button clicked', async () => {

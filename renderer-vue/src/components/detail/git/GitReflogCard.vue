@@ -1,7 +1,7 @@
 <template>
   <div class="git-card">
-    <p class="card-label mb-2">Reflog</p>
-    <button type="button" class="btn-secondary btn-compact text-xs mb-3" @click="load">Refresh</button>
+    <RmCardHeader tag="p" class="mb-2">Reflog</RmCardHeader>
+    <RmButton variant="secondary" size="compact" class="text-xs mb-3" @click="load">Refresh</RmButton>
     <ul v-if="entries.length" class="list-none m-0 p-0 space-y-1 text-sm max-h-64 overflow-y-auto">
       <li
         v-for="(e, i) in entries"
@@ -20,6 +20,7 @@
 
 <script setup>
 import { ref, watch } from 'vue';
+import { RmButton, RmCardHeader } from '../../ui';
 import { useAppStore } from '../../../stores/app';
 import { useApi } from '../../../composables/useApi';
 

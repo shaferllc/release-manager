@@ -123,7 +123,7 @@ async function loadProjects() {
     else if (store.projects.length > 0 && !store.selectedPath) store.setSelectedPath(store.projects[0].path);
     else store.setSelectedPath(null);
     if (savedView && ['detail', 'dashboard', 'settings', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
-    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'wordpress', 'processes', 'email', 'tunnels', 'ftp', 'ssh'];
+    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'processes', 'email', 'tunnels', 'ftp', 'ssh'];
     if (typeof savedDetailTab === 'string' && validDetailTabs.includes(savedDetailTab)) store.setDetailTab(savedDetailTab);
     if (store.selectedPath) {
       const current = store.projects.find((p) => p.path === store.selectedPath);

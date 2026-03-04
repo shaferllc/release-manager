@@ -1,6 +1,14 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Layer order so Tailwind utilities can override PrimeVue (see primevue.org/tailwind) */
+@layer tailwind-base, primevue, tailwind-utilities;
+
+@layer tailwind-base {
+  @tailwind base;
+}
+
+@layer tailwind-utilities {
+  @tailwind components;
+  @tailwind utilities;
+}
 
 :root,
 html[data-theme="dark"] {
@@ -47,6 +55,12 @@ html[data-theme="light"][data-accent="amber"] { --rm-accent: 217 119 6; --rm-acc
 html[data-accent="rose"] { --rm-accent: 244 63 94; --rm-accent-hover: 251 113 133; --rm-border-focus: 244 63 94; --rm-success: 34 197 94; }
 html[data-theme="light"][data-accent="rose"] { --rm-accent: 225 29 72; --rm-accent-hover: 244 63 94; --rm-border-focus: 225 29 72; }
 
+/* Corner radius: one variable for components (Settings > Appearance > Corner style) */
+html[data-radius="sharp"],
+html:not([data-radius]) { --rm-radius: 0; }
+html[data-radius="rounded"] { --rm-radius: 6px; }
+html[data-radius="pill"] { --rm-radius: 9999px; }
+
 /* Font size / density */
 html[data-font-size="tighter"] { font-size: 11px; }
 html[data-font-size="compact"] { font-size: 12px; }
@@ -64,9 +78,6 @@ html[data-radius="rounded"] .rounded-rm-lg { border-radius: 6px !important; }
 html[data-radius="pill"] .rounded-rm { border-radius: 9999px !important; }
 
 /* Buttons and inputs: sharp = 0 (including when attribute missing) */
-html[data-radius="sharp"] .btn-primary,
-html[data-radius="sharp"] .btn-secondary,
-html[data-radius="sharp"] .input-field,
 html[data-radius="sharp"] textarea,
 html[data-radius="sharp"] input[type="text"],
 html[data-radius="sharp"] input[type="email"],
@@ -78,9 +89,6 @@ html[data-radius="sharp"] .detail-git-toolbar-select,
 html[data-radius="sharp"] .release-notes-input,
 html[data-radius="sharp"] .commit-message-input,
 html[data-radius="sharp"] .filter-select { border-radius: 0 !important; }
-html:not([data-radius="rounded"]):not([data-radius="pill"]) .btn-primary,
-html:not([data-radius="rounded"]):not([data-radius="pill"]) .btn-secondary,
-html:not([data-radius="rounded"]):not([data-radius="pill"]) .input-field,
 html:not([data-radius="rounded"]):not([data-radius="pill"]) textarea,
 html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="text"],
 html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="email"],
@@ -94,9 +102,6 @@ html:not([data-radius="rounded"]):not([data-radius="pill"]) .commit-message-inpu
 html:not([data-radius="rounded"]):not([data-radius="pill"]) .filter-select { border-radius: 0 !important; }
 
 /* Buttons and inputs: rounded = 6px */
-html[data-radius="rounded"] .btn-primary,
-html[data-radius="rounded"] .btn-secondary,
-html[data-radius="rounded"] .input-field,
 html[data-radius="rounded"] textarea,
 html[data-radius="rounded"] input[type="text"],
 html[data-radius="rounded"] input[type="email"],
@@ -110,9 +115,6 @@ html[data-radius="rounded"] .commit-message-input,
 html[data-radius="rounded"] .filter-select { border-radius: 6px !important; }
 
 /* Buttons and inputs: pill = full rounded */
-html[data-radius="pill"] .btn-primary,
-html[data-radius="pill"] .btn-secondary,
-html[data-radius="pill"] .input-field,
 html[data-radius="pill"] textarea { border-radius: 9999px !important; }
 html[data-radius="pill"] .detail-git-filter-input,
 html[data-radius="pill"] .detail-git-toolbar-select,
@@ -129,8 +131,6 @@ html[data-radius="sharp"] .terminal-shape { border-radius: 2px; }
 /* Non-input buttons and UI: sharp = 0, rounded = 6px, pill = 9999px */
 html[data-radius="sharp"] button,
 html[data-radius="sharp"] [role="button"],
-html[data-radius="sharp"] .btn-primary,
-html[data-radius="sharp"] .btn-secondary,
 html[data-radius="sharp"] .icon-btn,
 html[data-radius="sharp"] .icon-btn-sm,
 html[data-radius="sharp"] .settings-nav-btn,
@@ -140,11 +140,6 @@ html[data-radius="sharp"] .doc-trigger,
 html[data-radius="sharp"] .appearance-option-btn,
 html[data-radius="sharp"] .project-list-item,
 html[data-radius="sharp"] .btn-ghost,
-html[data-radius="sharp"] .modal-close,
-html[data-radius="sharp"] .collapsible-card-header,
-html[data-radius="sharp"] .card,
-html[data-radius="sharp"] .collapsible-card,
-html[data-radius="sharp"] .modal-card,
 html[data-radius="sharp"] .detail-git-section-dropdown-menu,
 html[data-radius="sharp"] .detail-git-toolbar-dropdown-menu,
 html[data-radius="sharp"] .detail-git-section-select-btn,
@@ -162,11 +157,6 @@ html[data-radius="rounded"] .doc-trigger,
 html[data-radius="rounded"] .appearance-option-btn,
 html[data-radius="rounded"] .project-list-item,
 html[data-radius="rounded"] .btn-ghost,
-html[data-radius="rounded"] .modal-close,
-html[data-radius="rounded"] .collapsible-card-header,
-html[data-radius="rounded"] .card,
-html[data-radius="rounded"] .collapsible-card,
-html[data-radius="rounded"] .modal-card,
 html[data-radius="rounded"] .detail-git-section-dropdown-menu,
 html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu,
 html[data-radius="rounded"] .detail-git-section-select-btn,
@@ -221,40 +211,32 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     @apply box-border;
   }
   html {
-    height: 100%;
-    overflow: hidden;
+    @apply h-full overflow-hidden;
   }
   body {
-    @apply m-0 h-full flex flex-col bg-rm-bg text-rm-text text-[13px] antialiased;
-    overflow: hidden;
+    @apply m-0 h-full flex flex-col bg-rm-bg text-rm-text text-[13px] antialiased overflow-hidden;
   }
-  /* So main content scroll container gets a bounded height */
   #app {
-    height: 100%;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
+    @apply h-full min-h-0 flex flex-col;
   }
 }
 
 .main-content-section {
-  background: rgb(var(--rm-bg-elevated));
+  @apply bg-rm-bg-elevated;
 }
 html[data-theme="light"] .main-content-section {
-  background: rgb(var(--rm-bg));
+  @apply bg-rm-bg;
 }
 .main-content-scroll {
-  padding-bottom: 1rem;
+  @apply pb-4;
 }
 
 .nav-bar {
   -webkit-app-region: drag;
-  border-bottom: 1px solid rgb(var(--rm-border));
-  background: rgb(var(--rm-bg));
+  @apply border-b border-rm-border bg-rm-bg;
 }
 .app-logo {
-  object-fit: contain;
-  display: block;
+  @apply object-contain block;
 }
 .nav-bar button,
 .nav-bar .no-drag {
@@ -263,253 +245,148 @@ html[data-theme="light"] .main-content-section {
 
 /* Working tree & commit: modern, minimal layout */
 .detail-git-working-tree-bar {
-  background: rgb(var(--rm-bg));
-  border-bottom: 1px solid rgb(var(--rm-border));
+  @apply bg-rm-bg border-b border-rm-border;
 }
 .detail-git-view-row {
-  background: transparent;
-  border-bottom: 1px solid rgb(var(--rm-border));
+  @apply bg-transparent border-b border-rm-border;
 }
 .detail-git-files-panel {
-  background: transparent;
+  @apply bg-transparent;
 }
 .detail-git-sidebar-group.detail-git-section-modern {
-  background: transparent;
-  border-bottom: none;
-  border-top: 1px solid rgb(var(--rm-border));
+  @apply bg-transparent border-b-0 border-t border-rm-border;
 }
 .detail-git-sidebar-group.detail-git-section-modern:first-child {
-  border-top: none;
+  @apply border-t-0;
 }
 .detail-git-sidebar-group-header-modern {
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  text-transform: none;
-  color: rgb(var(--rm-muted));
+  @apply text-[11px] font-medium tracking-wide text-rm-muted;
 }
 .detail-git-commit-anchored {
-  background: rgb(var(--rm-bg));
-  border-top: 1px solid rgb(var(--rm-border));
+  @apply bg-rm-bg border-t border-rm-border;
 }
-.detail-git-commit-anchored .input-field,
-.detail-git-commit-anchored textarea {
-  border-color: rgb(var(--rm-border));
-  background: rgb(var(--rm-bg-elevated));
+.detail-git-commit-anchored textarea,
+.detail-git-commit-anchored input {
+  @apply border-rm-border bg-rm-bg-elevated;
 }
-.detail-git-commit-anchored .input-field:focus,
-.detail-git-commit-anchored textarea:focus {
-  border-color: rgb(var(--rm-border-focus));
-  outline: none;
+.detail-git-commit-anchored textarea:focus,
+.detail-git-commit-anchored input:focus {
+  @apply border-rm-border-focus outline-none;
 }
 .detail-git-right-panel {
-  background: rgb(var(--rm-bg) / 0.5);
-  overflow: visible; /* allow section dropdown menu to show below the button */
+  @apply bg-rm-bg/50 overflow-visible; /* allow section dropdown menu to show below the button */
 }
 
 /* Commit card: bordered block with heading, clear hierarchy */
 .detail-git-commit-card {
-  border: 1px solid rgb(var(--rm-border));
-  background: rgb(var(--rm-surface) / 0.5);
+  @apply border border-rm-border bg-rm-surface/50;
 }
 .detail-git-commit-card-head {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgb(var(--rm-muted));
-  padding: 6px 8px;
-  border-bottom: 1px solid rgb(var(--rm-border));
+  @apply text-[10px] font-semibold tracking-widest uppercase text-rm-muted py-1.5 px-2 border-b border-rm-border;
 }
 .detail-git-commit-card-body {
-  padding: 8px;
+  @apply p-2;
 }
 .detail-git-commit-row {
-  margin-bottom: 8px;
+  @apply mb-2;
 }
-.detail-git-commit-row:last-of-type { margin-bottom: 0; }
+.detail-git-commit-row:last-of-type {
+  @apply mb-0;
+}
 
 /* Git commit table: crisp grid with uniform borders */
 .detail-git-commit-table {
-  border-top: 1px solid rgb(var(--rm-border));
-  border-bottom: 1px solid rgb(var(--rm-border));
+  @apply border-t border-b border-rm-border;
 }
 .detail-git-commit-table thead th,
 .detail-git-commit-table tbody td {
-  border-right: 1px solid rgb(var(--rm-border));
+  @apply border-r border-rm-border;
 }
 .detail-git-commit-table thead th:last-child,
 .detail-git-commit-table tbody td:last-child {
-  border-right: none;
+  @apply border-r-0;
 }
 .detail-git-commit-label {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: 11px;
-  font-weight: 600;
-  color: rgb(var(--rm-text));
-  margin-bottom: 4px;
+  @apply flex items-center justify-between text-[11px] font-semibold text-rm-text mb-1;
 }
 .detail-git-commit-count {
-  font-weight: 400;
-  color: rgb(var(--rm-muted));
+  @apply font-normal text-rm-muted;
 }
 .detail-git-commit-summary-wrap {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
+  @apply flex gap-2 items-start;
 }
 .detail-git-commit-summary-input,
 .detail-git-commit-desc-input {
-  flex: 1;
-  min-width: 0;
-  font-size: 13px;
-  resize: none;
-  border: 1px solid rgb(var(--rm-border));
-  background: rgb(var(--rm-bg));
-  color: rgb(var(--rm-text));
-  padding: 6px 8px;
-  border-radius: 0;
+  @apply flex-1 min-w-0 text-[13px] resize-none border border-rm-border bg-rm-bg text-rm-text py-1.5 px-2 rounded-none;
 }
 .detail-git-commit-ai-btn {
-  flex-shrink: 0;
-  padding: 6px;
-  border: 1px solid rgb(var(--rm-border));
-  background: transparent;
-  color: rgb(var(--rm-muted));
-  cursor: pointer;
-  border-radius: 0;
+  @apply shrink-0 p-1.5 border border-rm-border bg-transparent text-rm-muted cursor-pointer rounded-none;
 }
 .detail-git-commit-ai-btn:hover {
-  color: rgb(var(--rm-accent));
-  background: rgb(var(--rm-accent) / 0.1);
-  border-color: rgb(var(--rm-accent) / 0.4);
+  @apply text-rm-accent bg-rm-accent/10 border-rm-accent/40;
 }
 .detail-git-commit-options {
-  display: flex;
-  gap: 12px;
-  margin-top: 8px;
-  margin-bottom: 8px;
-  padding-top: 8px;
-  border-top: 1px solid rgb(var(--rm-border));
+  @apply flex gap-3 mt-2 mb-2 pt-2 border-t border-rm-border;
 }
 .detail-git-commit-option {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: rgb(var(--rm-text));
-  cursor: pointer;
+  @apply inline-flex items-center gap-1.5 text-xs text-rm-text cursor-pointer;
 }
 .detail-git-commit-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+  @apply flex gap-2 items-center;
 }
 .detail-git-commit-submit {
-  flex: 1;
-  min-width: 0;
-  padding: 8px 10px;
-  font-size: 13px;
-  font-weight: 600;
-  border-radius: 0;
+  @apply flex-1 min-w-0 py-2 px-2.5 text-[13px] font-semibold rounded-none;
 }
 .detail-git-commit-push {
-  flex-shrink: 0;
-  padding: 8px 10px;
-  font-size: 12px;
-  border-radius: 0;
+  @apply shrink-0 py-2 px-2.5 text-xs rounded-none;
 }
 .detail-git-commit-status {
-  margin: 8px 0 0;
-  font-size: 11px;
-  color: rgb(var(--rm-muted));
+  @apply mt-2 text-[11px] text-rm-muted;
 }
 
 /* Working tree toolbar and view bar */
 .detail-git-toolbar-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-  flex-shrink: 0;
-  border-bottom: 1px solid rgb(var(--rm-border));
+  @apply flex items-center justify-between gap-2.5 py-1.5 shrink-0 border;
 }
 .detail-git-view-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 0;
-  flex-shrink: 0;
-  border-bottom: 1px solid rgb(var(--rm-border));
+  @apply flex flex-wrap items-center gap-1.5 py-1.5 shrink-0 border;
 }
 
 /* File groups: Unstaged vs Staged with distinct look */
 /* Unstaged and Staged: same layout so content aligns */
 .detail-git-file-group {
-  border: none;
-  border-bottom: 1px solid rgb(var(--rm-border));
-  margin: 0;
-  background: transparent;
-  padding-left: 0;
+  @apply border-0 border-b border-rm-border m-0 bg-transparent pl-0;
 }
 .detail-git-file-group:last-of-type {
-  border-bottom: none;
+  @apply border-b-0;
 }
 .detail-git-file-group-unstaged,
 .detail-git-file-group-staged {
-  border-left: 3px solid rgb(var(--rm-border));
+  @apply border-l-[3px] border-l-rm-border;
 }
 .detail-git-file-group-staged {
-  border-left-color: rgb(var(--rm-accent));
-  background: rgb(var(--rm-accent) / 0.04);
+  @apply border-l-rm-accent bg-rm-accent/5;
 }
 .detail-git-file-group-header {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  padding: 4px 6px;
-  text-align: left;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  color: inherit;
+  @apply w-full flex items-center justify-between gap-1 py-1 px-1.5 text-left border-0 bg-transparent cursor-pointer font-[inherit] text-[inherit];
 }
 .detail-git-file-group-header:hover {
-  background: rgb(var(--rm-surface-hover) / 0.3);
+  @apply bg-rm-surface-hover/30;
 }
 .detail-git-file-group-label {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 4px;
-  min-width: 0;
+  @apply inline-flex items-baseline gap-1 min-w-0;
 }
 .detail-git-file-group-title {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: rgb(var(--rm-text));
+  @apply text-[11px] font-semibold tracking-wide uppercase text-rm-text;
 }
 .detail-git-file-group-staged .detail-git-file-group-title {
-  color: rgb(var(--rm-accent));
+  @apply text-rm-accent;
 }
 .detail-git-file-group-count {
-  font-size: 11px;
-  font-weight: 400;
-  color: rgb(var(--rm-muted));
-  flex-shrink: 0;
+  @apply text-[11px] font-normal text-rm-muted shrink-0;
 }
 .detail-git-file-group-content {
-  padding: 2px 6px 4px 6px;
-  max-height: 160px;
-  overflow-y: auto;
+  @apply py-0.5 px-1.5 pb-1 max-h-40 overflow-y-auto;
 }
 
 /* Force sharp corners in right panel */
@@ -517,10 +394,8 @@ html[data-theme="light"] .main-content-section {
 .detail-git-right-panel .detail-git-files-panel,
 .detail-git-right-panel .detail-git-commit-card,
 .detail-git-right-panel .detail-git-section-select-btn,
-.detail-git-right-panel .input-field,
 .detail-git-right-panel textarea,
-.detail-git-right-panel .btn-primary,
-.detail-git-right-panel .btn-secondary,
+.detail-git-right-panel input,
 .detail-git-right-panel button,
 .detail-git-commit-card * {
   border-radius: 0 !important;
@@ -533,8 +408,6 @@ html[data-theme="light"] .main-content-section {
 html[data-radius="sharp"] .detail-git-commit-card textarea,
 html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-summary-input,
 html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-desc-input,
-html[data-radius="sharp"] .detail-git-commit-card .btn-primary,
-html[data-radius="sharp"] .detail-git-commit-card .btn-secondary,
 html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-ai-btn,
 html[data-radius="sharp"] .detail-git-commit-card input[type="text"],
 html[data-radius="sharp"] .detail-git-commit-card input[type="email"] {
@@ -543,8 +416,6 @@ html[data-radius="sharp"] .detail-git-commit-card input[type="email"] {
 html[data-radius="rounded"] .detail-git-commit-card textarea,
 html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-summary-input,
 html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-desc-input,
-html[data-radius="rounded"] .detail-git-commit-card .btn-primary,
-html[data-radius="rounded"] .detail-git-commit-card .btn-secondary,
 html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-ai-btn,
 html[data-radius="rounded"] .detail-git-commit-card input[type="text"],
 html[data-radius="rounded"] .detail-git-commit-card input[type="email"] {
@@ -624,145 +495,79 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   to { transform: rotate(360deg); }
 }
 .refresh-btn .refresh-btn-icon {
-  display: inline-block;
+  @apply inline-block;
 }
 .refresh-btn.refreshing .refresh-btn-icon {
   animation: refresh-spin 0.7s linear infinite;
 }
 
 .view-dropdown-wrap {
-  position: relative;
+  @apply relative;
 }
 .view-dropdown-btn {
+  @apply min-w-[8rem] cursor-pointer inline-flex items-center justify-between gap-2 py-1.5 px-2.5 border border-rm-border rounded-none bg-rm-bg transition-[border-color,background] duration-150;
   font: inherit;
   color: inherit;
-  min-width: 8rem;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem;
-  padding: 0.375rem 0.625rem;
-  border: 1px solid rgb(var(--rm-border));
-  border-radius: 0;
-  background: rgb(var(--rm-bg));
-  transition: border-color 0.15s, background 0.15s;
 }
 .view-dropdown-btn:hover {
-  background: rgb(var(--rm-surface-hover));
-  border-color: rgb(var(--rm-border));
+  @apply bg-rm-surface-hover border-rm-border;
 }
 .view-dropdown-btn[aria-expanded="true"] {
-  border-color: rgb(var(--rm-accent));
-  background: rgb(var(--rm-accent) / 0.08);
-  box-shadow: 0 0 0 1px rgb(var(--rm-accent) / 0.3);
+  @apply border-rm-accent bg-rm-accent/10 shadow-[0_0_0_1px_rgb(var(--rm-accent)/0.3)];
 }
 .view-dropdown-btn:focus {
-  outline: none;
-  border-color: rgb(var(--rm-border-focus));
-  box-shadow: 0 0 0 2px rgb(var(--rm-border-focus) / 0.2);
+  @apply outline-none border-rm-border-focus shadow-[0_0_0_2px_rgb(var(--rm-border-focus)/0.2)];
 }
 .view-dropdown-btn[aria-expanded="true"]:focus {
-  border-color: rgb(var(--rm-accent));
-  box-shadow: 0 0 0 2px rgb(var(--rm-accent) / 0.25);
+  @apply border-rm-accent shadow-[0_0_0_2px_rgb(var(--rm-accent)/0.25)];
 }
 .view-dropdown-btn-icon {
-  flex-shrink: 0;
-  opacity: 0.85;
+  @apply shrink-0 opacity-80;
 }
 .view-dropdown-label {
-  white-space: nowrap;
+  @apply whitespace-nowrap;
 }
 .view-dropdown-chevron {
-  flex-shrink: 0;
-  opacity: 0.7;
-  transition: transform 0.2s ease;
+  @apply shrink-0 opacity-70 transition-transform duration-200 ease-out;
 }
 .view-dropdown-btn[aria-expanded="true"] .view-dropdown-chevron {
-  transform: rotate(180deg);
+  @apply rotate-180;
 }
 .view-dropdown-menu {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  min-width: 11rem;
-  list-style: none;
-  margin: 0;
-  padding: 6px 0;
-  background: rgb(var(--rm-surface));
-  border: 1px solid rgb(var(--rm-border));
-  border-radius: 0;
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.25);
-  z-index: 50;
+  @apply absolute top-full left-0 mt-1 min-w-[11rem] list-none m-0 py-1.5 bg-rm-surface border border-rm-border rounded-none shadow-rm-lg z-50;
 }
 .view-dropdown-option {
-  display: flex;
-  align-items: center;
-  gap: 0.625rem;
-  padding: 7px 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  color: rgb(var(--rm-text));
-  font-size: 13px;
-  transition: background 0.1s;
+  @apply flex items-center gap-2.5 py-[7px] px-3 cursor-pointer whitespace-nowrap text-rm-text text-[13px] transition-colors duration-100;
 }
 .view-dropdown-option:hover {
-  background: rgb(var(--rm-surface-hover));
+  @apply bg-rm-surface-hover;
 }
 .view-dropdown-option[aria-selected="true"] {
-  background: rgb(var(--rm-accent) / 0.12);
-  color: rgb(var(--rm-accent));
+  @apply bg-rm-accent/10 text-rm-accent;
 }
 .view-dropdown-option-sep {
-  border-top: 1px solid rgb(var(--rm-border));
-  margin-top: 4px;
-  padding-top: 7px;
+  @apply border-t border-rm-border mt-1 pt-[7px];
 }
 .view-dropdown-option-icon {
-  width: 1.25rem;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: rgb(var(--rm-text));
-  opacity: 0.9;
+  @apply w-5 shrink-0 flex items-center justify-center text-rm-text opacity-90;
 }
 .view-dropdown-option-icon svg {
-  width: 16px;
-  height: 16px;
-  display: block;
-  flex-shrink: 0;
-  stroke: currentColor;
-  fill: none;
+  @apply w-4 h-4 block shrink-0 stroke-current fill-none;
 }
 .detail-tab-btn .detail-tab-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: currentColor;
+  @apply inline-flex items-center justify-center text-current;
 }
 .detail-tab-btn .detail-tab-icon-svg {
-  width: 11px;
-  height: 11px;
-  flex-shrink: 0;
-  stroke: currentColor;
-  fill: none;
+  @apply w-[11px] h-[11px] shrink-0 stroke-current fill-none;
 }
 .detail-git-jump-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: currentColor;
+  @apply inline-flex items-center justify-center text-current;
 }
 .detail-git-jump-icon .git-section-icon-svg {
-  width: 12px;
-  height: 12px;
-  flex-shrink: 0;
-  stroke: currentColor;
-  fill: none;
+  @apply w-3 h-3 shrink-0 stroke-current fill-none;
 }
 .view-dropdown-option-text {
-  flex: 1;
+  @apply flex-1;
 }
 .view-dropdown-menu.hidden {
   display: none;
@@ -795,74 +600,49 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
 .prose-docs strong { @apply font-semibold text-rm-text; }
 
 @layer components {
-  .btn-primary {
-    @apply py-2 px-4 rounded-none text-white font-medium text-sm transition-colors;
-    background: rgb(var(--rm-accent));
-    border: none;
-  }
-  .btn-primary:hover:not(:disabled) {
-    background: rgb(var(--rm-accent-hover));
-  }
-  .btn-secondary {
-    @apply py-2 px-4 rounded-none text-rm-text text-sm font-medium transition-colors;
-  background: transparent;
-  border: 1px solid rgb(var(--rm-border));
-  }
-  .btn-secondary:hover:not(:disabled) {
-    background: rgb(var(--rm-surface-hover) / 0.6);
-  }
   .theme-btn {
-    @apply text-rm-muted hover:text-rm-text hover:bg-rm-surface-hover border-none cursor-pointer bg-transparent inline-flex items-center justify-center;
+    @apply text-rm-muted hover:text-rm-text hover:bg-rm-surface-hover border-0 cursor-pointer bg-transparent inline-flex items-center justify-center;
   }
   .theme-btn.is-active {
     @apply text-rm-accent bg-rm-accent/15;
   }
   .theme-btn svg {
-    display: block;
+    @apply block;
   }
   .card {
-    @apply overflow-hidden;
-    background: rgb(var(--rm-surface) / 0.4);
-    border: none;
-    box-shadow: none;
+    @apply overflow-hidden border-0 shadow-none bg-rm-surface/40;
   }
   html[data-theme="light"] .card {
-    background: rgb(var(--rm-surface) / 0.6);
+    @apply bg-rm-surface/60;
   }
   .collapsible-card-header-row {
-    @apply flex items-center w-full;
-    border-bottom: none;
+    @apply flex items-center w-full border-b-0;
   }
   .collapsible-card-header-row .collapsible-card-header {
-    border-bottom: none;
+    @apply border-b-0;
   }
   .collapsible-card .collapsible-card-header {
-    @apply flex items-center justify-between gap-2 flex-1 cursor-pointer px-4 py-3.5 text-left bg-transparent hover:bg-rm-surface-hover/50 transition-colors;
-    border: none;
-    border-bottom: none;
-    font: inherit;
-    color: inherit;
+    @apply flex items-center justify-between gap-2 flex-1 cursor-pointer px-4 py-3.5 text-left bg-transparent hover:bg-rm-surface-hover/50 transition-colors border-0 border-b-0;
+  font: inherit;
+  color: inherit;
   }
   .collapsible-card-header-row .collapsible-card-header {
-    border-bottom: none;
-    border-radius: 0;
+    @apply border-b-0 rounded-none;
   }
   .collapsible-card .collapsible-card-header:focus {
     @apply outline-none ring-2 ring-rm-accent/50 ring-inset;
   }
   .collapsible-card .collapsible-card-title {
-    @apply text-xs font-medium text-rm-text m-0;
-    letter-spacing: 0.01em;
+    @apply text-xs font-medium text-rm-text m-0 tracking-tight;
   }
   .collapsible-card .collapsible-card-chevron {
     @apply shrink-0 text-rm-muted transition-transform duration-200;
   }
   .collapsible-card.is-collapsed .collapsible-card-chevron {
-    transform: rotate(-90deg);
+    @apply -rotate-90;
   }
   .collapsible-card .collapsible-card-body {
-    padding-top: 0;
-    border-top: 1px solid rgb(var(--rm-border));
+    @apply pt-0 border-t border-rm-border;
   }
   .collapsible-card.is-collapsed .collapsible-card-body {
     display: none;
@@ -882,41 +662,58 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   .card-label {
     @apply block text-xs font-semibold text-rm-text uppercase tracking-wider mb-3;
   }
+  .card-label-meta {
+    @apply font-normal normal-case ml-1.5;
+  }
+  .status-dot {
+    @apply shrink-0 w-3 h-3 rounded-full border-2 border-rm-bg;
+  }
+  .status-dot-running {
+    background: rgb(var(--rm-accent));
+    box-shadow: 0 0 0 2px rgb(var(--rm-accent) / 0.35);
+  }
+  .status-dot-error {
+    background: rgb(var(--rm-danger));
+  }
+  .status-dot-stopped {
+    background: rgb(var(--rm-muted) / 0.5);
+  }
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-14 px-6 text-center;
+  }
+  .empty-state-icon {
+    @apply mb-4 rounded-full bg-rm-surface border border-rm-border flex items-center justify-center text-rm-muted w-[72px] h-[72px] shrink-0;
+  }
+  .empty-state-title {
+    @apply text-base font-semibold text-rm-text m-0 mb-1.5;
+  }
+  .empty-state-body {
+    @apply text-sm text-rm-muted m-0 max-w-sm;
+  }
+  .empty-state-actions {
+    @apply flex flex-wrap items-center justify-center gap-2 mt-6;
+  }
   .icon-btn {
-    @apply p-2 border border-rm-border bg-rm-surface text-rm-muted hover:bg-rm-surface-hover hover:text-rm-text transition-colors inline-flex items-center justify-center flex-shrink-0;
-    min-width: 2.25rem;
-    min-height: 2.25rem;
+    @apply p-2 border border-rm-border bg-rm-surface text-rm-muted hover:bg-rm-surface-hover hover:text-rm-text transition-colors inline-flex items-center justify-center shrink-0 min-w-9 min-h-9;
   }
   .icon-btn-sm {
-    @apply p-1.5 flex-shrink-0;
-    min-width: 2rem;
-    min-height: 2rem;
+    @apply p-1.5 shrink-0 min-w-8 min-h-8;
   }
   .icon-btn svg,
   .icon-btn-sm svg {
-    display: block;
-    flex-shrink: 0;
-    width: 1em;
-    height: 1em;
-    min-width: 14px;
-    min-height: 14px;
-    vertical-align: middle;
-    color: rgb(var(--rm-muted));
-    stroke: currentColor;
+    @apply block shrink-0 w-[1em] h-[1em] min-w-[14px] min-h-[14px] align-middle text-rm-muted stroke-current;
     stroke-width: 2;
   }
   .icon-btn:hover svg,
   .icon-btn-sm:hover svg {
-    color: rgb(var(--rm-text));
+    @apply text-rm-text;
   }
-  /* stroke-only icons (fill=none in template) use stroke for outline */
   .icon-btn svg[fill="none"],
   .icon-btn-sm svg[fill="none"] {
-    fill: none;
+    @apply fill-none;
   }
   .icon-btn-sm svg {
-    min-width: 12px;
-    min-height: 12px;
+    @apply min-w-3 min-h-3;
   }
   .btn-ghost {
     @apply border-none bg-transparent cursor-pointer font-medium py-1.5 px-2 hover:bg-rm-surface-hover transition-colors;
@@ -930,39 +727,26 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   .commit-message-input {
     @apply w-full rounded-none border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[4.5rem] focus:outline-none focus:border-rm-border-focus;
   }
-  .input-field {
-    @apply w-full rounded-none border border-rm-border bg-rm-surface text-rm-text text-sm p-2.5 focus:outline-none focus:border-rm-border-focus;
-  }
   .checkbox-label {
     @apply flex items-center gap-2 cursor-pointer text-rm-text;
   }
   .checkbox-input {
     @apply rounded border-rm-border text-rm-accent focus:ring-rm-accent;
   }
-  /* Checkbox + label on one line, description on second line (settings) */
   .settings-checkbox-inline {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-    column-gap: 0.75rem;
-    row-gap: 0.25rem;
+    @apply grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1;
   }
   .settings-checkbox-inline > .checkbox-input {
-    grid-column: 1;
-    grid-row: 1;
-    align-self: center;
+    @apply col-start-1 row-start-1 self-center;
   }
   .settings-checkbox-inline > div {
-    display: contents;
+    @apply contents;
   }
   .settings-checkbox-inline .settings-label {
-    grid-column: 2;
-    grid-row: 1;
+    @apply col-start-2 row-start-1;
   }
   .settings-checkbox-inline .settings-desc {
-    grid-column: 2;
-    grid-row: 2;
-    margin: 0;
+    @apply col-start-2 row-start-2 m-0;
   }
   .btn-prerelease {
     @apply border-rm-muted/50 text-rm-muted;
@@ -971,9 +755,7 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
     @apply text-xs py-1.5 px-2.5;
   }
   .aside-panel {
-    @apply w-64 shrink-0 flex flex-col overflow-hidden;
-    background: rgb(var(--rm-bg));
-    border-right: 1px solid rgb(var(--rm-border));
+    @apply w-64 shrink-0 flex flex-col overflow-hidden bg-rm-bg border-r border-rm-border;
   }
   .aside-header {
     @apply px-3 py-3 border-b border-rm-border flex items-center gap-2 flex-shrink-0;
@@ -982,18 +764,13 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
     @apply text-[11px] font-medium text-rm-muted uppercase tracking-wider;
   }
   .sidebar-resizer {
-    min-width: 4px;
-    width: 4px;
+    @apply min-w-1 w-1;
   }
   .detail-sidebar-resizer {
-    min-width: 4px;
-    width: 4px;
-    cursor: col-resize;
+    @apply min-w-1 w-1 cursor-col-resize;
   }
   .batch-bar {
-    @apply px-4 py-4 border-b border-rm-border flex-shrink-0;
-    background: rgb(var(--rm-accent) / 0.06);
-    border-left: 3px solid rgb(var(--rm-accent) / 0.5);
+    @apply px-4 py-4 border-b border-l-[3px] border-rm-border border-l-rm-accent/50 flex-shrink-0 bg-rm-accent/10;
   }
   .batch-bar-label {
     @apply m-0 text-xs font-semibold text-rm-text;
@@ -1046,43 +823,6 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   .dashboard-table tbody td {
     @apply py-3 pr-5;
   }
-  .modal-backdrop {
-    @apply fixed inset-0 flex items-center justify-center z-20 p-4;
-    background: rgb(0 0 0 / 0.45);
-    backdrop-filter: blur(6px);
-  }
-  .modal-card {
-    @apply bg-rm-surface border border-rm-border shadow-xl max-w-lg w-full max-h-[85vh] flex flex-col overflow-hidden;
-  }
-  .modal-header {
-    @apply px-4 py-3 border-b border-rm-border flex items-center justify-between flex-shrink-0;
-  }
-  .modal-title {
-    @apply m-0 text-sm font-semibold text-rm-text;
-  }
-  .modal-body {
-    @apply p-4 overflow-auto flex-1 min-h-0;
-  }
-  .modal-footer {
-    @apply flex-shrink-0 flex flex-wrap items-center gap-2 px-4 py-3 border-t border-rm-border;
-  }
-  .modal-close {
-    @apply p-1 border-none bg-transparent text-rm-muted hover:text-rm-text cursor-pointer text-lg leading-none;
-    border-radius: 0;
-  }
-  .modal-status {
-    @apply text-xs text-rm-muted mb-2;
-  }
-  .modal-list {
-    @apply list-none m-0 p-0;
-  }
-  .modal-list li,
-  .modal-list-item {
-    @apply py-2 px-3 text-sm cursor-pointer text-rm-text hover:bg-rm-surface-hover;
-  }
-  .modal-card-wide {
-    @apply max-w-2xl;
-  }
   .detail-tabs-bar .detail-tab-btn.is-active {
     @apply text-rm-accent border-rm-accent/50 bg-rm-accent/10;
   }
@@ -1095,32 +835,22 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
 }
 
 /* Final overrides: sharp only (rounded/pill set in Border radius section above) */
-html[data-radius="sharp"] .input-field,
 html[data-radius="sharp"] input[type="text"],
 html[data-radius="sharp"] input[type="email"],
 html[data-radius="sharp"] input[type="password"],
 html[data-radius="sharp"] input[type="url"],
 html[data-radius="sharp"] input[type="number"],
 html[data-radius="sharp"] textarea,
-html[data-radius="sharp"] select.input-field,
 html[data-radius="sharp"] select.rounded-rm,
 html[data-radius="sharp"] .detail-git-toolbar-select,
 html[data-radius="sharp"] .release-notes-input,
 html[data-radius="sharp"] .commit-message-input,
-html[data-radius="sharp"] .filter-select,
-html[data-radius="sharp"] button.btn-primary,
-html[data-radius="sharp"] button.btn-secondary {
+html[data-radius="sharp"] .filter-select {
   border-radius: 0 !important;
 }
-html[data-radius="sharp"] .detail-git-commit-anchored .input-field,
-html[data-radius="sharp"] .detail-git-commit-anchored textarea,
-html[data-radius="sharp"] .detail-git-commit-anchored .btn-primary,
-html[data-radius="sharp"] .detail-git-commit-anchored .btn-secondary {
+html[data-radius="sharp"] .detail-git-commit-anchored textarea {
   border-radius: 0 !important;
 }
-html[data-radius="rounded"] .detail-git-commit-anchored .input-field,
-html[data-radius="rounded"] .detail-git-commit-anchored textarea,
-html[data-radius="rounded"] .detail-git-commit-anchored .btn-primary,
-html[data-radius="rounded"] .detail-git-commit-anchored .btn-secondary {
+html[data-radius="rounded"] .detail-git-commit-anchored textarea {
   border-radius: 6px !important;
 }

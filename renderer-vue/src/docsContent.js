@@ -357,22 +357,6 @@ Anthropic charges per token. Usage appears in your Anthropic account. The app do
 Open **console.anthropic.com** → API keys to create and manage keys.
 `,
   },
-  'wordpress': {
-    title: 'WordPress',
-    body: `
-## Overview
-
-When the app detects a WordPress project (\`wp-config.php\` or \`wp-includes/version.php\` at the project root), a **WordPress** tab appears in the project detail. Use the sidebar to switch between sections: Overview, Plugins, Themes, WP-CLI, Config, Database, and Links.
-
-## Plugins & themes
-
-Plugins live in \`wp-content/plugins\`, themes in \`wp-content/themes\`. You can manage them via the file tree, Git, or WP-CLI (\`wp plugin list\`, \`wp theme list\`) in the terminal.
-
-## WP-CLI
-
-[WP-CLI](https://wp-cli.org/) lets you run WordPress commands from the terminal (e.g. \`wp db export\`, \`wp cache flush\`). Use the inline terminal from the Git tab with your project path to run \`wp\` commands.
-`,
-  },
   'settings-openai': {
     title: 'OpenAI (OpenAI API)',
     body: `

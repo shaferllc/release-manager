@@ -1,12 +1,5 @@
 <template>
-  <section class="card mb-6 collapsible-card detail-tab-panel" data-detail-tab="composer" :class="{ 'is-collapsed': collapsed }">
-    <div class="collapsible-card-header-row">
-      <button type="button" class="collapsible-card-header" :aria-expanded="!collapsed" @click="toggle">
-        <span class="collapsible-card-title">Composer</span>
-        <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-    </div>
-    <div class="collapsible-card-body">
+  <section class="card mb-6 detail-tab-panel" data-detail-tab="composer">
     <div class="card-section">
       <span class="card-label">Composer</span>
       <p class="m-0 mb-2 text-sm text-rm-muted">{{ summary }}</p>
@@ -19,8 +12,8 @@
         </ul>
       </div>
       <div class="flex flex-wrap items-center gap-3 mb-4">
-        <button type="button" class="btn-secondary btn-compact text-xs" @click="load">Refresh outdated</button>
-        <button v-if="outdated.length" type="button" class="btn-primary btn-compact text-xs" :disabled="updatingAll" @click="updateAll">Update all</button>
+        <Button severity="secondary" size="small" class="text-xs" @click="load">Refresh outdated</Button>
+        <Button v-if="outdated.length" severity="primary" size="small" class="text-xs" :disabled="updatingAll" @click="updateAll">Update all</Button>
         <label class="checkbox-label text-sm text-rm-muted cursor-pointer flex items-center gap-2">
           <input v-model="directOnly" type="checkbox" class="checkbox-input" />
           <span>Direct only</span>
@@ -54,13 +47,12 @@
         </table>
       </div>
     </div>
-    </div>
   </section>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
-import { useCollapsible } from '../../composables/useCollapsible';
+import Button from 'primevue/button';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 
@@ -68,7 +60,6 @@ const props = defineProps({ info: { type: Object, default: null } });
 
 const store = useAppStore();
 const api = useApi();
-const { collapsed, toggle } = useCollapsible('composer');
 const summary = ref('—');
 const validateMsg = ref('');
 const validateOk = ref(true);

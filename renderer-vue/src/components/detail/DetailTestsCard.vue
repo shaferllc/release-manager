@@ -1,46 +1,40 @@
 <template>
-  <section class="card mb-6 collapsible-card detail-tab-panel" data-detail-tab="tests" :class="{ 'is-collapsed': collapsed }">
-    <div class="collapsible-card-header-row">
-      <button type="button" class="collapsible-card-header" :aria-expanded="!collapsed" @click="toggle">
-        <span class="collapsible-card-title">Tests</span>
-        <svg class="collapsible-card-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-    </div>
-    <div class="collapsible-card-body">
+  <section class="card mb-6 detail-tab-panel" data-detail-tab="tests">
     <div class="card-section">
       <span class="card-label">Tests</span>
       <p class="m-0 mb-4 text-sm text-rm-muted">Run test scripts defined in package.json or composer.json. Use <strong>Run & suggest fix</strong> to run tests and ask AI (Ollama) for a fix suggestion when they fail.</p>
       <div v-if="scripts.length" class="flex flex-wrap gap-2 mb-4">
-        <button
+        <Button
           v-for="s in scripts"
           :key="s"
-          type="button"
-          class="btn-secondary btn-compact text-xs"
+          severity="secondary"
+          size="small"
+          class="text-xs"
           :disabled="running === s || suggestingFix"
           @click="run(s)"
         >
           {{ s }}{{ running === s ? '…' : '' }}
-        </button>
-        <button
+        </Button>
+        <Button
           v-if="aiGenerateAvailable"
-          type="button"
-          class="btn-primary btn-compact text-xs"
+          severity="primary"
+          size="small"
+          class="text-xs"
           :disabled="running !== '' || suggestingFix || !api.ollamaSuggestTestFix"
           @click="runAndSuggestFix"
         >
           {{ suggestingFix ? 'Asking AI…' : 'Run & suggest fix' }}
-        </button>
+        </Button>
       </div>
       <p v-else class="m-0 text-sm text-rm-muted">No test scripts found.</p>
       <pre v-if="output" class="m-0 p-4 rounded-rm bg-rm-surface text-xs font-mono text-rm-text overflow-auto max-h-64 border border-rm-border">{{ output }}</pre>
-    </div>
     </div>
   </section>
 </template>
 
 <script setup>
 import { ref, watch } from 'vue';
-import { useCollapsible } from '../../composables/useCollapsible';
+import Button from 'primevue/button';
 import { useAppStore } from '../../stores/app';
 import { useApi } from '../../composables/useApi';
 import { useModals } from '../../composables/useModals';
@@ -53,7 +47,6 @@ const store = useAppStore();
 const api = useApi();
 const modals = useModals();
 const { runWithOverlay } = useLongActionOverlay();
-const { collapsed, toggle } = useCollapsible('tests');
 const { aiGenerateAvailable } = useAiGenerateAvailable();
 const scripts = ref([]);
 const running = ref('');

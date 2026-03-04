@@ -1,23 +1,18 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card modal-card-wide flex flex-col max-h-[85vh]">
-      <div class="modal-header flex-shrink-0">
-        <h3 class="modal-title truncate flex-1 min-w-0">{{ filePath || 'File' }}</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
-      </div>
-      <div class="modal-file-content m-0 p-4 flex-1 overflow-auto text-xs font-mono border-t border-rm-border" v-html="renderedContent"></div>
-      <div class="modal-footer flex-shrink-0 flex flex-wrap items-center gap-2 p-3 border-t border-rm-border">
-        <button type="button" class="btn-secondary btn-compact text-xs" @click="openInEditor">Open in editor</button>
-        <button type="button" class="btn-secondary btn-compact text-xs" title="Show line-by-line blame" @click="showBlame">Blame</button>
-        <button v-if="showDiffBtn" type="button" class="btn-secondary btn-compact text-xs" title="Back to diff view" @click="showDiff">Show diff</button>
-        <button type="button" class="btn-secondary btn-compact text-xs" @click="close">Close</button>
-      </div>
-    </div>
-  </div>
+  <RmModal :title="filePath || 'File'" wide class="max-h-[85vh] flex flex-col" @close="close">
+    <div class="modal-file-content m-0 flex-1 overflow-auto text-xs font-mono border-t border-rm-border p-4" v-html="renderedContent"></div>
+    <template #footer>
+      <RmButton variant="secondary" size="compact" class="text-xs" @click="openInEditor">Open in editor</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs" title="Show line-by-line blame" @click="showBlame">Blame</RmButton>
+      <RmButton v-if="showDiffBtn" variant="secondary" size="compact" class="text-xs" title="Back to diff view" @click="showDiff">Show diff</RmButton>
+      <RmButton variant="secondary" size="compact" class="text-xs" @click="close">Close</RmButton>
+    </template>
+  </RmModal>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
+import { RmButton, RmModal } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

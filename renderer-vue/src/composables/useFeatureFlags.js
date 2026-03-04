@@ -11,7 +11,6 @@ export const TAB_FLAG_IDS = [
   'tunnels',
   'ftp',
   'ssh',
-  'wordpress',
   'composer',
   'tests',
   'coverage',

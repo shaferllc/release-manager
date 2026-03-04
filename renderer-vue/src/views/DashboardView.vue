@@ -4,22 +4,22 @@
       <div class="dashboard-controls flex flex-wrap items-center gap-4">
         <label class="dashboard-label">
           <span class="dashboard-label-text">Filter</span>
-          <select v-model="filter" class="dashboard-select">
+          <RmSelect v-model="filter" class="dashboard-select">
             <option value="all">All</option>
             <option value="needs-release">Needs release</option>
-          </select>
+          </RmSelect>
         </label>
         <label class="dashboard-label">
           <span class="dashboard-label-text">Sort</span>
-          <select v-model="sort" class="dashboard-select">
+          <RmSelect v-model="sort" class="dashboard-select">
             <option value="name">Name</option>
             <option value="needs-release">Needs release first</option>
-          </select>
+          </RmSelect>
         </label>
-        <button type="button" class="btn-secondary btn-compact inline-flex items-center gap-x-1.5 shrink-0" @click="load">
+        <RmButton variant="secondary" size="compact" class="inline-flex items-center gap-x-1.5 shrink-0" @click="load">
           <svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
           Refresh
-        </button>
+        </RmButton>
       </div>
     </div>
     <div class="dashboard-scroll flex-1 overflow-auto p-4">
@@ -57,6 +57,7 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue';
+import { RmButton, RmSelect } from '../components/ui';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { formatAheadBehind } from '../utils';

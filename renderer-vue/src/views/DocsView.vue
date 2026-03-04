@@ -23,7 +23,7 @@
 
       <section class="mb-8">
         <h3 class="text-base font-semibold text-rm-text mb-2">Project detail</h3>
-        <p class="m-0 mb-3 text-rm-muted">Select a project to see its detail. Sections are collapsible (click the header to expand/collapse).</p>
+        <p class="m-0 mb-3 text-rm-muted">Select a project to see its detail. Use the tabs to switch between sections.</p>
         <ul class="m-0 mb-3 pl-5 text-rm-muted list-disc space-y-1">
           <li><strong>Git</strong> — Branch, ahead/behind, uncommitted files. If there are changes, you can enter a commit message and <strong>Commit</strong> from the app.</li>
           <li><strong>Version &amp; release</strong> — Current version and latest tag. For <strong>npm</strong>: Patch / Minor / Major bump then tag and push. For <strong>Rust, Go, Python, PHP</strong>: <strong>Tag and push</strong> uses the current version in the manifest.</li>

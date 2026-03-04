@@ -21,7 +21,7 @@ describe('NavBar', () => {
     const wrapper = mount(NavBar, {
       global: { plugins: [createPinia()] },
     });
-    await wrapper.find('button.btn-primary').trigger('click');
+    await wrapper.find('.rm-btn').trigger('click');
     expect(wrapper.emitted('add-project')).toHaveLength(1);
   });
 

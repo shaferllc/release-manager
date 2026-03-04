@@ -1,25 +1,20 @@
 <template>
-  <div class="modal-backdrop" @click.self="close">
-    <div class="modal-card flex flex-col max-h-[85vh]">
-      <div class="modal-header">
-        <h3 class="modal-title">Choose asset</h3>
-        <button type="button" class="modal-close" aria-label="Close" @click="close">×</button>
-      </div>
-      <ul class="modal-list modal-body list-none m-0 flex-1 overflow-auto">
-        <li
-          v-for="asset in assets"
-          :key="asset.id || asset.name"
-          class="cursor-pointer"
-          @click="select(asset)"
-        >
-          {{ asset.name }} <span class="text-rm-muted text-xs">({{ formatSize(asset.size) }})</span>
-        </li>
-      </ul>
-    </div>
-  </div>
+  <RmModal title="Choose asset" class="max-h-[85vh] flex flex-col" @close="close">
+    <ul class="list-none m-0 flex-1 overflow-auto p-0">
+      <li
+        v-for="asset in assets"
+        :key="asset.id || asset.name"
+        class="cursor-pointer py-1.5 px-2 rounded-rm hover:bg-rm-accent/15 text-rm-text"
+        @click="select(asset)"
+      >
+        {{ asset.name }} <span class="text-rm-muted text-xs">({{ formatSize(asset.size) }})</span>
+      </li>
+    </ul>
+  </RmModal>
 </template>
 
 <script setup>
+import { RmModal } from '../ui';
 import { useApi } from '../../composables/useApi';
 
 const props = defineProps({

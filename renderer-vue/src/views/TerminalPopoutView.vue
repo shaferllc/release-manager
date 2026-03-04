@@ -2,14 +2,9 @@
   <div class="terminal-popout flex flex-col h-full min-h-0 bg-rm-bg text-rm-text">
     <div class="terminal-popout-header flex items-center justify-between gap-2 px-3 py-2 border-b border-rm-border bg-rm-surface/80 shrink-0">
       <span class="text-sm font-medium text-rm-muted truncate">Terminal · {{ displayPath }}</span>
-      <button
-        type="button"
-        class="btn-secondary btn-compact text-xs"
-        title="Close window"
-        @click="closeWindow"
-      >
+      <Button severity="secondary" size="small" class="text-xs" title="Close window" @click="closeWindow">
         Close window
-      </button>
+      </Button>
     </div>
     <div class="terminal-popout-body flex-1 min-h-0 overflow-hidden">
       <InlineTerminal
@@ -31,6 +26,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
+import Button from 'primevue/button';
 import InlineTerminal from '../components/detail/InlineTerminal.vue';
 
 const dirPath = ref('');

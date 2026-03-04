@@ -1,4 +1,24 @@
 import { vi } from 'vitest';
+import { config } from '@vue/test-utils';
+import PrimeVue from 'primevue/config';
+import { primevuePt } from '../primevue-pt';
+
+// PrimeVue is required by RmSelect, RmCheckbox, RmStatusPill, RmListPanel, etc.
+config.global.plugins = config.global.plugins || [];
+config.global.plugins.push([PrimeVue, { unstyled: true, pt: primevuePt }]);
+
+// PrimeVue Select uses matchMedia and expects addEventListener on the return value
+if (typeof window !== 'undefined') {
+  const noop = () => {};
+  window.matchMedia = () => ({
+    matches: false,
+    addListener: noop,
+    removeListener: noop,
+    addEventListener: noop,
+    removeEventListener: noop,
+    dispatchEvent: () => true,
+  });
+}
 
 // Mock the preload API so useApi() and components that depend on it don't throw
 const mockApi = {

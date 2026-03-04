@@ -357,7 +357,6 @@ async function getProjectInfoAsync(dirPath) {
   if (!resolved.ok) return { ok: false, error: resolved.error, path: resolved.path };
   const { name, version, projectType } = resolved;
   const hasComposer = fs.existsSync(path.join(dirPath, 'composer.json'));
-  const hasWordPress = fs.existsSync(path.join(dirPath, 'wp-config.php')) || fs.existsSync(path.join(dirPath, 'wp-includes', 'version.php'));
   let latestTag = null;
   let gitRemote = null;
   const gitDir = path.join(dirPath, '.git');
@@ -391,7 +390,6 @@ async function getProjectInfoAsync(dirPath) {
     version,
     projectType,
     hasComposer,
-    hasWordPress,
     latestTag,
     commitsSinceLatestTag,
     allTags,
@@ -1798,6 +1796,55 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
   createWindow();
   debug.log(getStore, 'app', 'window created');
   telemetryStartFlushTimer(getPreference);
+
+  // In dev, watch renderer build: inject CSS only when styles change, full reload when JS/html changes
+  if (process.env.NODE_ENV === 'development') {
+    const rendererDir = path.join(appRoot, 'dist-renderer');
+    const changedFiles = new Set();
+    let applyDebounce;
+    function onRendererChange(eventType, filename) {
+      if (filename) changedFiles.add(filename.replace(/\\/g, '/'));
+      if (applyDebounce) clearTimeout(applyDebounce);
+      applyDebounce = setTimeout(() => {
+        applyDebounce = null;
+        const win = BrowserWindow.getAllWindows()[0];
+        if (!win || win.isDestroyed()) { changedFiles.clear(); return; }
+        const hasJs = [...changedFiles].some((f) => f.endsWith('.js'));
+        changedFiles.clear();
+        if (hasJs) {
+          win.reload();
+          debug.log(getStore, 'app', 'renderer reloaded (js/build changed)');
+          return;
+        }
+        // CSS-only (or html+css): inject new styles without reloading
+        const indexPath = path.join(rendererDir, 'index.html');
+        if (!fs.existsSync(indexPath)) return;
+        const html = fs.readFileSync(indexPath, 'utf8');
+        const linkHrefs = html.match(/<link[^>]+href="([^"]+\.css)"[^>]*>/g);
+        if (!linkHrefs || linkHrefs.length === 0) return;
+        const cssPaths = linkHrefs.map((tag) => {
+          const m = tag.match(/href="([^"]+)"/);
+          return m ? path.join(rendererDir, m[1].replace(/^\.\//, '')) : null;
+        }).filter(Boolean);
+        let injected = 0;
+        for (const cssPath of cssPaths) {
+          if (!fs.existsSync(cssPath)) continue;
+          try {
+            const css = fs.readFileSync(cssPath, 'utf8');
+            win.webContents.insertCSS(css);
+            injected++;
+          } catch (e) {
+            debug.log(getStore, 'app', 'insertCSS failed', cssPath, e?.message);
+          }
+        }
+        if (injected > 0) debug.log(getStore, 'app', 'styles updated (CSS hot inject)');
+      }, 400);
+    }
+    if (fs.existsSync(rendererDir)) {
+      fs.watch(rendererDir, { recursive: true }, onRendererChange);
+      debug.log(getStore, 'app', 'watching dist-renderer (CSS hot inject, reload on JS change)');
+    }
+  }
 
   // Detect all problems: send crash reports on uncaught errors (when enabled)
   function reportMainError(message, stackTrace, payload = {}) {
