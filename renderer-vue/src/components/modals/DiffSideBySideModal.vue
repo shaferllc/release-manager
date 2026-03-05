@@ -9,8 +9,11 @@
     @update:visible="(v) => { if (!v) close(); }"
     @hide="close"
   >
-    <div v-if="error" class="p-4 text-sm text-rm-warning">{{ error }}</div>
-      <div v-else-if="loading" class="p-4 text-sm text-rm-muted">Loading diff…</div>
+    <Message v-if="error" severity="warn" class="m-4 text-sm">{{ error }}</Message>
+      <div v-else-if="loading" class="p-4 flex flex-col items-center gap-3 text-sm text-rm-muted">
+        <ProgressSpinner aria-hidden="true" class="!w-8 !h-8" />
+        <span>Loading diff…</span>
+      </div>
       <div v-else class="diff-side-by-side flex-1 min-h-0 flex flex-col border-t border-rm-border">
         <!-- Column headers -->
         <div class="diff-side-by-side-header flex flex-shrink-0 text-xs font-medium text-rm-muted border-b border-rm-border bg-rm-surface/50">
@@ -37,15 +40,16 @@
                     <span class="diff-line-num shrink-0">{{ row.oldLineNum != null ? row.oldLineNum : '' }}</span>
                     <span class="diff-line-content flex-1 min-w-0">{{ row.oldContent ?? '' }}</span>
                     <span class="diff-actions shrink-0">
-                      <button
+                      <Button
                         v-if="row.oldContent != null"
-                        type="button"
-                        class="diff-copy-btn"
+                        variant="text"
+                        size="small"
+                        class="diff-copy-btn min-w-0"
                         title="Copy old line"
                         @click="copyLine(row.oldContent)"
                       >
                         Copy
-                      </button>
+                      </Button>
                     </span>
                   </div>
                 </td>
@@ -54,33 +58,36 @@
                     <span class="diff-line-num shrink-0">{{ row.newLineNum != null ? row.newLineNum : '' }}</span>
                     <span class="diff-line-content flex-1 min-w-0">{{ row.newContent ?? '' }}</span>
                     <span class="diff-actions shrink-0">
-                      <button
+                      <Button
                         v-if="row.newContent != null || row.oldContent != null"
-                        type="button"
-                        class="diff-copy-btn"
+                        variant="text"
+                        size="small"
+                        class="diff-copy-btn min-w-0"
                         :title="'Copy ' + (row.newContent != null ? 'new' : 'old') + ' line'"
                         @click="copyLine(row.newContent != null ? row.newContent : row.oldContent)"
                       >
                         Copy
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         v-if="canUseOld(row)"
-                        type="button"
-                        class="diff-use-old-btn"
+                        variant="text"
+                        size="small"
+                        class="diff-use-old-btn min-w-0"
                         title="Use old (left) — set this line to the old version"
                         @click="useOld(row)"
                       >
                         Use old
-                      </button>
-                      <button
+                      </Button>
+                      <Button
                         v-if="canUseNew(row)"
-                        type="button"
-                        class="diff-use-new-btn"
+                        variant="text"
+                        size="small"
+                        class="diff-use-new-btn min-w-0"
                         title="Use new (right) — set this line back to the new version"
                         @click="useNew(row)"
                       >
                         Use new
-                      </button>
+                      </Button>
                     </span>
                   </div>
                 </td>
@@ -92,7 +99,7 @@
     <template #footer>
       <Button severity="secondary" size="small" class="text-xs" @click="close">Close</Button>
       <Button
-        v-if="!props.commitSha && props.dirPath && props.filePath"
+        v-if="!commitSha && dirPath && filePath"
         severity="secondary"
         size="small"
         class="text-xs text-rm-warning hover:bg-rm-warning/10"
@@ -107,10 +114,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
-import { useApi } from '../../composables/useApi';
+import Message from 'primevue/message';
+import ProgressSpinner from 'primevue/progressspinner';
+import { useDiffSideBySide } from '../../composables/useDiffSideBySide';
 
 const props = defineProps({
   dirPath: { type: String, default: '' },
@@ -122,187 +130,31 @@ const props = defineProps({
 });
 const emit = defineEmits(['close', 'refresh']);
 
-const api = useApi();
-const loading = ref(true);
-const error = ref('');
-const rows = ref([]);
-const revertStatus = ref(null);
-
-const displayTitle = computed(() => {
-  if (props.title) return props.title;
-  if (props.commitSha) return `Diff: ${props.filePath} @ ${props.commitSha.slice(0, 7)}`;
-  if (props.staged === true) return `Diff (staged): ${props.filePath}`;
-  if (props.staged === false) return `Diff (unstaged): ${props.filePath}`;
-  return `Diff: ${props.filePath}`;
-});
-
-/** Compute insertBeforeNewLine for remove-only rows so we can offer "Restore". */
-const rowsWithInsert = computed(() => {
-  const list = rows.value;
-  const out = list.map((r) => ({ ...r }));
-  for (let i = 0; i < out.length; i++) {
-    if (out[i].type === 'remove' && out[i].newLineNum == null) {
-      for (let j = i + 1; j < out.length; j++) {
-        if (out[j].newLineNum != null) {
-          out[i].insertBeforeNewLine = out[j].newLineNum;
-          break;
-        }
-      }
-      if (out[i].insertBeforeNewLine == null) {
-        const prev = out.slice(0, i).reverse().find((r) => r.newLineNum != null);
-        out[i].insertBeforeNewLine = prev ? prev.newLineNum + 1 : 1;
-      }
-    }
-  }
-  return out;
-});
-
-function rowTypeClass(row) {
-  if (row.type === 'add') return 'diff-row-add';
-  if (row.type === 'remove') return 'diff-row-remove';
-  return 'diff-row-context';
-}
-
-/** Show "Use old" when this line has new content and we can set file to old (and not already reverted). Only for working tree diff. */
-function canUseOld(row) {
-  if (props.commitSha || !props.dirPath || !props.filePath || row.revertedToOld) return false;
-  if (row.type === 'add') return true;
-  if (row.type === 'remove') return true;
-  if (row.type === 'context' && row.oldContent !== row.newContent) return false;
-  if (row.type === 'context') return false;
-  return row.newLineNum != null && (row.oldContent != null || row.type === 'add');
-}
-
-/** Show "Use new" when we previously reverted this line to old and can re-apply new. Only for working tree diff. */
-function canUseNew(row) {
-  if (props.commitSha || !props.dirPath || !props.filePath || !row.revertedToOld) return false;
-  return row.originalNewContent !== undefined;
-}
-
-async function useOld(row) {
-  revertStatus.value = null;
-  try {
-    if (row.type === 'add') {
-      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'delete', row.newLineNum, null);
-      revertStatus.value = res;
-      if (res?.ok) {
-        row.originalNewContent = row.newContent;
-        row.newContent = null;
-        row.revertedToOld = true;
-      }
-    } else if (row.type === 'remove' && row.insertBeforeNewLine != null) {
-      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'insert', row.insertBeforeNewLine, row.oldContent);
-      revertStatus.value = res;
-      if (res?.ok) {
-        row.originalNewContent = row.newContent;
-        row.newContent = row.oldContent;
-        row.revertedToOld = true;
-      }
-    } else if (row.newLineNum != null && row.oldContent != null) {
-      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'replace', row.newLineNum, row.oldContent);
-      revertStatus.value = res;
-      if (res?.ok) {
-        row.originalNewContent = row.newContent;
-        row.newContent = row.oldContent;
-        row.revertedToOld = true;
-      }
-    }
-    if (revertStatus.value?.ok) {
-      emit('refresh');
-      setTimeout(() => { revertStatus.value = null; }, 3000);
-    }
-  } catch (e) {
-    revertStatus.value = { ok: false, error: e?.message || String(e) };
-  }
-}
-
-async function useNew(row) {
-  revertStatus.value = null;
-  try {
-    if (row.type === 'add') {
-      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'insert', row.newLineNum, row.originalNewContent ?? row.newContent);
-      revertStatus.value = res;
-      if (res?.ok) {
-        row.newContent = row.originalNewContent;
-        row.revertedToOld = false;
-      }
-    } else if (row.type === 'remove' && row.insertBeforeNewLine != null) {
-      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'delete', row.insertBeforeNewLine, null);
-      revertStatus.value = res;
-      if (res?.ok) {
-        row.newContent = null;
-        row.revertedToOld = false;
-      }
-    } else if (row.newLineNum != null && row.originalNewContent !== undefined) {
-      const res = await api.revertFileLine?.(props.dirPath, props.filePath, 'replace', row.newLineNum, row.originalNewContent);
-      revertStatus.value = res;
-      if (res?.ok) {
-        row.newContent = row.originalNewContent;
-        row.revertedToOld = false;
-      }
-    }
-    if (revertStatus.value?.ok) {
-      emit('refresh');
-      setTimeout(() => { revertStatus.value = null; }, 3000);
-    }
-  } catch (e) {
-    revertStatus.value = { ok: false, error: e?.message || String(e) };
-  }
-}
-
-async function copyLine(text) {
-  if (text != null && api.copyToClipboard) await api.copyToClipboard(text);
-}
-
-async function discardEntireFile() {
-  if (!props.dirPath || !props.filePath || !api.discardFile) return;
-  if (!window.confirm(`Discard all changes in "${props.filePath}"? This cannot be undone.`)) return;
-  revertStatus.value = null;
-  try {
-    await api.discardFile(props.dirPath, props.filePath);
-    emit('refresh');
-    close();
-  } catch (e) {
-    revertStatus.value = { ok: false, error: e?.message || String(e) };
-  }
-}
-
-async function load() {
-  if (!props.dirPath || !props.filePath) {
-    loading.value = false;
-    return;
-  }
-  loading.value = true;
-  error.value = '';
-  try {
-    const options = props.commitSha ? { commitSha: props.commitSha } : { staged: props.staged };
-    const result = await api.getFileDiffStructured?.(props.dirPath, props.filePath, options);
-    if (result?.error) {
-      error.value = result.error;
-      rows.value = [];
-    } else if (result?.ok) {
-      const raw = result.rows || [];
-      rows.value = raw.map((r) => ({
-        ...r,
-        originalNewContent: r.newContent,
-        revertedToOld: false,
-      }));
-    } else {
-      rows.value = [];
-    }
-  } catch (e) {
-    error.value = e?.message || String(e);
-    rows.value = [];
-  } finally {
-    loading.value = false;
-  }
-}
-
-watch(() => [props.dirPath, props.filePath, props.commitSha, props.staged], load, { immediate: true });
-
-function close() {
-  emit('close');
-}
+const {
+  loading,
+  error,
+  revertStatus,
+  dirPath,
+  filePath,
+  commitSha,
+  displayTitle,
+  rowsWithInsert,
+  rowTypeClass,
+  canUseOld,
+  canUseNew,
+  useOld,
+  useNew,
+  copyLine,
+  discardEntireFile,
+  close,
+} = useDiffSideBySide(
+  () => props.dirPath,
+  () => props.filePath,
+  () => props.commitSha,
+  () => props.staged,
+  () => props.title,
+  emit
+);
 </script>
 
 <style scoped>

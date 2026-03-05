@@ -21,13 +21,13 @@
               class="flex items-start gap-2 text-xs group"
               :class="isOptionFullyInContent(opt) ? 'cursor-default opacity-90' : 'cursor-pointer'"
             >
-              <input
-                type="checkbox"
-                :checked="isWizardSelected(opt.id) || isOptionAnyInContent(opt)"
+              <Checkbox
+                :model-value="isWizardSelected(opt.id) || isOptionAnyInContent(opt)"
                 :disabled="isOptionFullyInContent(opt)"
-                class="rounded border-rm-border mt-0.5 shrink-0"
+                binary
+                class="mt-0.5 shrink-0"
                 :title="isOptionFullyInContent(opt) ? 'Already in file' : undefined"
-                @change="toggleWizardOption(opt.id)"
+                @update:model-value="toggleWizardOption(opt.id)"
               />
               <span class="flex-1 min-w-0">
                 <span class="font-medium text-rm-text group-hover:text-rm-accent">{{ opt.label }}</span>
@@ -87,186 +87,37 @@
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue';
 import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
 import Dialog from 'primevue/dialog';
 import Select from 'primevue/select';
 import Textarea from 'primevue/textarea';
-import { GITATTRIBUTES_PRESETS, GITATTRIBUTES_WIZARD_OPTIONS } from '../detail/git/gitattributesPresets.js';
+import { useGitattributesWizard } from '../../composables/useGitattributesWizard';
 
 const props = defineProps({
   initialContent: { type: String, default: '' },
   baselineContent: { type: String, default: '' },
 });
-
 const emit = defineEmits(['close', 'applyAndSave']);
 
-const wizardOptions = GITATTRIBUTES_WIZARD_OPTIONS;
-const presets = GITATTRIBUTES_PRESETS;
-const presetSelectOptions = computed(() => [
-  { value: '', label: 'Choose preset…' },
-  ...presets.map((p) => ({ value: p.id, label: p.label })),
-]);
-const localContent = ref(props.initialContent || '');
-const wizardSelected = ref([]);
-const selectedPresetId = ref('');
-
-watch(() => props.initialContent, (v) => { localContent.value = v || ''; }, { immediate: false });
-
-/** Set of non-empty trimmed lines in the current content (for rule detection) */
-const contentLineSet = computed(() => {
-  const lines = (localContent.value || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  return new Set(lines);
-});
-
-function getOptionLines(linesStr) {
-  return (linesStr || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-}
-
-/** True if any line of this option is already in the file */
-function isOptionAnyInContent(opt) {
-  const optionLines = getOptionLines(opt.lines);
-  return optionLines.some((line) => contentLineSet.value.has(line));
-}
-
-/** True if all lines of this option are already in the file → show checked and disable */
-function isOptionFullyInContent(opt) {
-  const optionLines = getOptionLines(opt.lines);
-  return optionLines.length > 0 && optionLines.every((line) => contentLineSet.value.has(line));
-}
-
-/** Inline diff: ordered list of { type: 'add'|'remove'|'context', line } (baseline vs current). */
-function computeLineDiff(oldText, newText) {
-  const oldLines = (oldText || '').split(/\r?\n/);
-  const newLines = (newText || '').split(/\r?\n/);
-  const result = [];
-  let i = 0;
-  let j = 0;
-  while (i < oldLines.length || j < newLines.length) {
-    if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
-      result.push({ type: 'context', line: newLines[j] });
-      i++;
-      j++;
-      continue;
-    }
-    if (j < newLines.length && (i >= oldLines.length || oldLines.indexOf(newLines[j], i) === -1)) {
-      result.push({ type: 'add', line: newLines[j] });
-      j++;
-      continue;
-    }
-    if (i < oldLines.length && (j >= newLines.length || newLines.indexOf(oldLines[i], j) === -1)) {
-      result.push({ type: 'remove', line: oldLines[i] });
-      i++;
-      continue;
-    }
-    if (i < oldLines.length && j < newLines.length) {
-      const nextOld = newLines.indexOf(oldLines[i], j);
-      const nextNew = oldLines.indexOf(newLines[j], i);
-      if (nextOld !== -1 && (nextNew === -1 || nextOld - j <= nextNew - i)) {
-        while (j < nextOld) {
-          result.push({ type: 'add', line: newLines[j] });
-          j++;
-        }
-        result.push({ type: 'context', line: newLines[j] });
-        i++;
-        j++;
-      } else if (nextNew !== -1) {
-        while (i < nextNew) {
-          result.push({ type: 'remove', line: oldLines[i] });
-          i++;
-        }
-        result.push({ type: 'context', line: oldLines[i] });
-        i++;
-        j++;
-      } else {
-        result.push({ type: 'remove', line: oldLines[i] });
-        result.push({ type: 'add', line: newLines[j] });
-        i++;
-        j++;
-      }
-    }
-  }
-  return result;
-}
-
-const inlineDiffLines = computed(() => {
-  const baseline = props.baselineContent ?? '';
-  const current = localContent.value ?? '';
-  if (!baseline && !current.trim()) return [];
-  const lines = computeLineDiff(baseline, current);
-  return lines.filter((r) => r.type === 'add' || r.type === 'remove');
-});
-
-function isWizardSelected(id) {
-  return wizardSelected.value.includes(id);
-}
-
-function toggleWizardOption(id) {
-  const arr = wizardSelected.value;
-  if (arr.includes(id)) {
-    wizardSelected.value = arr.filter((x) => x !== id);
-  } else {
-    wizardSelected.value = [...arr, id];
-  }
-}
-
-function close() {
-  emit('close');
-}
-
-function addSelected() {
-  const ids = wizardSelected.value;
-  if (!ids.length) return;
-  const generated = wizardOptions
-    .filter((opt) => ids.includes(opt.id))
-    .map((opt) => opt.lines.trim())
-    .join('\n\n') + '\n';
-  localContent.value = appendWithoutDuplicates(localContent.value, generated);
-}
-
-/** Return set of existing non-empty trimmed lines for duplicate check */
-function existingLineSet(content) {
-  const lines = (content || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  return new Set(lines);
-}
-
-/** Append newContent to current, skipping lines that already exist (no duplicates) */
-function appendWithoutDuplicates(current, newContent) {
-  const existing = existingLineSet(current);
-  const newLines = (newContent || '').split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const toAdd = newLines.filter((line) => !existing.has(line));
-  if (toAdd.length === 0) return current.trimEnd();
-  const trimmed = current.trimEnd();
-  const sep = trimmed ? '\n\n' : '';
-  return trimmed + sep + toAdd.join('\n') + '\n';
-}
-
-/** Remove duplicate lines from content (first occurrence kept, order preserved) */
-function deduplicateContent(content) {
-  const lines = (content || '').split(/\r?\n/);
-  const seen = new Set();
-  const out = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed === '') {
-      out.push(line);
-      continue;
-    }
-    if (seen.has(trimmed)) continue;
-    seen.add(trimmed);
-    out.push(line);
-  }
-  return out.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + (out.length ? '\n' : '');
-}
-
-function appendPreset() {
-  const preset = presets.find((p) => p.id === selectedPresetId.value);
-  if (!preset?.content) return;
-  localContent.value = appendWithoutDuplicates(localContent.value, preset.content);
-}
-
-function save() {
-  emit('applyAndSave', deduplicateContent(localContent.value));
-  emit('close');
-}
+const {
+  wizardOptions,
+  presetSelectOptions,
+  localContent,
+  wizardSelected,
+  selectedPresetId,
+  inlineDiffLines,
+  isOptionAnyInContent,
+  isOptionFullyInContent,
+  isWizardSelected,
+  toggleWizardOption,
+  close,
+  addSelected,
+  appendPreset,
+  save,
+} = useGitattributesWizard(
+  () => props.initialContent,
+  () => props.baselineContent,
+  emit
+);
 </script>

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 16px; max-width: 400px; }
+    label { display: block; margin-bottom: 4px; font-weight: 500; }
+    input { padding: 6px 8px; margin-bottom: 12px; width: 80px; }
+    button { padding: 8px 14px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <h2>Release Manager Bookmarks</h2>
+  <label for="port">Receiver port (must match app):</label>
+  <input id="port" type="number" min="1" max="65535" value="3848" />
+  <br>
+  <button id="save">Save</button>
+  <p id="status" style="margin-top:12px;font-size:13px;color:#666;"></p>
+  <script src="options.js"></script>
+</body>
+</html>

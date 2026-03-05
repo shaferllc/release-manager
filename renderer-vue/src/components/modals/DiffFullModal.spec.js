@@ -1,15 +1,17 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
+import Button from 'primevue/button';
 import DiffFullModal from './DiffFullModal.vue';
 
 // Stub Dialog so we can assert on header, content, and footer without PrimeVue's Teleport/DOM
 const DialogStub = {
   name: 'DialogStub',
+  components: { Button },
   props: ['header'],
   template: `<div class="dialog-stub">
     <div class="dialog-header">{{ header }}</div>
     <slot />
-    <button type="button" class="dialog-mask-dismiss" @click="$emit('update:visible', false)">Dismiss</button>
+    <Button variant="text" size="small" class="dialog-mask-dismiss" @click="$emit('update:visible', false)">Dismiss</Button>
     <div class="dialog-footer"><slot name="footer" /></div>
   </div>`,
 };

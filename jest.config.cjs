@@ -28,6 +28,8 @@ module.exports = {
     'src-main/lib/theme.js',
     'src-main/lib/version.js',
     'src-main/lib/git/index.js',
+    'src-main/plugins/git/index.js',
+    'src-main/plugins/git/stub.js',
   ],
   coverageDirectory: 'coverage',
   coverageReporters: ['text', 'lcov'],

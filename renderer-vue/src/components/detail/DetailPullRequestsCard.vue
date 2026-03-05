@@ -1,7 +1,7 @@
 <template>
   <section class="card mb-6 detail-tab-panel" data-detail-tab="pull-requests">
       <div class="card-section flex flex-wrap items-center gap-3">
-        <a v-if="pullRequestsUrl" :href="pullRequestsUrl" class="inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 text-sm rounded-rm-dynamic border border-rm-border bg-rm-surface hover:bg-rm-surface-hover text-rm-text no-underline" target="_blank" rel="noopener" @click.prevent="openPullRequestsUrl">Open on GitHub</a>
+        <Button v-if="pullRequestsUrl" variant="outlined" severity="secondary" label="Open on GitHub" class="inline-flex items-center gap-x-1.5 shrink-0 text-sm" @click="openPullRequestsUrl" />
         <Button severity="primary" class="inline-flex items-center gap-x-1.5 shrink-0" :disabled="!canCreatePr" @click="openCreateModal">New pull request</Button>
         <SelectButton
           v-model="prState"
@@ -12,10 +12,10 @@
         />
       </div>
 
-      <p v-if="error" class="card-section text-sm text-rm-warning">{{ error }}</p>
+      <Message v-if="error" severity="warn" class="card-section text-sm">{{ error }}</Message>
       <p v-else-if="!info?.gitRemote" class="card-section text-sm text-rm-muted">No remote configured. Add a GitHub remote to manage pull requests.</p>
       <div v-else class="card-section border-t border-rm-border">
-        <p v-if="loading" class="text-sm text-rm-muted">Loading…</p>
+        <Message v-if="loading" severity="secondary" class="text-sm">Loading…</Message>
         <template v-else>
           <p v-if="!pullRequests.length" class="text-sm text-rm-muted m-0">No {{ prState }} pull requests.</p>
           <ul v-else class="m-0 pl-0 list-none space-y-2 max-h-[24rem] overflow-y-auto">
@@ -25,15 +25,12 @@
               class="flex flex-wrap items-center gap-2 py-2 px-3 rounded-rm border border-rm-border bg-rm-surface/30"
             >
               <span class="font-mono text-xs text-rm-muted shrink-0">#{{ pr.number }}</span>
-              <a
-                :href="pr.html_url"
-                class="text-rm-accent hover:underline font-medium truncate min-w-0 flex-1"
-                target="_blank"
-                rel="noopener"
-                @click.prevent="openPrUrl(pr.html_url)"
-              >
-                {{ pr.title || 'Untitled' }}
-              </a>
+              <Button
+                variant="link"
+                :label="pr.title || 'Untitled'"
+                class="text-rm-accent font-medium truncate min-w-0 flex-1 justify-start p-0 h-auto text-left"
+                @click="openPrUrl(pr.html_url)"
+              />
               <span class="text-xs text-rm-muted shrink-0">{{ pr.head?.ref }} → {{ pr.base?.ref }}</span>
               <span v-if="pr.user?.login" class="text-xs text-rm-muted shrink-0">by {{ pr.user.login }}</span>
               <Button
@@ -67,7 +64,7 @@
         <InputText v-model="newPrTitle" type="text" class="w-full mb-3" placeholder="PR title" />
         <label class="block text-xs font-medium text-rm-text mb-1">Body (optional)</label>
         <Textarea v-model="newPrBody" class="w-full min-h-[4rem]" rows="3" placeholder="Description" />
-        <p v-if="createPrError" class="text-sm text-rm-warning mt-2">{{ createPrError }}</p>
+        <Message v-if="createPrError" severity="warn" class="text-sm mt-2">{{ createPrError }}</Message>
         <template #footer>
           <Button severity="secondary" size="small" class="text-sm" :disabled="createPrLoading" @click="showCreateModal = false">Cancel</Button>
           <Button severity="primary" size="small" class="text-sm" :disabled="createPrLoading" @click="submitCreatePr">{{ createPrLoading ? 'Creating…' : 'Create' }}</Button>
@@ -78,10 +75,11 @@
 
 <script setup>
 import Button from 'primevue/button';
-import InputText from 'primevue/inputtext';
-import Textarea from 'primevue/textarea';
-import SelectButton from 'primevue/selectbutton';
 import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
+import Message from 'primevue/message';
+import SelectButton from 'primevue/selectbutton';
+import Textarea from 'primevue/textarea';
 import { useAppStore } from '../../stores/app';
 import { usePullRequests } from '../../composables/usePullRequests';
 

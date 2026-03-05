@@ -7,7 +7,7 @@
       <!-- No coverage yet: suggest AI -->
       <div v-if="showNoCoverageHint" class="mb-4 p-3 rounded-rm border border-rm-border bg-rm-surface/50 text-sm text-rm-muted">
         <p class="m-0">If no coverage exists yet, you can use AI to help generate tests and coverage. Configure your AI provider and API keys in Settings, then use the Tests tab to run tests and get AI-suggested fixes.</p>
-        <Button variant="text" size="small" class="mt-2 text-sm text-rm-accent hover:underline !p-0 font-medium" @click="goToAiSettings">Open AI settings</Button>
+        <Button variant="text" size="small" class="mt-2 text-sm hover:underline !p-0 font-medium" @click="goToAiSettings">Open AI settings</Button>
       </div>
 
       <!-- Last / previous run + trend + goal -->
@@ -62,8 +62,8 @@
         <span class="font-mono ml-2" :class="compareDelta > 0 ? 'text-rm-success' : compareDelta < 0 ? 'text-rm-warning' : 'text-rm-muted'">({{ compareDelta > 0 ? '+' : '' }}{{ compareDelta.toFixed(1) }}%)</span>
         <span class="ml-2 text-rm-muted text-xs">{{ formatDateShort(previousEntry.date) }} → {{ formatDateShort(lastEntry.date) }}</span>
         <div class="mt-2 flex flex-wrap gap-2">
-          <Button v-if="previousEntry.commitSha" variant="text" size="small" class="text-xs text-rm-accent hover:underline !p-0 min-w-0" @click="openCommit(previousEntry.commitSha)">View previous commit</Button>
-          <Button v-if="lastEntry.commitSha" variant="text" size="small" class="text-xs text-rm-accent hover:underline !p-0 min-w-0" @click="openCommit(lastEntry.commitSha)">View last commit</Button>
+          <Button v-if="previousEntry.commitSha" variant="text" size="small" class="text-xs hover:underline !p-0 min-w-0" @click="openCommit(previousEntry.commitSha)">View previous commit</Button>
+          <Button v-if="lastEntry.commitSha" variant="text" size="small" class="text-xs hover:underline !p-0 min-w-0" @click="openCommit(lastEntry.commitSha)">View last commit</Button>
         </div>
       </div>
 

@@ -25,32 +25,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
 import Button from 'primevue/button';
 import InlineTerminal from '../components/detail/InlineTerminal.vue';
+import { useTerminalPopout } from '../composables/useTerminalPopout';
 
-const dirPath = ref('');
-
-const displayPath = computed(() => {
-  const p = dirPath.value || '';
-  if (p.length <= 50) return p;
-  return '…' + p.slice(-48);
-});
-
-function closeWindow() {
-  if (window.releaseManager?.closeTerminalPopoutWindow) {
-    window.releaseManager.closeTerminalPopoutWindow();
-  }
-}
-
-onMounted(async () => {
-  if (window.releaseManager?.getTerminalPopoutState) {
-    try {
-      const state = await window.releaseManager.getTerminalPopoutState();
-      dirPath.value = state?.dirPath ?? '';
-    } catch {
-      dirPath.value = '';
-    }
-  }
-});
+const { dirPath, displayPath, closeWindow } = useTerminalPopout();
 </script>

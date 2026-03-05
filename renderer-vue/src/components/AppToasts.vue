@@ -12,20 +12,22 @@
           <span class="app-toast-title">{{ t.title }}</span>
           <p v-if="t.message" class="app-toast-message">{{ t.message }}</p>
         </div>
-        <button
-          type="button"
-          class="app-toast-dismiss"
+        <Button
+          variant="text"
+          size="small"
+          class="app-toast-dismiss min-w-0 p-0"
           aria-label="Dismiss"
           @click="remove(t.id)"
         >
           ×
-        </button>
+        </Button>
       </div>
     </TransitionGroup>
   </div>
 </template>
 
 <script setup>
+import Button from 'primevue/button';
 import { useNotifications } from '../composables/useNotifications';
 
 const { toasts, remove } = useNotifications();

@@ -17,7 +17,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
 import { DOCS } from '../../docsContent';
@@ -30,11 +30,20 @@ const emit = defineEmits(['close']);
 
 const entry = computed(() => (props.docKey && DOCS[props.docKey]) ? DOCS[props.docKey] : null);
 
-const renderedBody = computed(() => {
-  const body = entry.value?.body;
-  if (!body) return '';
-  return renderMarkdown(body);
-});
+const renderedBody = ref('');
+
+watch(
+  entry,
+  async (e) => {
+    const body = e?.body;
+    if (!body) {
+      renderedBody.value = '';
+      return;
+    }
+    renderedBody.value = await renderMarkdown(body);
+  },
+  { immediate: true }
+);
 
 function close() {
   emit('close');

@@ -44,7 +44,7 @@ const {
   parseRemotes: parseRemotesLib,
   parseLocalBranches: parseLocalBranchesLib,
 } = require('./lib/gitOutputParsers');
-const { createGitApi } = require('./lib/git');
+const { getGitPlugin } = require('./plugins');
 const {
   getComposerManifestInfo,
   parseComposerOutdatedJson,
@@ -59,6 +59,7 @@ const {
   getCoverageScriptNameComposer,
 } = require('./lib/projectTestScripts');
 const { createApiServer } = require('./apiServer');
+const { createBookmarksReceiver, DEFAULT_BOOKMARKS_RECEIVER_PORT } = require('./bookmarksReceiver');
 const { runCli, getCliArgs } = require('./cli');
 const { getApiDocs: getApiDocsFromModule, getApiMethodDoc: getApiMethodDocFromModule, getSampleResponseForMethod } = require('./apiDocs');
 const { createProcessManager } = require('./services/processManager');
@@ -221,6 +222,7 @@ const processManager = createProcessManager({
 });
 const emailService = createEmailService({
   getStore,
+  getPreference,
   send: sendToAllWindows,
   SMTPServer,
   simpleParser,
@@ -332,23 +334,33 @@ function getComposerEnv(dirPath) {
 
 let gitApi = null;
 function getGitApi() {
-  if (!gitApi) {
-    gitApi = createGitApi({
-      runInDir,
-      runInDirCapture,
-      path,
-      fs,
-      getPreference,
-      parseLocalBranches: parseLocalBranchesLib,
-      parseRemoteBranches: parseRemoteBranchesLib,
-      parseRemotes: parseRemotesLib,
-      parseCommitLog: parseCommitLogLib,
-      parseCommitLogWithBody: parseCommitLogWithBodyLib,
-      parseStashList: parseStashListLib,
-      parsePorcelainLines,
-      formatTag,
-    });
+  if (gitApi != null) return gitApi;
+  const plugin = getGitPlugin();
+  if (!plugin) {
+    const { createGitStub } = require('./plugins/git/stub');
+    gitApi = createGitStub();
+    return gitApi;
   }
+  if (!plugin.isEnabled(getStore())) {
+    gitApi = plugin.createStub();
+    return gitApi;
+  }
+  const deps = {
+    runInDir,
+    runInDirCapture,
+    path,
+    fs,
+    getPreference,
+    parseLocalBranches: parseLocalBranchesLib,
+    parseRemoteBranches: parseRemoteBranchesLib,
+    parseRemotes: parseRemotesLib,
+    parseCommitLog: parseCommitLogLib,
+    parseCommitLogWithBody: parseCommitLogWithBodyLib,
+    parseStashList: parseStashListLib,
+    parsePorcelainLines,
+    formatTag,
+  };
+  gitApi = plugin.createApi(deps);
   return gitApi;
 }
 
@@ -372,15 +384,17 @@ async function getProjectInfoAsync(dirPath) {
 
   if (hasGit) {
     const gitInfo = await getGitApi().getProjectInfoFromGit(dirPath);
-    latestTag = gitInfo.latestTag;
-    allTags = gitInfo.allTags || [];
-    commitsSinceLatestTag = gitInfo.commitsSinceLatestTag;
-    gitRemote = gitInfo.gitRemote;
-    branch = gitInfo.branch;
-    ahead = gitInfo.ahead;
-    behind = gitInfo.behind;
-    uncommittedLines = gitInfo.uncommittedLines || [];
-    conflictCount = gitInfo.conflictCount || 0;
+    if (gitInfo && gitInfo.ok !== false) {
+      latestTag = gitInfo.latestTag;
+      allTags = gitInfo.allTags || [];
+      commitsSinceLatestTag = gitInfo.commitsSinceLatestTag;
+      gitRemote = gitInfo.gitRemote;
+      branch = gitInfo.branch;
+      ahead = gitInfo.ahead;
+      behind = gitInfo.behind;
+      uncommittedLines = gitInfo.uncommittedLines || [];
+      conflictCount = gitInfo.conflictCount || 0;
+    }
   }
 
   return {
@@ -1053,6 +1067,8 @@ app.whenReady().then(() => {
     openInEditor: (dirPath) => openInEditorImpl(dirPath),
     openFileInEditor: (dirPath, relativePath) => openFileInEditorImpl(dirPath, relativePath),
     getFileDiff: async (dirPath, filePath, isUntracked) => getFileDiffImpl(dirPath, filePath, isUntracked),
+    readProjectFile: (dirPath, relativePath) => readProjectFileImpl(dirPath, relativePath),
+    writeProjectFile: (dirPath, relativePath, content) => writeProjectFileImpl(dirPath, relativePath, content),
     getReleasesUrl: (gitRemote) => getReleasesUrl(gitRemote),
     getPullRequestsUrl: (gitRemote) => getPullRequestsUrl(gitRemote),
     syncFromRemote: (dirPath) => getGitApi().gitFetch(dirPath),
@@ -1152,6 +1168,19 @@ app.whenReady().then(() => {
       }
       return null;
     },
+    writeEmlDraftAndOpen: (emlContent) => {
+      if (!emlContent || typeof emlContent !== 'string') return Promise.resolve({ ok: false, error: 'No content' });
+      const tempDir = app.getPath('temp');
+      const filename = `release-manager-draft-${Date.now()}.eml`;
+      const filePath = path.join(tempDir, filename);
+      try {
+        fs.writeFileSync(filePath, emlContent, 'utf8');
+        shell.openPath(filePath);
+        return Promise.resolve({ ok: true, path: filePath });
+      } catch (e) {
+        return Promise.resolve({ ok: false, error: e?.message || 'Write failed' });
+      }
+    },
     getAppInfo: () => {
       try {
         const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
@@ -1221,11 +1250,13 @@ app.whenReady().then(() => {
     startAllProcesses: (projectPath) => processManager.startAllProcesses(projectPath),
     stopAllProcesses: (projectPath) => processManager.stopAllProcesses(projectPath),
     getSuggestedProcesses: (dirPath) => processManager.getSuggestedProcesses(dirPath),
-    getEmailSmtpStatus: () => emailService.getEmailSmtpStatus(),
-    startEmailSmtpServer: (port) => emailService.startEmailSmtpServer(port),
-    stopEmailSmtpServer: () => emailService.stopEmailSmtpServer(),
-    getEmails: () => emailService.getEmails(),
-    clearEmails: () => emailService.clearEmails(),
+    getEmailSmtpStatus: (projectPath) => emailService.getEmailSmtpStatus(projectPath),
+    startEmailSmtpServer: (port, projectPath) => emailService.startEmailSmtpServer(port, projectPath),
+    stopEmailSmtpServer: (projectPath) => emailService.stopEmailSmtpServer(projectPath),
+    getEmails: (projectPath) => emailService.getEmails(projectPath),
+    clearEmails: (projectPath) => emailService.clearEmails(projectPath),
+    deleteEmails: (ids) => emailService.deleteEmails(ids),
+    sendTestEmail: (port, projectPath) => emailService.sendTestEmail(port, projectPath),
     startTunnel: (port, subdomain) => tunnelService.startTunnel(port, subdomain),
     stopTunnel: (id) => tunnelService.stopTunnel(id),
     getTunnels: () => tunnelService.getTunnels(),
@@ -1497,6 +1528,38 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     }
   }
 
+  const MAX_PROJECT_FILE_SIZE = 1024 * 1024; // 1MB for read/write
+  function readProjectFileImpl(dirPath, relativePath) {
+    try {
+      const fullPath = path.join(dirPath, relativePath);
+      const norm = path.normalize(fullPath);
+      const dirNorm = path.normalize(path.resolve(dirPath));
+      if (!norm.startsWith(dirNorm + path.sep) && norm !== dirNorm) return { ok: false, error: 'Path outside project' };
+      const stat = fs.statSync(fullPath);
+      if (!stat.isFile()) return { ok: false, error: 'Not a file' };
+      if (stat.size > MAX_PROJECT_FILE_SIZE) return { ok: false, error: `File too large (max ${MAX_PROJECT_FILE_SIZE / 1024} KB)` };
+      const content = fs.readFileSync(fullPath, 'utf8');
+      return { ok: true, content };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Failed to read file' };
+    }
+  }
+  function writeProjectFileImpl(dirPath, relativePath, content) {
+    try {
+      if (typeof content !== 'string') return { ok: false, error: 'Content must be a string' };
+      if (Buffer.byteLength(content, 'utf8') > MAX_PROJECT_FILE_SIZE) return { ok: false, error: `Content too large (max ${MAX_PROJECT_FILE_SIZE / 1024} KB)` };
+      const fullPath = path.join(dirPath, relativePath);
+      const norm = path.normalize(fullPath);
+      const dirNorm = path.normalize(path.resolve(dirPath));
+      if (!norm.startsWith(dirNorm + path.sep) && norm !== dirNorm) return { ok: false, error: 'Path outside project' };
+      fs.mkdirSync(path.dirname(fullPath), { recursive: true });
+      fs.writeFileSync(fullPath, content, 'utf8');
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: e.message || 'Failed to write file' };
+    }
+  }
+
   // API HTTP server
   let apiServerInstance = null;
   const getApiPort = () => Number(getPreference('apiServerPort')) || 3847;
@@ -1543,6 +1606,97 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
   ipcMain.handle('rm-get-api-docs', () => getApiDocsFromModule());
   ipcMain.handle('rm-get-api-method-doc', (_e, methodName) => getApiMethodDocFromModule(methodName));
 
+  // Bookmarks receiver (for browser extension: POST /bookmarks to add current page to selected project)
+  const bookmarksReceiver = createBookmarksReceiver({ getPreference, setPreference });
+  bookmarksReceiver.start();
+  ipcMain.handle('rm-get-bookmarks-receiver-port', () => bookmarksReceiver.getPort());
+  ipcMain.handle('rm-get-bookmarks-extension-path', () => path.join(app.getAppPath(), 'browser-extension'));
+  ipcMain.handle('rm-open-bookmarks-extension-setup', async (_e, extensionPath) => {
+    if (extensionPath && typeof extensionPath === 'string') shell.openPath(extensionPath);
+    const { execFile } = require('child_process');
+    const { promisify } = require('util');
+    const execFileP = promisify(execFile);
+    if (process.platform === 'darwin') {
+      try {
+        await execFileP('open', ['-a', 'Google Chrome', 'chrome://extensions']);
+      } catch {
+        try {
+          await execFileP('open', ['-a', 'Microsoft Edge', 'edge://extensions']);
+        } catch {
+          shell.openExternal('chrome://extensions');
+        }
+      }
+    } else {
+      shell.openExternal('chrome://extensions');
+    }
+    return null;
+  });
+
+  /** 1-click install: launch Chrome/Edge with a dedicated profile and --load-extension so the extension always loads (no need to quit the user's browser). */
+  ipcMain.handle('rm-launch-browser-with-bookmarks-extension', async (_e, extensionPath) => {
+    if (!extensionPath || typeof extensionPath !== 'string') return { ok: false, error: 'No extension path' };
+    if (!fs.existsSync(extensionPath)) return { ok: false, error: 'Extension folder not found' };
+    const normalizedPath = path.resolve(extensionPath);
+    const userDataDir = path.join(app.getPath('userData'), 'rm-chrome-extension-profile');
+
+    if (process.platform === 'darwin') {
+      const chromeBinary = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+      const edgeBinary = '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge';
+      if (fs.existsSync(chromeBinary)) {
+        try {
+          spawn(chromeBinary, ['--user-data-dir=' + userDataDir, '--load-extension=' + normalizedPath], { detached: true, stdio: 'ignore' });
+          return { ok: true, browser: 'Chrome' };
+        } catch (e) {
+          return { ok: false, error: (e && e.message) || 'Failed to launch Chrome' };
+        }
+      }
+      if (fs.existsSync(edgeBinary)) {
+        try {
+          spawn(edgeBinary, ['--user-data-dir=' + userDataDir, '--load-extension=' + normalizedPath], { detached: true, stdio: 'ignore' });
+          return { ok: true, browser: 'Edge' };
+        } catch (e) {
+          return { ok: false, error: (e && e.message) || 'Failed to launch Edge' };
+        }
+      }
+      return { ok: false, error: 'Chrome and Edge not found. Install Chrome or Edge.' };
+    }
+    if (process.platform === 'win32') {
+      const localAppData = process.env.LOCALAPPDATA || '';
+      const programFiles = process.env['ProgramFiles(x86)'] || process.env.ProgramFiles || 'C:\\Program Files';
+      const chromePaths = [
+        path.join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+        path.join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
+      ];
+      const edgePaths = [
+        path.join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+        path.join(process.env.ProgramFiles || 'C:\\Program Files', 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
+      ];
+      const args = ['--user-data-dir=' + userDataDir, '--load-extension=' + normalizedPath];
+      for (const chromePath of chromePaths) {
+        if (fs.existsSync(chromePath)) {
+          try {
+            spawn(chromePath, args, { detached: true, stdio: 'ignore' });
+            return { ok: true, browser: 'Chrome' };
+          } catch (e) {
+            return { ok: false, error: (e && e.message) || 'Failed to launch Chrome' };
+          }
+        }
+      }
+      for (const edgePath of edgePaths) {
+        if (fs.existsSync(edgePath)) {
+          try {
+            spawn(edgePath, args, { detached: true, stdio: 'ignore' });
+            return { ok: true, browser: 'Edge' };
+          } catch (e) {
+            return { ok: false, error: (e && e.message) || 'Failed to launch Edge' };
+          }
+        }
+      }
+      return { ok: false, error: 'Chrome or Edge not found' };
+    }
+    return { ok: false, error: 'Unsupported platform' };
+  });
+
   // Explicit handler for inline terminal (ensure it is always registered)
   ipcMain.handle('rm-run-shell-command', (_e, dirPath, command) => terminalService.runShellCommand(dirPath, command, spawn));
   ipcMain.handle('rm-open-terminal-popout', (_e, dirPath) => {
@@ -1556,6 +1710,128 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     const win = e.sender.getOwnerBrowserWindow();
     if (win && !win.isDestroyed()) win.close();
     return Promise.resolve();
+  });
+  ipcMain.handle('rm-read-project-file', (_e, dirPath, relativePath) => readProjectFileImpl(dirPath, relativePath));
+  ipcMain.handle('rm-write-project-file', (_e, dirPath, relativePath, content) => writeProjectFileImpl(dirPath, relativePath, content));
+
+  ipcMain.handle('rm-send-test-email', (_e, port, projectPath) => emailService.sendTestEmail(port, projectPath));
+  ipcMain.handle('rm-clear-emails', (_e, projectPath) => Promise.resolve(emailService.clearEmails(projectPath)));
+  ipcMain.handle('rm-delete-emails', (_e, ids) => emailService.deleteEmails(ids));
+
+  // Markdown extension: link preview (fetch og:meta) and export (HTML/PDF)
+  ipcMain.handle('rm-fetch-link-preview', async (_e, url) => {
+    try {
+      const res = await fetch(String(url), {
+        headers: { 'User-Agent': 'ReleaseManager/1.0 (Link Preview)' },
+        signal: AbortSignal.timeout(5000),
+      });
+      const html = await res.text();
+      const title = html.match(/<meta[^>]+property=["']og:title["'][^>]+content=["']([^"']+)["']/i)?.[1]
+        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:title["']/i)?.[1]
+        || html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
+      const description = html.match(/<meta[^>]+property=["']og:description["'][^>]+content=["']([^"']+)["']/i)?.[1]
+        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:description["']/i)?.[1];
+      const image = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1]
+        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)?.[1];
+      return { title: title || null, description: description || null, image: image || null };
+    } catch (e) {
+      return { error: e?.message || 'Failed to fetch' };
+    }
+  });
+  // Minimal CSS for exported markdown HTML/PDF (no app CSS vars in standalone file)
+  const MARKDOWN_EXPORT_CSS = `
+body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; line-height: 1.5; color: #e2e8f0; background: #1e293b; margin: 0; padding: 1.5rem; max-width: 720px; margin-left: auto; margin-right: auto; }
+h1 { font-size: 1.5rem; font-weight: 600; margin: 1rem 0 0.5rem; }
+h2 { font-size: 1.25rem; font-weight: 600; margin: 1rem 0 0.5rem; padding-bottom: 0.25rem; border-bottom: 1px solid #475569; }
+h3, h4, h5, h6 { font-size: 1.1rem; font-weight: 600; margin: 0.75rem 0 0.4rem; }
+h1:first-child { margin-top: 0; }
+p { margin: 0.5rem 0; }
+a { color: #7dd3fc; text-decoration: none; }
+a:hover { text-decoration: underline; }
+code { font-size: 0.9em; font-family: ui-monospace, monospace; background: rgba(51, 65, 85, 0.8); padding: 0.15em 0.35em; border-radius: 4px; }
+pre { background: #334155; padding: 0.75rem 1rem; border-radius: 6px; overflow-x: auto; margin: 0.5rem 0; }
+pre code { padding: 0; background: transparent; }
+table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
+th, td { border: 1px solid #475569; padding: 0.5rem 0.75rem; text-align: left; }
+th { background: rgba(51, 65, 85, 0.5); font-weight: 600; }
+ul, ol { margin: 0.5rem 0; padding-left: 1.5rem; }
+img { max-width: 100%; height: auto; }
+blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1rem; color: #94a3b8; }
+`;
+
+  function escapeHtmlForTitle(str) {
+    if (typeof str !== 'string') return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  ipcMain.handle('rm-export-markdown', async (_e, options) => {
+    const { format, html, defaultFileName } = options || {};
+    if (!html || typeof html !== 'string' || !defaultFileName) return { error: 'Missing html or defaultFileName' };
+    const safeTitle = escapeHtmlForTitle(defaultFileName.replace(/\.\w+$/, ''));
+    const styleBlock = `<style>${MARKDOWN_EXPORT_CSS}</style>`;
+    const filters = format === 'pdf'
+      ? [{ name: 'PDF', extensions: ['pdf'] }]
+      : [{ name: 'HTML', extensions: ['html', 'htm'] }];
+    const { canceled, filePath } = await dialogsService.showSaveDialog({
+      defaultPath: defaultFileName,
+      title: 'Export document',
+      filters,
+    });
+    if (canceled || !filePath) return { canceled: true };
+    try {
+      if (format === 'html') {
+        const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${safeTitle}</title>${styleBlock}</head><body>${html}</body></html>`;
+        fs.writeFileSync(filePath, fullHtml, 'utf8');
+        return { ok: true, filePath };
+      }
+      if (format === 'pdf') {
+        const tmpFile = path.join(app.getPath('temp'), `rm-export-${Date.now()}.html`);
+        const fullHtml = `<!DOCTYPE html><html><head><meta charset="utf-8">${styleBlock}</head><body>${html}</body></html>`;
+        fs.writeFileSync(tmpFile, fullHtml, 'utf8');
+        const resolvedPath = path.resolve(tmpFile);
+        const fileUrl = 'file:///' + resolvedPath.replace(/\\/g, '/');
+        const pdfWin = new BrowserWindow({
+          width: 800,
+          height: 600,
+          show: false,
+          webPreferences: { nodeIntegration: false, contextIsolation: true },
+        });
+        await pdfWin.loadURL(fileUrl);
+        await new Promise((resolve) => {
+          pdfWin.webContents.once('did-finish-load', () => {
+            setTimeout(resolve, 200);
+          });
+        });
+        const data = await pdfWin.webContents.printToPDF({
+          printBackground: true,
+          margins: { marginType: 'default' },
+        });
+        pdfWin.close();
+        try { fs.unlinkSync(tmpFile); } catch (_) {}
+        fs.writeFileSync(filePath, data);
+        return { ok: true, filePath };
+      }
+      return { error: 'Unsupported format' };
+    } catch (e) {
+      return { error: e?.message || 'Export failed' };
+    }
+  });
+
+  // Theme and preferences are used on load / frequently; register explicitly to avoid any race with IPC_TO_METHOD iteration
+  ipcMain.handle('rm-get-theme', () => ({ theme: getThemeSetting(), effective: getEffectiveTheme() }));
+  ipcMain.handle('rm-set-theme', (_e, theme) => {
+    setThemeSetting(theme);
+    return null;
+  });
+  ipcMain.handle('rm-get-preference', (_e, key) => getPreference(key));
+  ipcMain.handle('rm-set-preference', (_e, key, value) => {
+    setPreference(key, value);
+    return null;
   });
 
   // IPC handlers delegate to apiRegistry (channel name -> method name, then apiRegistry[method](...args))
@@ -1695,6 +1971,8 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-open-in-editor': 'openInEditor',
     'rm-open-file-in-editor': 'openFileInEditor',
     'rm-get-file-diff': 'getFileDiff',
+    'rm-read-project-file': 'readProjectFile',
+    'rm-write-project-file': 'writeProjectFile',
     'rm-get-releases-url': 'getReleasesUrl',
     'rm-get-pull-requests-url': 'getPullRequestsUrl',
     'rm-get-pull-requests': 'getPullRequests',
@@ -1704,6 +1982,7 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-download-latest': 'downloadLatestRelease',
     'rm-download-asset': 'downloadAsset',
     'rm-open-url': 'openUrl',
+    'rm-write-eml-draft-and-open': 'writeEmlDraftAndOpen',
     'rm-get-app-info': 'getAppInfo',
     'rm-get-app-path': 'getAppPath',
     'rm-get-mcp-server-status': 'getMcpServerStatus',
@@ -1723,6 +2002,8 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-stop-email-smtp-server': 'stopEmailSmtpServer',
     'rm-get-emails': 'getEmails',
     'rm-clear-emails': 'clearEmails',
+    'rm-delete-emails': 'deleteEmails',
+    'rm-send-test-email': 'sendTestEmail',
     'rm-start-tunnel': 'startTunnel',
     'rm-stop-tunnel': 'stopTunnel',
     'rm-get-tunnels': 'getTunnels',
@@ -1775,7 +2056,15 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     'rm-show-system-notification': 'showSystemNotification',
     'rm-run-renderer-test': 'runRendererTest',
   };
+  const explicitlyHandled = new Set([
+    'rm-get-theme', 'rm-set-theme', 'rm-get-preference', 'rm-set-preference',
+    'rm-read-project-file', 'rm-write-project-file',
+    'rm-send-test-email',
+    'rm-clear-emails',
+    'rm-delete-emails',
+  ]);
   for (const [channel, methodName] of Object.entries(IPC_TO_METHOD)) {
+    if (explicitlyHandled.has(channel)) continue;
     ipcMain.handle(channel, (_e, ...args) => {
       debug.log(getStore, 'ipc', channel, 'args.length=', args?.length ?? 0);
       return apiRegistry[methodName](...args);

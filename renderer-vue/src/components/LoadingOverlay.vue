@@ -10,7 +10,7 @@
       >
         <div class="loading-overlay-backdrop" />
         <div class="loading-overlay-content">
-          <div class="loading-spinner" aria-hidden="true" />
+          <ProgressSpinner aria-hidden="true" class="!w-10 !h-10" />
           <p class="loading-overlay-text">Working…</p>
         </div>
       </div>
@@ -19,6 +19,7 @@
 </template>
 
 <script setup>
+import ProgressSpinner from 'primevue/progressspinner';
 import { useAppStore } from '../stores/app';
 
 const store = useAppStore();
@@ -55,15 +56,6 @@ const store = useAppStore();
   box-shadow: 0 20px 40px rgb(0 0 0 / 0.3);
 }
 
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid rgb(var(--rm-border));
-  border-top-color: rgb(var(--rm-accent));
-  border-radius: 50%;
-  animation: loading-spin 0.8s linear infinite;
-}
-
 .loading-overlay-text {
   margin: 0;
   font-size: 0.875rem;
@@ -78,11 +70,5 @@ const store = useAppStore();
 .loading-fade-enter-from,
 .loading-fade-leave-to {
   opacity: 0;
-}
-
-@keyframes loading-spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 </style>

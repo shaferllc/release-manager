@@ -14,15 +14,17 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
+            // Check primevue before vue so "primevue" isn't matched by "vue"
+            if (id.includes('primevue') || id.includes('@primeuix/themes') || id.includes('primeicons') || id.includes('tailwindcss-primeui')) return 'vendor-primevue';
             if (id.includes('vue') || id.includes('pinia')) return 'vendor-vue';
-            if (id.includes('marked')) return 'vendor-marked';
+            if (id.includes('unified') || id.includes('remark-') || id.includes('rehype-')) return 'vendor-markdown';
             return 'vendor';
           }
         },
         chunkFileNames: 'assets/[name]-[hash].js',
       },
     },
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 800,
   },
   test: {
     environment: 'jsdom',
@@ -44,7 +46,7 @@ export default defineConfig({
       exclude: ['src/test/**', '**/*.spec.js', '**/*.test.js'],
       thresholds: {
         statements: 100,
-        branches: 95,
+        branches: 99,
         functions: 100,
         lines: 100,
       },

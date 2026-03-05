@@ -3,8 +3,8 @@
     <div class="card-section">
       <span class="card-label">Composer</span>
       <p class="m-0 mb-2 text-sm text-rm-muted">{{ composer.summary }}</p>
-      <p v-if="composer.validateMsg" class="m-0 mb-2 text-xs" :class="composer.validateOk ? 'text-rm-muted' : 'text-rm-warning'">{{ composer.validateMsg }}</p>
-      <p v-if="composer.lockWarning" class="m-0 mb-3 text-xs text-rm-warning">{{ composer.lockWarning }}</p>
+      <Message v-if="composer.validateMsg" :severity="composer.validateOk ? 'secondary' : 'warn'" class="mb-2 text-xs">{{ composer.validateMsg }}</Message>
+      <Message v-if="composer.lockWarning" severity="warn" class="mb-3 text-xs">{{ composer.lockWarning }}</Message>
       <div v-if="composer.scripts.length" class="mb-4">
         <span class="card-label text-rm-muted mb-1 block">Scripts</span>
         <ul class="m-0 pl-4 text-sm text-rm-muted list-disc">
@@ -15,36 +15,41 @@
         <Button severity="secondary" size="small" class="text-xs" @click="composer.load">Refresh outdated</Button>
         <Button v-if="composer.outdated.length" severity="primary" size="small" class="text-xs" :disabled="composer.updatingAll" @click="composer.updateAll">Update all</Button>
         <label class="checkbox-label text-sm text-rm-muted cursor-pointer flex items-center gap-2">
-          <input v-model="composer.directOnly" type="checkbox" class="checkbox-input" />
+          <Checkbox v-model="composer.directOnly" binary />
           <span>Direct only</span>
         </label>
       </div>
       <div v-if="composer.outdated.length" class="overflow-x-auto mb-4">
-        <table class="w-full text-sm border-collapse">
-          <thead><tr class="border-b border-rm-border text-left text-xs text-rm-muted"><th class="py-2 px-3">Package</th><th class="py-2 px-3">Current</th><th class="py-2 px-3">Latest</th><th></th></tr></thead>
-          <tbody>
-            <tr v-for="p in composer.outdated" :key="p.name" class="border-b border-rm-border">
-              <td class="py-2 px-3 font-mono text-rm-text">{{ p.name }}</td>
-              <td class="py-2 px-3 font-mono text-rm-muted">{{ p.version }}</td>
-              <td class="py-2 px-3 font-mono text-rm-accent">{{ p.latest }}</td>
-              <td class="py-2 px-3"><button type="button" class="text-xs text-rm-accent hover:underline border-none bg-transparent cursor-pointer p-0" @click="composer.updateOne(p.name)">Update</button></td>
-            </tr>
-          </tbody>
-        </table>
+        <DataTable :value="composer.outdated" dataKey="name" size="small" class="composer-datatable text-sm" tableClass="w-full">
+          <Column field="name" header="Package" class="font-mono text-rm-text" />
+          <Column field="version" header="Current" class="font-mono text-rm-muted" />
+          <Column field="latest" header="Latest" class="font-mono text-rm-accent" />
+          <Column header="">
+            <template #body="{ data }">
+              <Button variant="text" size="small" class="text-xs p-0 min-w-0 text-rm-accent hover:underline" @click="composer.updateOne(data.name)">Update</Button>
+            </template>
+          </Column>
+        </DataTable>
       </div>
-      <p v-if="composer.outdatedError" class="m-0 text-xs text-rm-warning">{{ composer.outdatedError }}</p>
+      <Message v-if="composer.outdatedError" severity="warn" class="text-xs">{{ composer.outdatedError }}</Message>
       <div v-if="composer.auditAdvisories.length" class="mt-4">
         <span class="card-label text-rm-muted mb-1 block">Audit</span>
-        <table class="w-full text-sm border-collapse">
-          <thead><tr class="border-b border-rm-border text-left text-xs text-rm-muted"><th class="py-2 px-3">Package</th><th class="py-2 px-3">Severity</th><th class="py-2 px-3">Advisory</th></tr></thead>
-          <tbody>
-            <tr v-for="a in composer.auditAdvisories" :key="a.name + (a.version||'')" class="border-b border-rm-border">
-              <td class="py-2 px-3 font-mono">{{ a.name }} {{ a.version || '' }}</td>
-              <td class="py-2 px-3">{{ a.severity || '—' }}</td>
-              <td class="py-2 px-3"><a v-if="a.link" :href="a.link" class="text-rm-accent hover:underline" target="_blank" rel="noopener noreferrer">{{ a.advisory }}</a><span v-else>{{ a.advisory }}</span></td>
-            </tr>
-          </tbody>
-        </table>
+        <DataTable :value="composer.auditAdvisories" size="small" class="composer-datatable text-sm" :dataKey="(a) => a.name + (a.version || '')">
+          <Column header="Package">
+            <template #body="{ data }">
+              <span class="font-mono">{{ data.name }} {{ data.version || '' }}</span>
+            </template>
+          </Column>
+          <Column field="severity" header="Severity">
+            <template #body="{ data }">{{ data.severity || '—' }}</template>
+          </Column>
+          <Column header="Advisory">
+            <template #body="{ data }">
+              <Button v-if="data.link" variant="link" :label="data.advisory" class="text-rm-accent p-0 min-w-0 h-auto" @click="openAdvisoryLink(data.link)" />
+              <span v-else>{{ data.advisory }}</span>
+            </template>
+          </Column>
+        </DataTable>
       </div>
     </div>
   </section>
@@ -53,9 +58,19 @@
 <script setup>
 import { computed } from 'vue';
 import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
+import Column from 'primevue/column';
+import DataTable from 'primevue/datatable';
+import Message from 'primevue/message';
+import { useApi } from '../../composables/useApi';
 import { useComposer } from '../../composables/useComposer';
 
 const props = defineProps({ info: { type: Object, default: null } });
+const api = useApi();
 const hasComposerRef = computed(() => !!props.info?.hasComposer);
 const composer = useComposer({ hasComposerRef });
+
+function openAdvisoryLink(url) {
+  if (url && api.openUrl) api.openUrl(url);
+}
 </script>

@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 280px;
+      padding: 12px 14px;
+      font-family: system-ui, -apple-system, sans-serif;
+      font-size: 13px;
+      margin: 0;
+      color: #333;
+    }
+    h2 {
+      font-size: 14px;
+      font-weight: 600;
+      margin: 0 0 10px;
+    }
+    p {
+      margin: 0 0 10px;
+      color: #666;
+    }
+    button {
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 13px;
+      background: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { background: #1d4ed8; }
+    button:disabled { background: #94a3b8; cursor: not-allowed; }
+    .message { font-size: 12px; margin-top: 8px; min-height: 1.2em; }
+    .message.success { color: #059669; }
+    .message.error { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <h2>Add to Release Manager</h2>
+  <p id="page-info">Current page will be bookmarked.</p>
+  <button id="send" type="button">Add bookmark</button>
+  <div id="message" class="message" aria-live="polite"></div>
+  <script src="popup.js"></script>
+</body>
+</html>

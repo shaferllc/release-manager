@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Release Manager Bookmarks",
+  "version": "1.0.0",
+  "description": "Send the current page to Release Manager as a bookmark for the selected project.",
+  "permissions": ["activeTab", "storage"],
+  "host_permissions": ["http://127.0.0.1/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Add to Release Manager"
+  },
+  "options_page": "options.html"
+}

@@ -15,6 +15,8 @@ export const TAB_FLAG_IDS = [
   'tests',
   'coverage',
   'api',
+  'kanban',
+  'markdown',
 ];
 
 const defaultTabFlags = () => {

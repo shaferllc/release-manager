@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { projectDisplayName } from '../utils';
 
 export const useAppStore = defineStore('app', () => {
   const projects = ref([]);
@@ -40,9 +41,7 @@ export const useAppStore = defineStore('app', () => {
       const bStarred = b.starred === true;
       if (aStarred && !bStarred) return -1;
       if (!aStarred && bStarred) return 1;
-      const aName = a.name || (a.path ? a.path.replace(/\\/g, '/').split('/').filter(Boolean).pop() : '') || '';
-      const bName = b.name || (b.path ? b.path.replace(/\\/g, '/').split('/').filter(Boolean).pop() : '') || '';
-      return String(aName).localeCompare(String(bName), undefined, { sensitivity: 'base' });
+      return String(projectDisplayName(a)).localeCompare(String(projectDisplayName(b)), undefined, { sensitivity: 'base' });
     });
     return sorted;
   });

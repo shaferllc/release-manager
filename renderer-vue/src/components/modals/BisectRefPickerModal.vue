@@ -34,11 +34,12 @@
             placeholder="Search by hash, title, description or author"
           />
             <div class="overflow-auto max-h-48 min-h-0">
-              <button
+              <Button
                 v-for="c in filteredBadCommits"
                 :key="c.sha"
-                type="button"
-                class="bisect-commit-row w-full text-left text-xs px-2 py-2 border-0 border-b border-rm-border bg-transparent hover:bg-rm-accent/15 text-rm-text"
+                variant="text"
+                size="small"
+                class="bisect-commit-row w-full justify-start text-xs px-2 py-2 min-w-0 rounded-none border-0 border-b border-rm-border hover:bg-rm-accent/15 text-rm-text"
                 :class="{ 'opacity-50 cursor-not-allowed': c.sha === goodRef.trim() }"
                 :disabled="c.sha === goodRef.trim()"
                 @click="selectRef('bad', c.sha)"
@@ -47,8 +48,12 @@
                 <span class="mx-1.5">·</span>
                 <span class="truncate">{{ c.subject || '(no subject)' }}</span>
                 <span class="block text-[11px] text-rm-muted mt-0.5">{{ c.author }} · {{ c.date }}</span>
-              </button>
-              <p v-if="commitsLoading" class="text-xs text-rm-muted p-2 m-0">Loading commits…</p>
+              </Button>
+              <template v-if="commitsLoading">
+                <Skeleton width="100%" height="2rem" class="mb-2" />
+                <Skeleton width="100%" height="2rem" class="mb-2" />
+                <Skeleton width="80%" height="2rem" />
+              </template>
               <p v-else-if="filteredBadCommits.length === 0" class="text-xs text-rm-muted p-2 m-0">No commits match.</p>
             </div>
         </div>
@@ -76,11 +81,12 @@
             placeholder="Search by hash, title, description or author"
           />
             <div class="overflow-auto max-h-48 min-h-0">
-              <button
+              <Button
                 v-for="c in filteredGoodCommits"
                 :key="c.sha"
-                type="button"
-                class="bisect-commit-row w-full text-left text-xs px-2 py-2 border-0 border-b border-rm-border bg-transparent hover:bg-rm-accent/15 text-rm-text"
+                variant="text"
+                size="small"
+                class="bisect-commit-row w-full justify-start text-xs px-2 py-2 min-w-0 rounded-none border-0 border-b border-rm-border hover:bg-rm-accent/15 text-rm-text"
                 :class="{ 'opacity-50 cursor-not-allowed': c.sha === badRef.trim() }"
                 :disabled="c.sha === badRef.trim()"
                 @click="selectRef('good', c.sha)"
@@ -89,14 +95,18 @@
                 <span class="mx-1.5">·</span>
                 <span class="truncate">{{ c.subject || '(no subject)' }}</span>
                 <span class="block text-[11px] text-rm-muted mt-0.5">{{ c.author }} · {{ c.date }}</span>
-              </button>
-              <p v-if="commitsLoading" class="text-xs text-rm-muted p-2 m-0">Loading commits…</p>
+              </Button>
+              <template v-if="commitsLoading">
+                <Skeleton width="100%" height="2rem" class="mb-2" />
+                <Skeleton width="100%" height="2rem" class="mb-2" />
+                <Skeleton width="80%" height="2rem" />
+              </template>
               <p v-else-if="filteredGoodCommits.length === 0" class="text-xs text-rm-muted p-2 m-0">No commits match.</p>
             </div>
         </div>
       </div>
 
-      <p v-if="startBisectError" class="text-xs text-rm-warning m-0">{{ startBisectError }}</p>
+      <Message v-if="startBisectError" severity="warn" class="text-xs">{{ startBisectError }}</Message>
     </div>
     <template #footer>
       <Button severity="primary" size="small" :disabled="!canStartBisect" :title="startBisectError || undefined" @click="confirm">Start bisect</Button>
@@ -106,11 +116,12 @@
 </template>
 
 <script setup>
-import { ref, watch, computed, onMounted } from 'vue';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
-import { useApi } from '../../composables/useApi';
+import Message from 'primevue/message';
+import Skeleton from 'primevue/skeleton';
+import { useBisectRefPicker } from '../../plugins/git/bisect';
 
 const props = defineProps({
   dirPath: { type: String, default: '' },
@@ -119,95 +130,25 @@ const props = defineProps({
 });
 const emit = defineEmits(['close', 'confirm']);
 
-const api = useApi();
-const badRef = ref(props.defaultBad || 'HEAD');
-const goodRef = ref(props.defaultGood || '');
-const browserOpen = ref(null);
-const badSearch = ref('');
-const goodSearch = ref('');
-const commits = ref([]);
-const commitsLoading = ref(false);
-
-function matchCommit(c, q) {
-  if (!q || !q.trim()) return true;
-  const s = q.trim().toLowerCase();
-  const sha = (c.sha || '').toLowerCase();
-  const subject = (c.subject || '').toLowerCase();
-  const author = (c.author || '').toLowerCase();
-  const body = (c.body || '').toLowerCase();
-  return sha.includes(s) || subject.includes(s) || author.includes(s) || body.includes(s);
-}
-
-const filteredBadCommits = computed(() => {
-  const q = badSearch.value;
-  return commits.value.filter((c) => matchCommit(c, q));
-});
-
-const filteredGoodCommits = computed(() => {
-  const q = goodSearch.value;
-  return commits.value.filter((c) => matchCommit(c, q));
-});
-
-const canStartBisect = computed(() => {
-  const bad = badRef.value.trim();
-  const good = goodRef.value.trim();
-  if (!bad || !good) return false;
-  if (bad === good) return false;
-  return commits.value.length >= 2;
-});
-
-const startBisectError = computed(() => {
-  const bad = badRef.value.trim();
-  const good = goodRef.value.trim();
-  if (!bad || !good) return 'Set both bad and good refs.';
-  if (bad === good) return 'Bad and good must be different commits.';
-  if (commits.value.length < 2) return 'Need at least two commits to bisect.';
-  return null;
-});
-
-watch(() => [props.defaultBad, props.defaultGood], () => {
-  badRef.value = props.defaultBad || 'HEAD';
-  goodRef.value = props.defaultGood || '';
-});
-
-onMounted(async () => {
-  if (!props.dirPath) return;
-  const fetchLog = api.getCommitLogWithBody || api.getCommitLog;
-  if (!fetchLog) return;
-  commitsLoading.value = true;
-  try {
-    const result = await fetchLog(props.dirPath, 100);
-    commits.value = result?.ok && Array.isArray(result.commits) ? result.commits : [];
-  } catch {
-    commits.value = [];
-  } finally {
-    commitsLoading.value = false;
-  }
-});
-
-function toggleBrowser(which) {
-  browserOpen.value = browserOpen.value === which ? null : which;
-}
-
-function selectRef(which, sha) {
-  if (which === 'bad') {
-    if (sha === goodRef.value.trim()) return;
-    badRef.value = sha;
-    browserOpen.value = null;
-  } else {
-    if (sha === badRef.value.trim()) return;
-    goodRef.value = sha;
-    browserOpen.value = null;
-  }
-}
-
-function close() {
-  emit('close');
-}
-
-function confirm() {
-  if (!canStartBisect.value) return;
-  emit('confirm', { badRef: badRef.value.trim(), goodRef: goodRef.value.trim() });
-  emit('close');
-}
+const {
+  badRef,
+  goodRef,
+  browserOpen,
+  badSearch,
+  goodSearch,
+  commitsLoading,
+  filteredBadCommits,
+  filteredGoodCommits,
+  canStartBisect,
+  startBisectError,
+  toggleBrowser,
+  selectRef,
+  close,
+  confirm,
+} = useBisectRefPicker(
+  () => props.dirPath,
+  () => props.defaultBad,
+  () => props.defaultGood,
+  emit
+);
 </script>

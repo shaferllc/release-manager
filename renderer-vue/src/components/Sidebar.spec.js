@@ -54,8 +54,9 @@ describe('Sidebar', () => {
     const wrapper = mount(Sidebar, {
       global: { plugins: [pinia] },
     });
-    const checkbox = wrapper.find('input[type="checkbox"]');
-    await checkbox.trigger('click');
+    const checkboxes = wrapper.findAllComponents({ name: 'Checkbox' });
+    expect(checkboxes.length).toBeGreaterThan(0);
+    await checkboxes[0].vm.$emit('update:modelValue');
     expect(store.selectedPaths?.has?.('/foo')).toBe(true);
   });
 

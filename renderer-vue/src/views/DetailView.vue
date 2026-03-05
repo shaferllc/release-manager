@@ -1,6 +1,6 @@
 <template>
   <div class="detail-view-root flex flex-col min-w-0" :class="{ 'detail-view-root-coverage': store.detailTab === 'coverage' }">
-    <div v-if="error" class="p-5 text-rm-warning text-sm">{{ error }}</div>
+    <Message v-if="error" severity="warn" class="m-4">{{ error }}</Message>
     <template v-else-if="info">
       <div
         class="detail-content w-full py-8 px-8 relative flex flex-col"
@@ -8,17 +8,31 @@
       >
         <DetailHeader :info="info" @remove="$emit('refresh')" />
         <div v-if="store.useDetailTabs" class="detail-tabs-bar flex flex-wrap gap-1 border-b border-rm-border/50 shrink-0">
-          <button
-            v-for="tab in visibleTabs"
-            :key="tab.id"
-            type="button"
-            class="detail-tab-btn inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium border border-transparent bg-transparent"
-            :class="store.detailTab === tab.id ? 'text-rm-accent border-rm-accent/50 bg-rm-accent/10' : 'text-rm-muted hover:text-rm-text hover:bg-rm-surface/50'"
-            @click="store.setDetailTab(tab.id)"
-          >
-            <span v-if="tab.icon" class="detail-tab-icon shrink-0" v-html="tab.icon" aria-hidden="true"></span>
-            {{ tab.label }}
-          </button>
+          <template v-for="(tab, index) in visibleTabs" :key="tab.id">
+            <div
+              v-if="dropTargetIndex === index && draggedTabId"
+              class="detail-tab-drop-indicator w-0.5 h-6 rounded-full bg-rm-accent shrink-0"
+              aria-hidden="true"
+            />
+            <Button
+              variant="text"
+              size="small"
+              draggable="true"
+              class="detail-tab-btn inline-flex items-center gap-x-1.5 shrink-0 px-3 py-1.5 rounded-rm text-sm font-medium min-w-0 border"
+              :class="[store.detailTab === tab.id ? 'text-rm-accent border-rm-accent/50 bg-rm-accent/10' : 'text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 border-transparent', draggedTabId === tab.id ? 'opacity-50' : '']"
+              :data-tab-id="tab.id"
+              :aria-label="`${tab.label} tab. Drag to reorder.`"
+              @click="store.setDetailTab(tab.id)"
+              @dragstart="onTabDragStart($event, tab.id)"
+              @dragover.prevent="onTabDragOver($event, index)"
+              @dragenter="onTabDragEnter(index)"
+              @drop.prevent="onTabDrop(index)"
+              @dragend="onTabDragEnd"
+            >
+              <span v-if="tab.icon" class="detail-tab-icon shrink-0" v-html="tab.icon" aria-hidden="true"></span>
+              {{ tab.label }}
+            </Button>
+          </template>
         </div>
         <div
           class="detail-tab-panels flex flex-col"
@@ -48,36 +62,23 @@
           <template v-else-if="store.detailTab === 'pull-requests'">
             <DetailPullRequestsCard :info="info" @refresh="load" />
           </template>
-          <template v-else-if="store.detailTab === 'processes'">
-            <DetailProcessesCard :info="info" />
-          </template>
-          <template v-else-if="store.detailTab === 'email'">
-            <DetailEmailCard />
-          </template>
-          <template v-else-if="store.detailTab === 'tunnels'">
-            <DetailTunnelsCard />
-          </template>
-          <template v-else-if="store.detailTab === 'ftp'">
-            <DetailFtpCard />
-          </template>
-          <template v-else-if="store.detailTab === 'ssh'">
-            <DetailSshCard />
+          <template v-else-if="extensionComponent">
+            <component :is="extensionComponent" :info="info" />
           </template>
         </div>
       </div>
     </template>
     <div v-else class="detail-loading flex flex-col items-center justify-center gap-3 py-12 text-rm-muted text-sm">
-      <span class="detail-loading-spinner w-8 h-8 border-2 border-rm-border border-t-rm-accent rounded-full animate-spin" aria-hidden="true"></span>
+      <ProgressSpinner aria-hidden="true" class="!w-8 !h-8" />
       <span>Loading…</span>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, computed } from 'vue';
-import { useAppStore } from '../stores/app';
-import { useApi } from '../composables/useApi';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
+import Button from 'primevue/button';
+import Message from 'primevue/message';
+import ProgressSpinner from 'primevue/progressspinner';
 import DetailHeader from '../components/detail/DetailHeader.vue';
 import DetailDashboardCard from '../components/detail/DetailDashboardCard.vue';
 import DetailVersionCard from '../components/detail/DetailVersionCard.vue';
@@ -87,89 +88,57 @@ import DetailTestsCard from '../components/detail/DetailTestsCard.vue';
 import DetailCoverageCard from '../components/detail/DetailCoverageCard.vue';
 import DetailApiCard from '../components/detail/DetailApiCard.vue';
 import DetailPullRequestsCard from '../components/detail/DetailPullRequestsCard.vue';
-import DetailProcessesCard from '../components/detail/DetailProcessesCard.vue';
-import DetailEmailCard from '../components/detail/DetailEmailCard.vue';
-import DetailTunnelsCard from '../components/detail/DetailTunnelsCard.vue';
-import DetailFtpCard from '../components/detail/DetailFtpCard.vue';
-import DetailSshCard from '../components/detail/DetailSshCard.vue';
+import { useDetailView } from '../composables/useDetailView';
+import { getDetailTabExtension } from '../extensions/registry';
+import { computed, ref } from 'vue';
 
 defineEmits(['refresh']);
 
-const store = useAppStore();
-const api = useApi();
-const { isTabEnabled } = useFeatureFlags();
-const info = ref(null);
-const error = ref(null);
+const { store, info, error, visibleTabs, load, setDetailTabOrder } = useDetailView();
+const draggedTabId = ref(null);
+const dropTargetIndex = ref(null);
 
-const projectType = computed(() => (info.value?.projectType || '').toLowerCase());
-const showTestsTab = computed(() => projectType.value === 'npm' || projectType.value === 'php');
-const showCoverageTab = computed(() => projectType.value === 'npm' || projectType.value === 'php');
-
-const tabIcons = {
-  dashboard: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>',
-  git: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="3" x2="6" y2="15"/><circle cx="6" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M18 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M6 15a3 3 0 0 0 6 0"/></svg>',
-  version: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m4.9 4.9 2.8 2.8"/><path d="M2 12h4"/><path d="m4.9 19.1 2.8-2.8"/><path d="M12 18v4"/><path d="m19.1 19.1-2.8-2.8"/><path d="M22 12h-4"/><path d="m19.1 4.9-2.8 2.8"/><circle cx="12" cy="12" r="4"/></svg>',
-  composer: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-  tests: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2 1.33-2 0 0-2.77 2.24-5 5-5 1.66 0 3 1.35 3 3.02 0 1.33 2 1.33 2 0"/></svg>',
-  coverage: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>',
-  api: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d=\"M4 4h7v7H4z\"/><path d=\"M13 4h7v7h-7z\"/><path d=\"M4 13h7v7H4z\"/><path d=\"M13 13h7v7h-7z\"/></svg>',
-  pullRequests: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h5a2 2 0 0 1 2 2v7"/><path d="M6 9v6a2 2 0 0 0 2 2h7"/></svg>',
-  processes: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="4" rx="1"/><rect x="2" y="10" width="20" height="4" rx="1"/><rect x="2" y="16" width="20" height="4" rx="1"/></svg>',
-  email: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>',
-  tunnels: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/><circle cx="12" cy="12" r="3"/></svg>',
-  ftp: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>',
-  ssh: '<svg class="detail-tab-icon-svg" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h.01M10 12h.01M14 12h.01M18 12h.01"/></svg>',
-};
-const baseTabs = [
-  { id: 'dashboard', label: 'Dashboard', icon: tabIcons.dashboard },
-  { id: 'git', label: 'Git', icon: tabIcons.git },
-  { id: 'version', label: 'Version & release', icon: tabIcons.version },
-  { id: 'pull-requests', label: 'Pull requests', icon: tabIcons.pullRequests },
-  { id: 'processes', label: 'Dev stack', icon: tabIcons.processes },
-  { id: 'email', label: 'Email', icon: tabIcons.email },
-  { id: 'tunnels', label: 'Tunnels', icon: tabIcons.tunnels },
-  { id: 'ftp', label: 'FTP', icon: tabIcons.ftp },
-  { id: 'ssh', label: 'SSH', icon: tabIcons.ssh },
-];
-/* Tab visibility: feature flags only. When user enables a tab in Hidden options, it shows. License still gates in-tab features (e.g. AI, batch). */
-const visibleTabs = computed(() => {
-  const t = baseTabs.filter((tab) => isTabEnabled(tab.id));
-  if (isTabEnabled('composer') && info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: tabIcons.composer });
-  if (isTabEnabled('tests') && showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: tabIcons.tests });
-  if (isTabEnabled('coverage') && showCoverageTab.value) t.push({ id: 'coverage', label: 'Coverage', icon: tabIcons.coverage });
-  if (isTabEnabled('api')) t.push({ id: 'api', label: 'API', icon: tabIcons.api });
-  return t;
+const extensionComponent = computed(() => {
+  const ext = getDetailTabExtension(store.detailTab);
+  return ext?.component ?? null;
 });
 
-watch(visibleTabs, (tabs) => {
-  const ids = tabs.map((t) => t.id);
-  if (ids.length && !ids.includes(store.detailTab)) store.setDetailTab('dashboard');
-}, { immediate: true });
-
-async function load() {
-  const path = store.selectedPath;
-  if (!path) { info.value = null; error.value = null; return; }
-  error.value = null;
-  try {
-    const result = await api.getProjectInfo?.(path);
-    if (!result?.ok) {
-      error.value = result?.error || 'Failed to load project info';
-      info.value = null;
-      return;
-    }
-    info.value = result;
-  } catch (e) {
-    error.value = e?.message || 'Failed to load project info';
-    info.value = null;
-  }
+function onTabDragStart(event, tabId) {
+  draggedTabId.value = tabId;
+  dropTargetIndex.value = null;
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', tabId);
+  event.dataTransfer.setData('application/x-detail-tab-id', tabId);
 }
 
-onMounted(() => {
-  load();
-});
-watch(() => store.selectedPath, () => {
-  load();
-});
+function onTabDragEnter(index) {
+  dropTargetIndex.value = index;
+}
+
+function onTabDragOver(event, index) {
+  if (!draggedTabId.value) return;
+  event.dataTransfer.dropEffect = 'move';
+  dropTargetIndex.value = index;
+}
+
+function onTabDragEnd() {
+  draggedTabId.value = null;
+  dropTargetIndex.value = null;
+}
+
+function onTabDrop(dropIndex) {
+  const tabId = draggedTabId.value;
+  onTabDragEnd();
+  if (!tabId || !setDetailTabOrder) return;
+  const ids = visibleTabs.value.map((t) => t.id);
+  const fromIndex = ids.indexOf(tabId);
+  if (fromIndex === -1) return;
+  const newIds = [...ids];
+  newIds.splice(fromIndex, 1);
+  const insertIndex = dropIndex > fromIndex ? dropIndex - 1 : dropIndex;
+  newIds.splice(insertIndex, 0, tabId);
+  setDetailTabOrder(newIds);
+}
 </script>
 
 <style scoped>

@@ -210,6 +210,8 @@ const API_DOCS = [
   { name: 'openInEditor', category: 'System & UI', description: 'Open the project in the preferred editor (Cursor or VS Code).', params: [{ name: 'dirPath', type: 'string' }], returns: 'Promise<{ ok, editor? } | { ok: false, error }>' },
   { name: 'openFileInEditor', category: 'System & UI', description: 'Open a file in the project in the preferred editor.', params: [{ name: 'dirPath', type: 'string' }, { name: 'relativePath', type: 'string' }], returns: 'Promise<{ ok, editor? } | { ok: false, error }>' },
   { name: 'getFileDiff', category: 'System & UI', description: 'Get diff or content for a file (staged/unstaged/untracked).', params: [{ name: 'dirPath', type: 'string' }, { name: 'filePath', type: 'string' }, { name: 'isUntracked', type: 'boolean' }], returns: '{ ok, type: "diff"|"new"|"image", content?|dataUrl? } or { ok: false, error }' },
+  { name: 'readProjectFile', category: 'System & UI', description: 'Read a project file as UTF-8 text. Path must be inside the project. Max 1MB.', params: [{ name: 'dirPath', type: 'string' }, { name: 'relativePath', type: 'string' }], returns: '{ ok, content } or { ok: false, error }' },
+  { name: 'writeProjectFile', category: 'System & UI', description: 'Write UTF-8 text to a project file. Creates parent dirs if needed. Max 1MB.', params: [{ name: 'dirPath', type: 'string' }, { name: 'relativePath', type: 'string' }, { name: 'content', type: 'string' }], returns: '{ ok } or { ok: false, error }' },
 
   // GitHub releases & downloads
   { name: 'getReleasesUrl', category: 'GitHub releases & downloads', description: 'Get GitHub releases page URL for the repo.', params: [{ name: 'gitRemote', type: 'string' }], returns: 'URL string or null' },

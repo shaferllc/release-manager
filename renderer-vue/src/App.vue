@@ -11,6 +11,7 @@
         <DetailView v-else-if="store.viewMode === 'detail' && store.selectedPath" @refresh="onModalRefresh" />
         <DashboardView v-else-if="store.viewMode === 'dashboard'" />
         <SettingsView v-else-if="store.viewMode === 'settings'" />
+        <ExtensionsView v-else-if="store.viewMode === 'extensions'" />
         <DocsView v-else-if="store.viewMode === 'docs'" />
         <ChangelogView v-else-if="store.viewMode === 'changelog'" />
         <ApiView v-else-if="store.viewMode === 'api'" />
@@ -36,6 +37,7 @@ import NoSelection from './views/NoSelection.vue';
 import DetailView from './views/DetailView.vue';
 import DashboardView from './views/DashboardView.vue';
 import SettingsView from './views/SettingsView.vue';
+import ExtensionsView from './views/ExtensionsView.vue';
 import DocsView from './views/DocsView.vue';
 import ChangelogView from './views/ChangelogView.vue';
 import ApiView from './views/ApiView.vue';
@@ -122,8 +124,8 @@ async function loadProjects() {
     if (pathStillInList) store.setSelectedPath(savedPath);
     else if (store.projects.length > 0 && !store.selectedPath) store.setSelectedPath(store.projects[0].path);
     else store.setSelectedPath(null);
-    if (savedView && ['detail', 'dashboard', 'settings', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
-    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'processes', 'email', 'tunnels', 'ftp', 'ssh'];
+    if (savedView && ['detail', 'dashboard', 'settings', 'extensions', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
+    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'processes', 'email', 'tunnels', 'ftp', 'ssh', 'kanban', 'markdown'];
     if (typeof savedDetailTab === 'string' && validDetailTabs.includes(savedDetailTab)) store.setDetailTab(savedDetailTab);
     if (store.selectedPath) {
       const current = store.projects.find((p) => p.path === store.selectedPath);

@@ -1,6 +1,6 @@
 # UI: PrimeVue only
 
-This app uses **PrimeVue** (unstyled) and inline/CSS only. There are **no Rm\*** custom components.
+This app uses **PrimeVue** in [styled mode](https://primevue.org/theming/styled/) (Aura preset) and inline/CSS only. There are **no Rm\*** custom components.
 
 See [PRIMEVUE.md](../../PRIMEVUE.md) for:
 

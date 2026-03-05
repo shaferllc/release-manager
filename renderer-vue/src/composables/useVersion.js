@@ -41,22 +41,28 @@ export function useVersion(store, getInfo, modals, runWithOverlay, notifications
 
   async function loadReleasedVersions() {
     const info = getInfo?.();
+    const path = info?.path;
     if (!info?.hasGit || !info?.gitRemote) {
       releasedTags.value = info?.allTags || [];
       releasesUrl.value = '';
       return;
     }
+    releasedTags.value = [];
+    releasesUrl.value = '';
     try {
       const url = await api.getReleasesUrl?.(info.gitRemote);
+      if (store.selectedPath !== path) return;
       releasesUrl.value = url || '';
       const token = getToken() || (await api.getGitHubToken?.()) || null;
       const res = await api.getGitHubReleases?.(info.gitRemote, token);
+      if (store.selectedPath !== path) return;
       if (res?.ok && res?.releases?.length) {
         releasedTags.value = res.releases.map((r) => r.tag_name);
       } else {
         releasedTags.value = info?.allTags || [];
       }
     } catch (_) {
+      if (store.selectedPath !== path) return;
       releasedTags.value = getInfo?.()?.allTags || [];
       releasesUrl.value = '';
     }
@@ -70,8 +76,11 @@ export function useVersion(store, getInfo, modals, runWithOverlay, notifications
       suggestedBump.value = '';
       return;
     }
+    recentCommits.value = [];
+    suggestedBump.value = '';
     try {
       const result = await api.getRecentCommits?.(path, 7);
+      if (store.selectedPath !== path) return;
       if (!result?.ok || !result?.commits?.length) {
         recentCommits.value = [];
         suggestedBump.value = '';
@@ -79,8 +88,10 @@ export function useVersion(store, getInfo, modals, runWithOverlay, notifications
       }
       recentCommits.value = result.commits.slice(0, 7);
       const suggested = await api.getSuggestedBump?.(result.commits);
+      if (store.selectedPath !== path) return;
       suggestedBump.value = suggested || '';
     } catch (_) {
+      if (store.selectedPath !== path) return;
       recentCommits.value = [];
       suggestedBump.value = '';
     }

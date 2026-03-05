@@ -9,10 +9,14 @@ function createDialogsService(deps) {
 
   async function showSaveDialog(options) {
     const win = getBrowserWindow();
-    const { canceled, filePath } = await dialog.showSaveDialog(win || undefined, {
+    const opts = {
       defaultPath: options?.defaultPath,
       title: options?.title || 'Save file',
-    });
+    };
+    if (options?.filters && Array.isArray(options.filters) && options.filters.length > 0) {
+      opts.filters = options.filters;
+    }
+    const { canceled, filePath } = await dialog.showSaveDialog(win || undefined, opts);
     return { canceled: !!canceled, filePath: canceled ? null : filePath };
   }
 

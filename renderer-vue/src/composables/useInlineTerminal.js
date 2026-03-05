@@ -1,5 +1,6 @@
 import { ref, computed, watch, nextTick, onMounted } from 'vue';
 import { useApi } from './useApi';
+import { truncatePath } from '../utils';
 
 const HISTORY_MAX = 50;
 
@@ -23,11 +24,7 @@ export function useInlineTerminal(getDirPath, getShowScripts) {
   const historyIndex = ref(-1);
   const historyTemp = ref('');
 
-  const displayPath = computed(() => {
-    const p = getDirPath?.() || '';
-    if (p.length <= 40) return p;
-    return '…' + p.slice(-38);
-  });
+  const displayPath = computed(() => truncatePath(getDirPath?.() || '', 39));
 
   function promptLine(cwd) {
     const p = (cwd || '').replace(/\\/g, '/').replace(/^.*\//, '') || '~';
@@ -129,7 +126,7 @@ export function useInlineTerminal(getDirPath, getShowScripts) {
   }
 
   function focusInput() {
-    inputEl.value?.focus();
+    (inputEl.value?.$el ?? inputEl.value)?.focus();
   }
 
   watch(

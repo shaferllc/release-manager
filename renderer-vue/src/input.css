@@ -1,4 +1,4 @@
-/* Layer order so Tailwind utilities can override PrimeVue (see primevue.org/tailwind) */
+/* Layer order so Tailwind utilities can override PrimeVue styled theme (see primevue.org/theming/styled and primevue.org/tailwind) */
 @layer tailwind-base, primevue, tailwind-utilities;
 
 @layer tailwind-base {
@@ -62,11 +62,11 @@ html[data-radius="rounded"] { --rm-radius: 6px; }
 html[data-radius="pill"] { --rm-radius: 9999px; }
 
 /* Font size / density */
-html[data-font-size="tighter"] { font-size: 11px; }
-html[data-font-size="compact"] { font-size: 12px; }
-html[data-font-size="comfortable"] { font-size: 13px; }
-html[data-font-size="spacious"] { font-size: 14px; }
-html[data-font-size="relaxed"] { font-size: 15px; }
+html[data-font-size="tighter"] { font-size: 12px; }
+html[data-font-size="compact"] { font-size: 13px; }
+html[data-font-size="comfortable"] { font-size: 14px; }
+html[data-font-size="spacious"] { font-size: 15px; }
+html[data-font-size="relaxed"] { font-size: 16px; }
 
 /* Border radius: sharp (0), rounded (6px), or pill (9999px) per Settings > Corner style. Missing = sharp. */
 html[data-radius="sharp"] .rounded-rm,
@@ -85,10 +85,7 @@ html[data-radius="sharp"] input[type="password"],
 html[data-radius="sharp"] input[type="url"],
 html[data-radius="sharp"] input[type="number"],
 html[data-radius="sharp"] select.rounded-rm,
-html[data-radius="sharp"] .detail-git-toolbar-select,
-html[data-radius="sharp"] .release-notes-input,
-html[data-radius="sharp"] .commit-message-input,
-html[data-radius="sharp"] .filter-select { border-radius: 0 !important; }
+html[data-radius="sharp"] .detail-git-toolbar-select { border-radius: 0 !important; }
 html:not([data-radius="rounded"]):not([data-radius="pill"]) textarea,
 html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="text"],
 html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="email"],
@@ -96,10 +93,7 @@ html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="password
 html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="url"],
 html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="number"],
 html:not([data-radius="rounded"]):not([data-radius="pill"]) select.rounded-rm,
-html:not([data-radius="rounded"]):not([data-radius="pill"]) .detail-git-toolbar-select,
-html:not([data-radius="rounded"]):not([data-radius="pill"]) .release-notes-input,
-html:not([data-radius="rounded"]):not([data-radius="pill"]) .commit-message-input,
-html:not([data-radius="rounded"]):not([data-radius="pill"]) .filter-select { border-radius: 0 !important; }
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .detail-git-toolbar-select { border-radius: 0 !important; }
 
 /* Buttons and inputs: rounded = 6px */
 html[data-radius="rounded"] textarea,
@@ -109,14 +103,10 @@ html[data-radius="rounded"] input[type="password"],
 html[data-radius="rounded"] input[type="url"],
 html[data-radius="rounded"] input[type="number"],
 html[data-radius="rounded"] select.rounded-rm,
-html[data-radius="rounded"] .detail-git-toolbar-select,
-html[data-radius="rounded"] .release-notes-input,
-html[data-radius="rounded"] .commit-message-input,
-html[data-radius="rounded"] .filter-select { border-radius: 6px !important; }
+html[data-radius="rounded"] .detail-git-toolbar-select { border-radius: 6px !important; }
 
 /* Buttons and inputs: pill = full rounded */
 html[data-radius="pill"] textarea { border-radius: 9999px !important; }
-html[data-radius="pill"] .detail-git-filter-input,
 html[data-radius="pill"] .detail-git-toolbar-select,
 html[data-radius="pill"] .detail-git-section-select-btn,
 html[data-radius="pill"] .detail-git-right-panel input,
@@ -143,7 +133,9 @@ html[data-radius="sharp"] .btn-ghost,
 html[data-radius="sharp"] .detail-git-section-dropdown-menu,
 html[data-radius="sharp"] .detail-git-toolbar-dropdown-menu,
 html[data-radius="sharp"] .detail-git-section-select-btn,
-html[data-radius="sharp"] .git-branch-context-menu {
+html[data-radius="sharp"] .git-branch-context-menu,
+html[data-radius="sharp"] .view-dropdown-btn,
+html[data-radius="sharp"] .view-dropdown-menu {
   border-radius: 0 !important;
 }
 html[data-radius="rounded"] button,
@@ -160,7 +152,9 @@ html[data-radius="rounded"] .btn-ghost,
 html[data-radius="rounded"] .detail-git-section-dropdown-menu,
 html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu,
 html[data-radius="rounded"] .detail-git-section-select-btn,
-html[data-radius="rounded"] .git-branch-context-menu {
+html[data-radius="rounded"] .git-branch-context-menu,
+html[data-radius="rounded"] .view-dropdown-btn,
+html[data-radius="rounded"] .view-dropdown-menu {
   border-radius: 6px !important;
 }
 
@@ -214,7 +208,7 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
     @apply h-full overflow-hidden;
   }
   body {
-    @apply m-0 h-full flex flex-col bg-rm-bg text-rm-text text-[13px] antialiased overflow-hidden;
+    @apply m-0 h-full flex flex-col bg-rm-bg text-rm-text text-[14px] antialiased overflow-hidden;
   }
   #app {
     @apply h-full min-h-0 flex flex-col;
@@ -262,17 +256,6 @@ html[data-theme="light"] .main-content-section {
 .detail-git-sidebar-group-header-modern {
   @apply text-[11px] font-medium tracking-wide text-rm-muted;
 }
-.detail-git-commit-anchored {
-  @apply bg-rm-bg border-t border-rm-border;
-}
-.detail-git-commit-anchored textarea,
-.detail-git-commit-anchored input {
-  @apply border-rm-border bg-rm-bg-elevated;
-}
-.detail-git-commit-anchored textarea:focus,
-.detail-git-commit-anchored input:focus {
-  @apply border-rm-border-focus outline-none;
-}
 .detail-git-right-panel {
   @apply bg-rm-bg/50 overflow-visible; /* allow section dropdown menu to show below the button */
 }
@@ -298,6 +281,9 @@ html[data-theme="light"] .main-content-section {
 .detail-git-commit-table {
   @apply border-t border-b border-rm-border;
 }
+.detail-git-commit-table thead {
+  @apply sticky top-0 bg-rm-surface/95 z-10;
+}
 .detail-git-commit-table thead th,
 .detail-git-commit-table tbody td {
   @apply border-r border-rm-border;
@@ -315,12 +301,13 @@ html[data-theme="light"] .main-content-section {
 .detail-git-commit-summary-wrap {
   @apply flex gap-2 items-start;
 }
+/* Summary/desc use PrimeVue Textarea – theme controls border/radius; keep layout via component class */
 .detail-git-commit-summary-input,
 .detail-git-commit-desc-input {
-  @apply flex-1 min-w-0 text-[13px] resize-none border border-rm-border bg-rm-bg text-rm-text py-1.5 px-2 rounded-none;
+  @apply flex-1 min-w-0 text-[13px];
 }
 .detail-git-commit-ai-btn {
-  @apply shrink-0 p-1.5 border border-rm-border bg-transparent text-rm-muted cursor-pointer rounded-none;
+  @apply shrink-0 p-1.5 border border-rm-border bg-transparent text-rm-muted cursor-pointer;
 }
 .detail-git-commit-ai-btn:hover {
   @apply text-rm-accent bg-rm-accent/10 border-rm-accent/40;
@@ -335,10 +322,7 @@ html[data-theme="light"] .main-content-section {
   @apply flex gap-2 items-center;
 }
 .detail-git-commit-submit {
-  @apply flex-1 min-w-0 py-2 px-2.5 text-[13px] font-semibold rounded-none;
-}
-.detail-git-commit-push {
-  @apply shrink-0 py-2 px-2.5 text-xs rounded-none;
+  @apply flex-1 min-w-0 py-2 px-2.5 text-[13px] font-semibold;
 }
 .detail-git-commit-status {
   @apply mt-2 text-[11px] text-rm-muted;
@@ -389,36 +373,34 @@ html[data-theme="light"] .main-content-section {
   @apply py-0.5 px-1.5 pb-1 max-h-40 overflow-y-auto;
 }
 
-/* Force sharp corners in right panel */
+/* Force sharp corners in right panel (exclude PrimeVue Textarea so theme can style) */
 .detail-git-right-panel,
 .detail-git-right-panel .detail-git-files-panel,
 .detail-git-right-panel .detail-git-commit-card,
 .detail-git-right-panel .detail-git-section-select-btn,
-.detail-git-right-panel textarea,
 .detail-git-right-panel input,
 .detail-git-right-panel button,
-.detail-git-commit-card * {
+.detail-git-commit-card .detail-git-commit-card-head,
+.detail-git-commit-card .detail-git-commit-card-body,
+.detail-git-commit-card .detail-git-commit-summary-wrap,
+.detail-git-commit-card .detail-git-commit-options,
+.detail-git-commit-card .detail-git-commit-option,
+.detail-git-commit-card .detail-git-commit-actions,
+.detail-git-commit-card .detail-git-commit-ai-btn,
+.detail-git-commit-card input {
   border-radius: 0 !important;
 }
 .detail-git-right-panel code {
   border-radius: 0 !important;
 }
 
-/* Commit card: sharp = 0, rounded = 6px (pill handled by global rules above) */
-html[data-radius="sharp"] .detail-git-commit-card textarea,
-html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-summary-input,
-html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-desc-input,
+/* Commit card: sharp = 0, rounded = 6px (Textareas use theme; ai-btn and checkboxes follow radius) */
 html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-ai-btn,
-html[data-radius="sharp"] .detail-git-commit-card input[type="text"],
-html[data-radius="sharp"] .detail-git-commit-card input[type="email"] {
+html[data-radius="sharp"] .detail-git-commit-card input {
   border-radius: 0 !important;
 }
-html[data-radius="rounded"] .detail-git-commit-card textarea,
-html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-summary-input,
-html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-desc-input,
 html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-ai-btn,
-html[data-radius="rounded"] .detail-git-commit-card input[type="text"],
-html[data-radius="rounded"] .detail-git-commit-card input[type="email"] {
+html[data-radius="rounded"] .detail-git-commit-card input {
   border-radius: 6px !important;
 }
 
@@ -428,53 +410,32 @@ html[data-radius="rounded"] .detail-git-commit-card input[type="email"] {
   border-color: rgb(var(--rm-border)) !important;
 }
 
-/* Git UI: same 1px solid border; radius follows Settings > Appearance > Border radius */
-.detail-git-toolbar input,
+/* Git UI: same 1px solid border; radius follows Settings > Appearance (PrimeVue inputs/textareas/buttons use theme) */
 .detail-git-toolbar select,
-.detail-git-sidebar-panel input,
 .detail-git-sidebar-panel select,
 .detail-git-right-panel input,
 .detail-git-right-panel select,
-.detail-git-right-panel textarea,
-.detail-git-filter-input,
 .detail-git-toolbar-select,
 .detail-git-section-select-btn,
-.detail-git-commit-card input,
-.detail-git-commit-card select,
-.detail-git-commit-card textarea,
-.detail-git-commit-card button[class*="border"] {
+.detail-git-commit-card input {
   border: 1px solid rgb(var(--rm-border)) !important;
 }
-html[data-radius="sharp"] .detail-git-toolbar input,
 html[data-radius="sharp"] .detail-git-toolbar select,
-html[data-radius="sharp"] .detail-git-sidebar-panel input,
 html[data-radius="sharp"] .detail-git-sidebar-panel select,
 html[data-radius="sharp"] .detail-git-right-panel input,
 html[data-radius="sharp"] .detail-git-right-panel select,
-html[data-radius="sharp"] .detail-git-right-panel textarea,
-html[data-radius="sharp"] .detail-git-filter-input,
 html[data-radius="sharp"] .detail-git-toolbar-select,
 html[data-radius="sharp"] .detail-git-section-select-btn,
-html[data-radius="sharp"] .detail-git-commit-card input,
-html[data-radius="sharp"] .detail-git-commit-card select,
-html[data-radius="sharp"] .detail-git-commit-card textarea,
-html[data-radius="sharp"] .detail-git-commit-card button[class*="border"] {
+html[data-radius="sharp"] .detail-git-commit-card input {
   border-radius: 0 !important;
 }
-html[data-radius="rounded"] .detail-git-toolbar input,
 html[data-radius="rounded"] .detail-git-toolbar select,
-html[data-radius="rounded"] .detail-git-sidebar-panel input,
 html[data-radius="rounded"] .detail-git-sidebar-panel select,
 html[data-radius="rounded"] .detail-git-right-panel input,
 html[data-radius="rounded"] .detail-git-right-panel select,
-html[data-radius="rounded"] .detail-git-right-panel textarea,
-html[data-radius="rounded"] .detail-git-filter-input,
 html[data-radius="rounded"] .detail-git-toolbar-select,
 html[data-radius="rounded"] .detail-git-section-select-btn,
-html[data-radius="rounded"] .detail-git-commit-card input,
-html[data-radius="rounded"] .detail-git-commit-card select,
-html[data-radius="rounded"] .detail-git-commit-card textarea,
-html[data-radius="rounded"] .detail-git-commit-card button[class*="border"] {
+html[data-radius="rounded"] .detail-git-commit-card input {
   border-radius: 6px !important;
 }
 .detail-git-right-panel .detail-git-section-dropdown-menu,
@@ -505,7 +466,7 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   @apply relative;
 }
 .view-dropdown-btn {
-  @apply min-w-[8rem] cursor-pointer inline-flex items-center justify-between gap-2 py-1.5 px-2.5 border border-rm-border rounded-none bg-rm-bg transition-[border-color,background] duration-150;
+  @apply min-w-[8rem] cursor-pointer inline-flex items-center justify-between gap-2 py-1.5 px-2.5 border border-rm-border bg-rm-bg transition-[border-color,background] duration-150;
   font: inherit;
   color: inherit;
 }
@@ -534,7 +495,7 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   @apply rotate-180;
 }
 .view-dropdown-menu {
-  @apply absolute top-full left-0 mt-1 min-w-[11rem] list-none m-0 py-1.5 bg-rm-surface border border-rm-border rounded-none shadow-rm-lg z-50;
+  @apply absolute top-full left-0 mt-1 min-w-[11rem] list-none m-0 py-1.5 bg-rm-surface border border-rm-border shadow-rm-lg z-50;
 }
 .view-dropdown-option {
   @apply flex items-center gap-2.5 py-[7px] px-3 cursor-pointer whitespace-nowrap text-rm-text text-[13px] transition-colors duration-100;
@@ -721,12 +682,6 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   .copy-feedback {
     @apply text-xs font-medium text-rm-accent;
   }
-  .release-notes-input {
-    @apply w-full rounded-none border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[5rem] focus:outline-none focus:border-rm-border-focus;
-  }
-  .commit-message-input {
-    @apply w-full rounded-none border border-rm-border bg-rm-surface text-rm-text text-sm p-3 resize-y min-h-[4.5rem] focus:outline-none focus:border-rm-border-focus;
-  }
   .checkbox-label {
     @apply flex items-center gap-2 cursor-pointer text-rm-text;
   }
@@ -784,9 +739,6 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   .project-list {
     @apply flex-1 overflow-y-auto p-3;
   }
-  .filter-select {
-    @apply w-full text-sm rounded-none border border-rm-border bg-rm-bg text-rm-text px-2 py-1.5;
-  }
   .dashboard-view {
     @apply flex-1 flex flex-col min-h-0 overflow-hidden;
   }
@@ -802,9 +754,6 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   .dashboard-label-text {
     @apply text-xs font-medium text-rm-muted;
   }
-  .dashboard-select {
-    @apply rounded-rm border border-rm-border bg-rm-surface text-rm-text text-sm px-2.5 py-1.5 focus:outline-none focus:border-rm-border-focus;
-  }
   .dashboard-scroll {
     @apply flex-1 overflow-auto p-4;
   }
@@ -815,7 +764,7 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
     @apply text-left text-rm-muted font-medium pb-3.5 pr-5 border-b border-rm-border;
   }
   .dashboard-table tbody tr {
-    @apply border-b border-rm-border transition-colors;
+    @apply cursor-pointer border-b border-rm-border transition-colors;
   }
   .dashboard-table tbody tr:hover {
     @apply bg-rm-surface/50;
@@ -832,6 +781,16 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   .detail-tab-panels.detail-tabs-mode .detail-tab-panel.detail-tab-panel-visible {
     display: block;
   }
+  /* Markdown split view: resizable editor/preview */
+  .markdown-split.p-splitter {
+    @apply min-h-0;
+  }
+  .markdown-split .p-splitter-gutter {
+    @apply bg-rm-border/80 cursor-col-resize;
+  }
+  .markdown-split .p-splitter-gutter:hover {
+    @apply bg-rm-accent/30;
+  }
 }
 
 /* Final overrides: sharp only (rounded/pill set in Border radius section above) */
@@ -842,15 +801,6 @@ html[data-radius="sharp"] input[type="url"],
 html[data-radius="sharp"] input[type="number"],
 html[data-radius="sharp"] textarea,
 html[data-radius="sharp"] select.rounded-rm,
-html[data-radius="sharp"] .detail-git-toolbar-select,
-html[data-radius="sharp"] .release-notes-input,
-html[data-radius="sharp"] .commit-message-input,
-html[data-radius="sharp"] .filter-select {
+html[data-radius="sharp"] .detail-git-toolbar-select {
   border-radius: 0 !important;
-}
-html[data-radius="sharp"] .detail-git-commit-anchored textarea {
-  border-radius: 0 !important;
-}
-html[data-radius="rounded"] .detail-git-commit-anchored textarea {
-  border-radius: 6px !important;
 }

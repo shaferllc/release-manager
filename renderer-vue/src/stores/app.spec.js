@@ -234,6 +234,55 @@ describe('useAppStore', () => {
     expect(list[1].path).toBe('/foo/bar/baz');
   });
 
+  it('filteredProjects sort normalizes backslashes in path when deriving name', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: 'C:\\dev\\projectB' },
+      { path: 'C:\\dev\\projectA' },
+    ]);
+    const list = store.filteredProjects;
+    expect(list[0].path).toBe('C:\\dev\\projectA');
+    expect(list[1].path).toBe('C:\\dev\\projectB');
+  });
+
+  it('filteredProjects sort uses path-derived name for one and empty for the other when one has no path', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { name: 'HasNameOnly' },
+      { path: '/some/path/derived' },
+    ]);
+    const list = store.filteredProjects;
+    expect(list).toHaveLength(2);
+    expect(list[0].path).toBe('/some/path/derived');
+    expect(list[1].name).toBe('HasNameOnly');
+  });
+
+  it('filteredProjects sort covers path and non-path name derivation with path-only, name-only, and empty', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/x/pathOnly' },
+      { name: 'NameOnly' },
+      {},
+    ]);
+    const list = store.filteredProjects;
+    expect(list).toHaveLength(3);
+    expect(list[0]).toEqual({});
+    expect(list[1].name).toBe('NameOnly');
+    expect(list[2].path).toBe('/x/pathOnly');
+  });
+
+  it('filteredProjects sort uses empty string when path yields no basename (e.g. root path)', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/' },
+      { path: '/a' },
+    ]);
+    const list = store.filteredProjects;
+    expect(list).toHaveLength(2);
+    expect(list[0].path).toBe('/');
+    expect(list[1].path).toBe('/a');
+  });
+
   it('filteredProjects sort treats missing path as empty name', () => {
     const store = useAppStore();
     store.setProjects([

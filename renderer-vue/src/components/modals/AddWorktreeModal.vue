@@ -31,7 +31,7 @@
             @keydown.enter="submit"
           />
         </div>
-        <p v-if="error" class="m-0 text-xs text-rm-warning">{{ error }}</p>
+        <Message v-if="error" severity="warn" class="text-xs">{{ error }}</Message>
     </div>
     <template #footer>
       <Button severity="primary" size="small" :disabled="!worktreePath.trim() || submitting" @click="submit">
@@ -43,11 +43,11 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
-import { useApi } from '../../composables/useApi';
+import Message from 'primevue/message';
+import { useAddWorktree } from '../../plugins/git/worktrees';
 
 const props = defineProps({
   dirPath: { type: String, default: '' },
@@ -55,29 +55,12 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'added']);
 
-const api = useApi();
-const worktreePath = ref('');
-const branch = ref('');
-const error = ref('');
-const submitting = ref(false);
-
-function close() {
-  emit('close');
-}
-
-async function submit() {
-  const path = worktreePath.value?.trim();
-  if (!path || !props.dirPath || !api.worktreeAdd) return;
-  error.value = '';
-  submitting.value = true;
-  try {
-    await api.worktreeAdd(props.dirPath, path, branch.value?.trim() || undefined);
-    emit('added');
-    emit('close');
-  } catch (e) {
-    error.value = e?.message || 'Add worktree failed.';
-  } finally {
-    submitting.value = false;
-  }
-}
+const {
+  worktreePath,
+  branch,
+  error,
+  submitting,
+  close,
+  submit,
+} = useAddWorktree(() => props.dirPath, emit);
 </script>

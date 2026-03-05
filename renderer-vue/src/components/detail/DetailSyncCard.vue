@@ -16,23 +16,24 @@
           <Button severity="secondary" class="inline-flex items-center gap-x-1.5 shrink-0" @click="openChooseVersion">
             Choose version…
           </Button>
-          <a v-if="releasesUrl" :href="releasesUrl" class="inline-flex items-center gap-2 no-underline cursor-pointer px-3 py-1.5 text-sm rounded-rm-dynamic border border-rm-border bg-rm-surface hover:bg-rm-surface-hover text-rm-text" target="_blank" rel="noopener">
+          <Button v-if="releasesUrl" variant="outlined" severity="secondary" class="inline-flex items-center gap-2 shrink-0 text-sm" @click="openReleasesUrl">
             Open Releases
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          </a>
-          <button v-if="syncStatus" type="button" class="text-xs text-rm-muted hover:text-rm-accent border-none bg-transparent cursor-pointer p-0" title="Copy status" @click="copyStatus">Copy status</button>
+          </Button>
+          <Button v-if="syncStatus" variant="text" size="small" class="text-xs p-0 min-w-0 text-rm-muted hover:text-rm-accent" title="Copy status" @click="copyStatus">Copy status</Button>
         </div>
         <p v-if="syncStatus" class="mt-4 text-sm text-rm-muted">
           {{ syncStatus }}
           <span v-if="copyFeedback" class="text-rm-accent ml-2">Copied!</span>
         </p>
-        <button type="button" class="doc-trigger mt-2 p-1 rounded-rm text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover border-0 bg-transparent cursor-pointer text-xs font-normal" title="Documentation" aria-label="Documentation" @click="openDocs('sync')">(i) Sync docs</button>
+        <Button variant="text" size="small" class="doc-trigger mt-2 p-1 rounded-rm min-w-0 text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover text-xs font-normal" title="Documentation" aria-label="Documentation" @click="openDocs('sync')">(i) Sync docs</Button>
       </div>
   </section>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import { useApi } from '../../composables/useApi';
 import { useAppStore } from '../../stores/app';
 import { useModals } from '../../composables/useModals';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
@@ -41,6 +42,7 @@ import { useSync } from '../../composables/useSync';
 
 const props = defineProps({ info: { type: Object, default: null } });
 
+const api = useApi();
 const store = useAppStore();
 const modals = useModals();
 const notifications = useNotifications();
@@ -56,4 +58,8 @@ const {
   downloadLatest,
   copyStatus,
 } = useSync(store, () => props.info, modals, notifications, runWithOverlay);
+
+function openReleasesUrl() {
+  if (releasesUrl.value && api.openUrl) api.openUrl(releasesUrl.value);
+}
 </script>
