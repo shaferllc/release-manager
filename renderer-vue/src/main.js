@@ -1,4 +1,12 @@
-import './extensions'; // Load registered detail-tab extensions (see extensions/index.js)
+import { registerDetailTabExtension } from './extensions/registry';
+import { registerCommand, unregisterCommand } from './commandPalette/registry';
+// Expose for user-installed extensions (loaded at runtime from userData/extensions)
+if (typeof window !== 'undefined') {
+  window.__registerDetailTabExtension = registerDetailTabExtension;
+  window.__registerCommand = registerCommand;
+  window.__unregisterCommand = unregisterCommand;
+}
+import './extensions'; // Load built-in detail-tab extensions (see extensions/index.js)
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import PrimeVue from 'primevue/config';
@@ -40,3 +48,25 @@ app.config.errorHandler = (err, instance, info) => {
 };
 
 app.mount('#app');
+
+// Load user-installed extensions (marketplace). They register via window.__registerDetailTabExtension
+;(async function loadUserExtensions() {
+  const api = typeof window !== 'undefined' && window.releaseManager;
+  if (!api?.getInstalledUserExtensions || !api?.getExtensionScriptContent) return;
+  try {
+    const list = await api.getInstalledUserExtensions();
+    for (const u of list) {
+      const content = await api.getExtensionScriptContent(u.id);
+      if (content) {
+        try {
+          // eslint-disable-next-line no-eval
+          eval(content);
+        } catch (e) {
+          console.error('[extensions] Failed to load user extension:', u.id, e);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('[extensions] Failed to load user extensions:', e);
+  }
+})();

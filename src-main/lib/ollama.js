@@ -223,6 +223,30 @@ ${err || '(empty)'}
 Suggested fix:`;
 }
 
+/**
+ * Build a prompt for generating unit tests for a source file.
+ * @param {string} relativePath - e.g. "src/components/Foo.vue"
+ * @param {string} sourceContent - file content
+ * @returns {string}
+ */
+function buildGenerateTestsPrompt(relativePath, sourceContent) {
+  const content = (sourceContent || '').trim().slice(0, 12000);
+  return `Generate unit tests for this source file. Return only the test file content, no explanation.
+
+File path: ${relativePath || '(unknown)'}
+
+Source code:
+\`\`\`
+${content || '(empty)'}
+\`\`\`
+
+Rules:
+- Use the project's test framework (e.g. Vitest, Jest, PHPUnit, Pest for PHP).
+- Match the project's existing test style and location (e.g. tests/unit/, __tests__/, or next to source with .spec.js / .test.js).
+- Cover the main behavior; keep tests focused and readable.
+- Do not include markdown or extra commentary—only the test file content.`;
+}
+
 module.exports = {
   generate,
   listModels,
@@ -231,6 +255,7 @@ module.exports = {
   buildReleaseNotesPrompt,
   buildTagMessagePrompt,
   buildTestFixPrompt,
+  buildGenerateTestsPrompt,
   formatOllamaError,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,

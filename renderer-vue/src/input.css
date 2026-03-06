@@ -215,15 +215,41 @@ html[data-large-cursor="true"] textarea { font-size: 1.05em; }
   }
 }
 
-.main-content-section {
-  @apply bg-rm-bg-elevated;
+/* Main content area: match card background so no grey canvas between cards */
+.main-content-inner {
+  background: rgb(var(--rm-bg-elevated));
 }
-html[data-theme="light"] .main-content-section {
-  @apply bg-rm-bg;
+
+/* PrimeVue Card as detail-tab-panel: keep Aura theme styling; only fix layout */
+.detail-tab-panel.p-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
 }
-.main-content-scroll {
-  @apply pb-4;
+.detail-tab-panel.p-card .p-card-body,
+.detail-tab-panel.p-card .p-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
 }
+
+/* Extensions: PrimeVue Toolbar for intro + actions (matches Terminal pattern) */
+.extension-toolbar.p-toolbar {
+  border: 1px solid rgb(var(--rm-border));
+  border-radius: var(--rm-radius, 6px);
+  background: rgb(var(--rm-surface) / 0.5);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.extension-toolbar.p-toolbar .p-toolbar-start { flex: 1; min-width: 0; max-width: 36rem; }
+.extension-toolbar.p-toolbar .p-toolbar-center { flex: none; }
+.extension-toolbar.p-toolbar .p-toolbar-end { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.extension-toolbar-compact.p-toolbar { padding: 0.5rem 1rem; margin-bottom: 0.75rem; }
 
 .nav-bar {
   -webkit-app-region: drag;
@@ -570,12 +596,6 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
   .theme-btn svg {
     @apply block;
   }
-  .card {
-    @apply overflow-hidden border-0 shadow-none bg-rm-surface/40;
-  }
-  html[data-theme="light"] .card {
-    @apply bg-rm-surface/60;
-  }
   .collapsible-card-header-row {
     @apply flex items-center w-full border-b-0;
   }
@@ -773,7 +793,7 @@ html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
     @apply py-3 pr-5;
   }
   .detail-tabs-bar .detail-tab-btn.is-active {
-    @apply text-rm-accent border-rm-accent/50 bg-rm-accent/10;
+    @apply text-rm-accent bg-rm-accent/10;
   }
   .detail-tab-panels.detail-tabs-mode .detail-tab-panel {
     display: none;

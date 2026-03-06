@@ -1,6 +1,7 @@
 <template>
-  <section class="card mb-6 detail-tab-panel" data-detail-tab="composer">
-    <div class="card-section">
+  <Card class="mb-4 detail-tab-panel" data-detail-tab="composer">
+    <template #content>
+      <div class="card-section">
       <span class="card-label">Composer</span>
       <p class="m-0 mb-2 text-sm text-rm-muted">{{ composer.summary }}</p>
       <Message v-if="composer.validateMsg" :severity="composer.validateOk ? 'secondary' : 'warn'" class="mb-2 text-xs">{{ composer.validateMsg }}</Message>
@@ -52,12 +53,14 @@
         </DataTable>
       </div>
     </div>
-  </section>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import { computed } from 'vue';
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import Checkbox from 'primevue/checkbox';
 import Column from 'primevue/column';
 import DataTable from 'primevue/datatable';

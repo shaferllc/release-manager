@@ -39,7 +39,7 @@
             </div>
             <div>
               <label for="email-outgoing-encryption" class="block text-xs text-rm-muted mb-1">Encryption</label>
-              <Select id="email-outgoing-encryption" v-model="emailOutgoingEncryption" :options="emailOutgoingEncryptionOptions" optionLabel="label" optionValue="value" class="w-full" @change="saveEmailOutgoing" />
+              <Select id="email-outgoing-encryption" v-model="emailOutgoingEncryption" :options="emailOutgoingEncryptionOptionsSafe" optionLabel="label" optionValue="value" class="w-full" @change="saveEmailOutgoing" />
             </div>
           </div>
           <div>
@@ -53,7 +53,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Checkbox from 'primevue/checkbox';
 import Divider from 'primevue/divider';
 import InputText from 'primevue/inputtext';
@@ -76,7 +76,7 @@ const emailOutgoingUsername = ref('');
 const emailOutgoingPort = ref(587);
 const emailOutgoingPassword = ref('');
 const emailOutgoingEncryption = ref('tls');
-const emailOutgoingEncryptionOptions = EMAIL_OUTGOING_ENCRYPTION_OPTIONS;
+const emailOutgoingEncryptionOptionsSafe = computed(() => (Array.isArray(EMAIL_OUTGOING_ENCRYPTION_OPTIONS) ? EMAIL_OUTGOING_ENCRYPTION_OPTIONS : []));
 
 function saveEmailSmtpPort() {
   api.setPreference?.('emailSmtpPort', emailSmtpPort.value);

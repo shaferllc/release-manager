@@ -1,6 +1,7 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-api-card" data-detail-tab="api">
-    <div class="card-section">
+  <Card class="mb-4 detail-tab-panel detail-api-card" data-detail-tab="api">
+    <template #content>
+      <div class="card-section">
       <span class="card-label">Project API & MCP</span>
       <p class="m-0 mb-4 text-sm text-rm-muted">
         Call Shipwell API methods for this project, and see how MCP tools would invoke them. This panel always
@@ -103,11 +104,13 @@
         >{{ api.mcpSnippet }}</pre>
       </div>
     </div>
-  </section>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import Select from 'primevue/select';
 import Textarea from 'primevue/textarea';
 import { useDetailApi } from '../../composables/useDetailApi';

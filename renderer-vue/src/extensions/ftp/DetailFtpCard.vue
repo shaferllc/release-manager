@@ -1,9 +1,11 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-ftp-card flex flex-col min-h-0" data-detail-tab="ftp">
-    <div class="ftp-toolbar rounded-rm border border-rm-border bg-rm-surface/50 px-4 py-3 mb-5 flex flex-wrap items-center gap-4">
-      <p class="text-sm text-rm-muted m-0 flex-1 min-w-0 max-w-xl">
+  <ExtensionLayout tab-id="ftp" content-class="detail-ftp-card">
+    <template #toolbar-start>
+      <p class="text-sm text-rm-muted m-0">
         Connect to an FTP server to browse and transfer files. Optional for projects that deploy or sync via FTP.
       </p>
+    </template>
+    <template #toolbar-end>
       <Tag v-if="status.connected" severity="success" class="inline-flex items-center gap-1.5">
         <span class="w-1.5 h-1.5 rounded-full bg-rm-success" aria-hidden="true" />
         {{ status.host }}
@@ -12,7 +14,7 @@
         <span class="w-1.5 h-1.5 rounded-full bg-rm-muted/50" aria-hidden="true" />
         Disconnected
       </Tag>
-    </div>
+    </template>
 
     <div v-if="!status.connected" class="ftp-form rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-4 mb-5 flex flex-wrap items-end gap-4">
       <label class="ftp-field">
@@ -100,13 +102,14 @@
         <div class="empty-state-body">Enter host, credentials, and click <strong>Connect</strong> to browse and transfer files.</div>
       </div>
     </div>
-  </section>
+  </ExtensionLayout>
 </template>
 
 <script setup>
 import Breadcrumb from 'primevue/breadcrumb';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
+import ExtensionLayout from '../../components/detail/ExtensionLayout.vue';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
 import ProgressSpinner from 'primevue/progressspinner';

@@ -1,5 +1,6 @@
 <template>
-  <section class="card mb-6 detail-tab-panel" data-detail-tab="pull-requests">
+  <Card class="mb-4 detail-tab-panel" data-detail-tab="pull-requests">
+    <template #content>
       <div class="card-section flex flex-wrap items-center gap-3">
         <Button v-if="pullRequestsUrl" variant="outlined" severity="secondary" label="Open on GitHub" class="inline-flex items-center gap-x-1.5 shrink-0 text-sm" @click="openPullRequestsUrl" />
         <Button severity="primary" class="inline-flex items-center gap-x-1.5 shrink-0" :disabled="!canCreatePr" @click="openCreateModal">New pull request</Button>
@@ -70,11 +71,13 @@
           <Button severity="primary" size="small" class="text-sm" :disabled="createPrLoading" @click="submitCreatePr">{{ createPrLoading ? 'Creating…' : 'Create' }}</Button>
         </template>
       </Dialog>
-  </section>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';

@@ -1,20 +1,24 @@
 <template>
-  <div class="api-view flex-1 overflow-auto">
-    <div class="api-view-inner w-full max-w-5xl mx-auto py-8 px-6">
-      <header class="mb-8">
-        <h2 class="text-2xl font-semibold text-rm-text tracking-tight m-0 mb-2">API</h2>
-        <p class="text-sm text-rm-muted m-0 max-w-2xl">
-          Control Shipwell over HTTP. Enable the server, then send <strong>POST /api</strong> with JSON body. Browse methods by category or search by name or intent.
-        </p>
-        <div class="mt-4 p-4 rounded-rm bg-rm-surface/60 border border-rm-border text-xs text-rm-muted max-w-2xl">
-          <span class="font-medium text-rm-text">Request:</span> <code class="bg-rm-bg/80 px-1 rounded">{ "method": "methodName", "params": [] }</code><br />
-          <span class="font-medium text-rm-text">Response:</span> <code class="bg-rm-bg/80 px-1 rounded">{ "ok": true, "result": ... }</code> or <code class="bg-rm-bg/80 px-1 rounded">{ "ok": false, "error": "..." }</code>
-        </div>
-      </header>
+  <Card class="api-view detail-tab-panel flex-1 flex flex-col min-h-0 overflow-auto">
+    <template #content>
+    <div class="api-view-inner w-full max-w-5xl mx-auto py-6 px-6">
+      <Toolbar class="extension-toolbar">
+        <template #start>
+          <p class="text-sm text-rm-muted m-0">
+            Control Shipwell over HTTP. Enable the server, then send <strong>POST /api</strong> with JSON body. Browse methods by category or search by name or intent.
+          </p>
+        </template>
+      </Toolbar>
+      <div class="mb-6 p-4 rounded-rm bg-rm-surface/60 border border-rm-border text-xs text-rm-muted max-w-2xl">
+        <span class="font-medium text-rm-text">Request:</span> <code class="bg-rm-bg/80 px-1 rounded">{ "method": "methodName", "params": [] }</code><br />
+        <span class="font-medium text-rm-text">Response:</span> <code class="bg-rm-bg/80 px-1 rounded">{ "ok": true, "result": ... }</code> or <code class="bg-rm-bg/80 px-1 rounded">{ "ok": false, "error": "..." }</code>
+      </div>
 
-      <section class="card mb-6">
-        <div class="card-section">
-          <span class="card-label">API server</span>
+      <Panel class="mb-4">
+        <template #header>
+          <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">API server</h3>
+        </template>
+          <div class="card-section pt-0">
           <div class="api-server-row flex flex-wrap items-center gap-6">
             <label class="flex items-center gap-2 cursor-pointer text-sm font-medium">
               <Checkbox v-model="enabled" binary @update:model-value="onToggleEnabled" />
@@ -34,11 +38,13 @@
           <p v-else class="m-0 mt-4 text-sm text-rm-muted">Server is stopped. Enable it to get a base URL.</p>
           <p v-if="copyStatus" class="m-0 mt-2 text-xs font-medium text-rm-accent">{{ copyStatus }}</p>
         </div>
-      </section>
+      </Panel>
 
-      <section class="card mb-6">
-        <div class="card-section">
-          <span class="card-label">MCP server</span>
+      <Panel class="mb-4">
+        <template #header>
+          <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">MCP server</h3>
+        </template>
+          <div class="card-section pt-0">
           <p class="m-0 mb-4 text-sm text-rm-muted">
             Start or stop the Model Context Protocol server used by Cursor and other MCP clients. When running from source, you can start it here or open a terminal and run <code class="bg-rm-surface px-1 rounded text-xs">npm run mcp</code>.
           </p>
@@ -83,11 +89,13 @@
             App path: <code class="bg-rm-surface px-1 rounded text-[11px] break-all">{{ appPath }}</code>
           </p>
         </div>
-      </section>
+      </Panel>
 
-      <section class="card mb-6">
-        <div class="card-section">
-          <span class="card-label">API Tester</span>
+      <Panel class="mb-4">
+        <template #header>
+          <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">API Tester</h3>
+        </template>
+          <div class="card-section pt-0">
           <p class="m-0 mb-5 text-sm text-rm-muted">Select a method, set parameters, and send a request. Works via the app; enable the API server above to test over HTTP.</p>
           <div class="tester-row mb-4">
             <label class="text-xs font-medium text-rm-muted shrink-0">Method</label>
@@ -152,11 +160,13 @@
             <pre class="api-code-block m-0 p-4 text-xs overflow-x-auto max-h-80 overflow-y-auto">{{ responseBodyDisplay }}</pre>
           </div>
         </div>
-      </section>
+      </Panel>
 
-      <section class="card mb-6">
-        <div class="card-section">
-          <span class="card-label">Method documentation</span>
+      <Panel class="mb-4">
+        <template #header>
+          <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Method documentation</h3>
+        </template>
+          <div class="card-section pt-0">
           <p class="m-0 mb-4 text-sm text-rm-muted">Pick a category or search, then click a method for full docs and a copy-paste example.</p>
           <div class="api-filters flex flex-wrap items-center gap-4 mb-4">
             <div class="flex items-center gap-2">
@@ -242,18 +252,22 @@
             </div>
           </div>
         </div>
-      </section>
+      </Panel>
     </div>
-  </div>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import Checkbox from 'primevue/checkbox';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
+import Panel from 'primevue/panel';
 import Select from 'primevue/select';
 import Tag from 'primevue/tag';
+import Toolbar from 'primevue/toolbar';
 import Textarea from 'primevue/textarea';
 import { useApiView } from '../composables/useApiView';
 

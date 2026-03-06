@@ -16,6 +16,7 @@ export const useAppStore = defineStore('app', () => {
   const isRefreshingAfterCheckout = ref(false);
   const theme = ref('dark');
   const detailTab = ref('dashboard'); // 'dashboard' | 'git' | 'version' | ... | 'processes' | 'email'
+  const pendingTerminalCommand = ref(null); // when set, Terminal tab will run this command on become active
   const useDetailTabs = ref(true);
   const loadingOverlayVisible = ref(false);
   const loadingBarVisible = ref(false);
@@ -92,6 +93,14 @@ export const useAppStore = defineStore('app', () => {
     detailTab.value = tab;
   }
 
+  function setPendingTerminalCommand(cmd) {
+    pendingTerminalCommand.value = cmd;
+  }
+
+  function clearPendingTerminalCommand() {
+    pendingTerminalCommand.value = null;
+  }
+
   function setUseDetailTabs(value) {
     useDetailTabs.value = value;
   }
@@ -152,12 +161,15 @@ export const useAppStore = defineStore('app', () => {
     setFilterByTag,
     setTheme,
     setDetailTab,
+    setPendingTerminalCommand,
+    clearPendingTerminalCommand,
     setUseDetailTabs,
     toggleProjectSelection,
     clearProjectSelection,
     toggleStar,
     removeProject,
     detailTab,
+    pendingTerminalCommand,
     useDetailTabs,
   };
 });

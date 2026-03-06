@@ -59,6 +59,11 @@ export function useTerminalPanel(store, getInitialDirPath) {
     if (ref && typeof ref.clear === 'function') ref.clear();
   }
 
+  function runInActiveTerminal(cmd) {
+    const ref = activeTabId.value ? terminalRefs.value[activeTabId.value] : null;
+    if (ref && typeof ref.runCommandText === 'function') ref.runCommandText(cmd);
+  }
+
   function setTerminalRef(el, tabId) {
     if (el) terminalRefs.value[tabId] = el;
   }
@@ -92,6 +97,7 @@ export function useTerminalPanel(store, getInitialDirPath) {
     addTab,
     closeTab,
     clearActive,
+    runInActiveTerminal,
     setTerminalRef,
     popOut,
   };

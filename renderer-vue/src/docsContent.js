@@ -285,6 +285,26 @@ If the app detects conventional commit messages (\`feat:\`, \`fix:\`, breaking c
 These options fetch **GitHub Release** assets. After syncing, the app can list releases and their assets (e.g. DMG, zip). **Download latest** gets the latest release's asset for your platform; **Choose version…** lets you pick a release and then an asset. Requires the project to have a GitHub remote and the release to have uploaded assets (often from GitHub Actions).
 `,
   },
+  'terminal': {
+    title: 'Terminal',
+    body: `
+## Overview
+
+The **Terminal** tab runs commands in your project directory. You get a shell (same as your system default) so you can run \`git\`, \`npm\`, \`composer\`, or any CLI tool. Output appears in blocks; use **Clear** to start fresh.
+
+## Tabs & pop out
+
+Open multiple **tabs** for different tasks (e.g. one for tests, one for the dev server). **Pop out** opens the current terminal in a separate window so you can keep it visible while using other tabs.
+
+## Open in system terminal
+
+Use **Open in system terminal** to launch your OS terminal (Terminal.app, Windows Terminal, etc.) in the project folder. Handy when you want a full terminal session outside the app.
+
+## Quick actions
+
+The toolbar can run common commands (e.g. \`git status\`, \`npm install\`) in the active tab with one click. **Run script** (when available) runs \`npm run &lt;script&gt;\` or \`composer run-script &lt;script&gt;\` for the project.
+`,
+  },
   'settings-github-token': {
     title: 'GitHub token',
     body: `

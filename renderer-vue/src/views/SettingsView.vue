@@ -27,10 +27,12 @@
           <h3 class="settings-section-title">Application</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Startup and quit behavior.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="launchAtLogin" binary @update:model-value="saveLaunchAtLogin" />
-              <span class="settings-label block text-rm-text">Launch at login</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Start the app when you log in to your computer.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Launch at login</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Start the app when you log in to your computer.</p>
+              </div>
+              <Checkbox v-model="launchAtLogin" binary @update:model-value="saveLaunchAtLogin" class="shrink-0" />
             </label>
             <Divider />
             <div class="settings-row pt-2">
@@ -43,11 +45,18 @@
               <p class="settings-desc">When to look for new versions.</p>
               <Select v-model="checkForUpdates" :options="checkForUpdatesOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveCheckForUpdates" />
             </div>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="confirmBeforeQuit" binary @update:model-value="saveConfirmBeforeQuit" />
-              <span class="settings-label block text-rm-text">Confirm before closing</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Ask for confirmation when quitting the app.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Confirm before closing</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Ask for confirmation when quitting the app.</p>
+              </div>
+              <Checkbox v-model="confirmBeforeQuit" binary @update:model-value="saveConfirmBeforeQuit" class="shrink-0" />
             </label>
+            <div class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Setup wizard</span>
+              <p class="settings-desc">Walk through adding projects, Git, tests, and extensions.</p>
+              <Button label="Run setup wizard" size="small" severity="secondary" class="mt-2" @click="openSetupWizard" />
+            </div>
           </div>
         </section>
 
@@ -56,20 +65,26 @@
           <h3 class="settings-section-title">Notifications</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">In-app and system notifications.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="notificationsEnabled" binary @update:model-value="saveNotificationsEnabled" />
-              <span class="settings-label block text-rm-text">Enable notifications</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Show in-app and system notifications for releases and errors.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Enable notifications</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Show in-app and system notifications for releases and errors.</p>
+              </div>
+              <Checkbox v-model="notificationsEnabled" binary @update:model-value="saveNotificationsEnabled" class="shrink-0" />
             </label>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="notificationSound" binary @update:model-value="saveNotificationSound" />
-              <span class="settings-label block text-rm-text">Notification sound</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Play a sound when a notification appears.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Notification sound</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Play a sound when a notification appears.</p>
+              </div>
+              <Checkbox v-model="notificationSound" binary @update:model-value="saveNotificationSound" class="shrink-0" />
             </label>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="notificationsOnlyWhenNotFocused" binary @update:model-value="saveNotificationsOnlyWhenNotFocused" />
-              <span class="settings-label block text-rm-text">Only when app is in background</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Show system notifications only when the app is not focused.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Only when app is in background</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Show system notifications only when the app is not focused.</p>
+              </div>
+              <Checkbox v-model="notificationsOnlyWhenNotFocused" binary @update:model-value="saveNotificationsOnlyWhenNotFocused" class="shrink-0" />
             </label>
           </div>
         </section>
@@ -79,15 +94,19 @@
           <h3 class="settings-section-title">Behavior</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">How you interact with projects and the UI.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="doubleClickToOpenProject" binary @update:model-value="saveDoubleClickToOpenProject" />
-              <span class="settings-label block text-rm-text">Double-click to open project</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Require double-click to open a project in the sidebar (single-click to select only).</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Double-click to open project</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Require double-click to open a project in the sidebar (single-click to select only).</p>
+              </div>
+              <Checkbox v-model="doubleClickToOpenProject" binary @update:model-value="saveDoubleClickToOpenProject" class="shrink-0" />
             </label>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="confirmDestructiveActions" binary @update:model-value="saveConfirmDestructiveActions" />
-              <span class="settings-label block text-rm-text">Confirm destructive actions</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Ask for confirmation before delete, release, or batch release.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Confirm destructive actions</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Ask for confirmation before delete, release, or batch release.</p>
+              </div>
+              <Checkbox v-model="confirmDestructiveActions" binary @update:model-value="saveConfirmDestructiveActions" class="shrink-0" />
             </label>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Auto-refresh interval</span>
@@ -99,10 +118,12 @@
               <p class="settings-desc">Maximum number of recent projects to remember.</p>
               <Select v-model="recentListLength" :options="recentListLengthOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveRecentListLength" />
             </div>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="showTips" binary @update:model-value="saveShowTips" />
-              <span class="settings-label block text-rm-text">Show tips and onboarding</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Show first-run tips and occasional hints. Uncheck to hide permanently.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Show tips and onboarding</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Show first-run tips and occasional hints. Uncheck to hide permanently.</p>
+              </div>
+              <Checkbox v-model="showTips" binary @update:model-value="saveShowTips" class="shrink-0" />
             </label>
           </div>
         </section>
@@ -113,10 +134,12 @@
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Commit and repository options.</p>
 
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="signCommits" binary @update:model-value="saveSignCommits" />
-              <span class="settings-label block text-rm-text">Sign commits (GPG/SSH)</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Use git commit -S when committing.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Sign commits (GPG/SSH)</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Use git commit -S when committing.</p>
+              </div>
+              <Checkbox v-model="signCommits" binary @update:model-value="saveSignCommits" class="shrink-0" />
             </label>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Default branch name</span>
@@ -176,11 +199,21 @@
                 <div>
                   <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
                   <div class="flex flex-wrap items-center gap-2">
-                    <InputText v-model="ollamaModel" type="text" class="flex-1 min-w-0" placeholder="llama3.2" autocomplete="off" @blur="saveOllama" />
+                    <Select
+                      v-model="ollamaModel"
+                      :options="ollamaModelOptions"
+                      option-label="label"
+                      option-value="value"
+                      placeholder="Choose model"
+                      class="flex-1 min-w-[12rem]"
+                      :loading="ollamaListLoading"
+                      :disabled="ollamaListLoading"
+                      @change="saveOllama"
+                    />
                     <Button severity="secondary" size="small" class="text-xs" :disabled="ollamaListLoading" @click="listOllamaModels">List models</Button>
                   </div>
-                  <p v-if="ollamaModels.length" class="mt-1 text-xs text-rm-muted">Available: {{ ollamaModels.join(', ') }}</p>
-                  <p v-else-if="ollamaListError" class="mt-1 text-xs text-rm-warning">{{ ollamaListError }}</p>
+                  <p v-if="ollamaListError" class="mt-1 text-xs text-rm-warning">{{ ollamaListError }}</p>
+                  <p v-else-if="!ollamaModelOptions.length" class="mt-1 text-xs text-rm-muted">Click <strong>List models</strong> to load options from Ollama.</p>
                 </div>
               </div>
             </div>
@@ -250,9 +283,31 @@
               <Select v-model="preferredEditor" :options="preferredEditorOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="savePreferredEditor" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Default terminal (macOS)</span>
+              <p class="settings-desc">When opening a folder or SSH session in your system terminal. Default uses Terminal.app (macOS default).</p>
+              <Select v-model="preferredTerminal" :options="preferredTerminalOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="savePreferredTerminal" />
+            </div>
+            <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">PHP executable (default)</span>
-              <p class="settings-desc">Used for Composer and Pest.</p>
-              <InputText v-model="phpPath" type="text" class="mt-2" placeholder="/opt/homebrew/opt/php/bin/php" autocomplete="off" @blur="savePhpPath" />
+              <p class="settings-desc">Used for Composer and Pest. Choose a version or enter a custom path.</p>
+              <div class="mt-2 flex flex-wrap items-center gap-2">
+                <Select
+                  v-model="phpPath"
+                  :options="phpVersionSelectOptions"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="List PHP versions to see options"
+                  class="min-w-[200px]"
+                  :loading="phpListLoading"
+                  @change="savePhpPath"
+                />
+                <Button label="Refresh" severity="secondary" size="small" :loading="phpListLoading" @click="listPhpVersions" />
+              </div>
+              <p v-if="phpListError" class="text-sm text-red-500 mt-1 m-0">{{ phpListError }}</p>
+              <div v-if="!phpPath || !phpVersionOptions.some(o => o.value === phpPath)" class="mt-2">
+                <label class="block text-xs font-medium text-rm-muted mb-1">Custom path</label>
+                <InputText v-model="phpPath" type="text" class="w-full max-w-md" placeholder="/opt/homebrew/opt/php/bin/php" autocomplete="off" @blur="savePhpPath" />
+              </div>
             </div>
           </div>
         </section>
@@ -314,31 +369,39 @@
               <Select v-model="borderRadius" :options="borderRadiusOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveBorderRadius" />
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="reducedMotion" binary @update:model-value="saveReducedMotion" />
-              <span class="settings-label block text-rm-text">Reduce motion</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Minimize animations and transitions. Aligns with system accessibility preferences.</p>
+              <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Reduce motion</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Minimize animations and transitions. Aligns with system accessibility preferences.</p>
+              </div>
+              <Checkbox v-model="reducedMotion" binary @update:model-value="saveReducedMotion" class="shrink-0" />
             </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="reduceTransparency" binary @update:model-value="saveReduceTransparency" />
-              <span class="settings-label block text-rm-text">Reduce transparency</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Use solid backgrounds instead of semi-transparent panels. Improves readability (Electron / macOS-style).</p>
+              <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Reduce transparency</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Use solid backgrounds instead of semi-transparent panels. Improves readability (Electron / macOS-style).</p>
+              </div>
+              <Checkbox v-model="reduceTransparency" binary @update:model-value="saveReduceTransparency" class="shrink-0" />
             </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="highContrast" binary @update:model-value="saveHighContrast" />
-              <span class="settings-label block text-rm-text">High contrast</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Stronger borders and higher-contrast text. Helps with visibility (Electron / accessibility).</p>
+              <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">High contrast</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Stronger borders and higher-contrast text. Helps with visibility (Electron / accessibility).</p>
+              </div>
+              <Checkbox v-model="highContrast" binary @update:model-value="saveHighContrast" class="shrink-0" />
             </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
-              <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="useDetailTabs" binary @update:model-value="saveUseTabs" />
-              <span class="settings-label block text-rm-text">Use tabs in project detail</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Switch between Git, Version & release, and other sections with tabs.</p>
+              <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Use tabs in project detail</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Switch between Git, Version & release, and other sections with tabs.</p>
+              </div>
+              <Checkbox v-model="useDetailTabs" binary @update:model-value="saveUseTabs" class="shrink-0" />
             </label>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
@@ -349,15 +412,19 @@
                   <label class="block text-xs font-medium text-rm-muted mb-1">Size</label>
                   <Select v-model="terminalPopoutSize" :options="terminalPopoutSizeOptions" optionLabel="label" optionValue="value" class="max-w-xs" @change="saveTerminalPopoutSize" />
                 </div>
-                <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="terminalPopoutAlwaysOnTop" binary @update:model-value="saveTerminalPopoutAlwaysOnTop" />
-              <span class="settings-label block text-rm-text">Always on top</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Keep the terminal window above other windows.</p>
+                <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Always on top</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Keep the terminal window above other windows.</p>
+              </div>
+              <Checkbox v-model="terminalPopoutAlwaysOnTop" binary @update:model-value="saveTerminalPopoutAlwaysOnTop" class="shrink-0" />
             </label>
-                <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="terminalPopoutFullscreenable" binary @update:model-value="saveTerminalPopoutFullscreenable" />
-              <span class="settings-label block text-rm-text">Allow fullscreen</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Allow the terminal window to enter fullscreen (e.g. green traffic light on macOS).</p>
+                <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Allow fullscreen</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Allow the terminal window to enter fullscreen (e.g. green traffic light on macOS).</p>
+              </div>
+              <Checkbox v-model="terminalPopoutFullscreenable" binary @update:model-value="saveTerminalPopoutFullscreenable" class="shrink-0" />
             </label>
               </div>
             </div>
@@ -378,10 +445,12 @@
               <span class="settings-label">Request timeout (seconds)</span>
               <Select v-model="requestTimeoutSeconds" :options="requestTimeoutOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveRequestTimeout" />
             </div>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="offlineMode" binary @update:model-value="saveOfflineMode" />
-              <span class="settings-label block text-rm-text">Offline mode</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Disable network-dependent features.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Offline mode</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Disable network-dependent features.</p>
+              </div>
+              <Checkbox v-model="offlineMode" binary @update:model-value="saveOfflineMode" class="shrink-0" />
             </label>
           </div>
         </section>
@@ -410,10 +479,12 @@
           <h3 class="settings-section-title">Data &amp; privacy</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Telemetry, crash reports, and settings backup.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="telemetry" binary @update:model-value="saveTelemetry" />
-              <span class="settings-label block text-rm-text">Telemetry / usage data</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Send usage events (e.g. app opened, feature used). Requires an endpoint URL (POST /api/telemetry, no auth). Throttle: 120/min per IP.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Telemetry / usage data</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Send usage events (e.g. app opened, feature used). Requires an endpoint URL (POST /api/telemetry, no auth). Throttle: 120/min per IP.</p>
+              </div>
+              <Checkbox v-model="telemetry" binary @update:model-value="saveTelemetry" class="shrink-0" />
             </label>
             <div v-if="telemetry" class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Telemetry endpoint</span>
@@ -425,10 +496,12 @@
               <p class="settings-desc">Email or ID for context in events. Leave empty for anonymous.</p>
               <InputText v-model="telemetryUserIdentifier" type="text" class="mt-2 max-w-md" placeholder="user@example.com" autocomplete="off" @blur="saveTelemetryUserIdentifier" />
             </div>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="crashReports" binary @update:model-value="saveCrashReports" />
-              <span class="settings-label block text-rm-text">Crash reports</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Send crash reports to help fix bugs. Requires an ingestion endpoint URL (POST /api/crash-reports, no auth).</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Crash reports</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Send crash reports to help fix bugs. Requires an ingestion endpoint URL (POST /api/crash-reports, no auth).</p>
+              </div>
+              <Checkbox v-model="crashReports" binary @update:model-value="saveCrashReports" class="shrink-0" />
             </label>
             <div v-if="crashReports" class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Crash report endpoint</span>
@@ -453,15 +526,19 @@
           <h3 class="settings-section-title">Window</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Window behavior and tray.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="alwaysOnTop" binary @update:model-value="saveAlwaysOnTop" />
-              <span class="settings-label block text-rm-text">Always on top</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Keep the app window above other windows.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Always on top</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Keep the app window above other windows.</p>
+              </div>
+              <Checkbox v-model="alwaysOnTop" binary @update:model-value="saveAlwaysOnTop" class="shrink-0" />
             </label>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="minimizeToTray" binary @update:model-value="saveMinimizeToTray" />
-              <span class="settings-label block text-rm-text">Minimize to tray</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Closing the window hides it to the system tray instead of quitting.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Minimize to tray</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Closing the window hides it to the system tray instead of quitting.</p>
+              </div>
+              <Checkbox v-model="minimizeToTray" binary @update:model-value="saveMinimizeToTray" class="shrink-0" />
             </label>
           </div>
         </section>
@@ -471,20 +548,26 @@
           <h3 class="settings-section-title">Accessibility</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Focus, cursor, and screen reader support.</p>
           <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="focusOutlineVisible" binary @update:model-value="saveFocusOutlineVisible" />
-              <span class="settings-label block text-rm-text">Always show focus outline</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Show a visible focus ring on keyboard focus.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Always show focus outline</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Show a visible focus ring on keyboard focus.</p>
+              </div>
+              <Checkbox v-model="focusOutlineVisible" binary @update:model-value="saveFocusOutlineVisible" class="shrink-0" />
             </label>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="largeCursor" binary @update:model-value="saveLargeCursor" />
-              <span class="settings-label block text-rm-text">Large cursor in inputs</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Use a larger text cursor in input fields.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Large cursor in inputs</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Use a larger text cursor in input fields.</p>
+              </div>
+              <Checkbox v-model="largeCursor" binary @update:model-value="saveLargeCursor" class="shrink-0" />
             </label>
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1 pt-2 border-t border-rm-border">
-              <Checkbox v-model="screenReaderSupport" binary @update:model-value="saveScreenReaderSupport" />
-              <span class="settings-label block text-rm-text">Screen reader support</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted">Announce live regions for assistive technologies.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Screen reader support</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Announce live regions for assistive technologies.</p>
+              </div>
+              <Checkbox v-model="screenReaderSupport" binary @update:model-value="saveScreenReaderSupport" class="shrink-0" />
             </label>
           </div>
         </section>
@@ -495,10 +578,12 @@
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Options for debugging and troubleshooting.</p>
 
           <div class="settings-card">
-            <label class="settings-row settings-row-clickable grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1">
-              <Checkbox v-model="debugLogging" binary @update:model-value="saveDebugLogging" />
-              <span class="settings-label block text-rm-text">Enable debug logging</span>
-              <p class="settings-desc m-0 text-sm text-rm-muted col-start-2">Log app actions (project load, IPC, preferences, nav). Renderer logs in DevTools; main process in terminal.</p>
+            <label class="settings-row settings-row-clickable settings-checkbox-row">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Enable debug logging</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Log app actions (project load, IPC, preferences, nav). Renderer logs in DevTools; main process in terminal.</p>
+              </div>
+              <Checkbox v-model="debugLogging" binary @update:model-value="saveDebugLogging" class="shrink-0" />
             </label>
           </div>
         </section>
@@ -515,6 +600,12 @@ import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
 import Select from 'primevue/select';
 import { useSettings } from '../composables/useSettings';
+import { useModals } from '../composables/useModals';
+
+const modals = useModals();
+function openSetupWizard() {
+  modals.openModal('setupWizard');
+}
 
 const {
   sections,
@@ -532,6 +623,7 @@ const {
   openaiModelPresetOptions,
   geminiModelPresetOptions,
   preferredEditorOptions,
+  preferredTerminalOptions,
   fontSizeOptions,
   zoomOptions,
   borderRadiusOptions,
@@ -553,7 +645,14 @@ const {
   geminiModel,
   geminiModelPreset,
   preferredEditor,
+  preferredTerminal,
+  savePreferredTerminal,
   phpPath,
+  phpVersionOptions,
+  phpVersionSelectOptions,
+  listPhpVersions,
+  phpListLoading,
+  phpListError,
   useDetailTabs,
   debugLogging,
   theme,
@@ -598,6 +697,7 @@ const {
   focusOutlineVisible,
   largeCursor,
   screenReaderSupport,
+  ollamaModelOptions,
   ollamaModels,
   ollamaListLoading,
   ollamaListError,
@@ -722,6 +822,23 @@ const {
 }
 .settings-row {
   display: block;
+}
+/* Checkbox rows: checkbox on the left, label + description on the right */
+.settings-checkbox-row {
+  display: grid !important;
+  grid-template-columns: auto 1fr;
+  grid-template-areas: "control text";
+  align-items: center;
+  gap: 0.75rem 0.25rem;
+  padding-right: 1rem;
+}
+.settings-checkbox-row > .min-w-0 {
+  grid-area: text;
+  min-width: 0;
+}
+.settings-checkbox-row > *:last-child {
+  grid-area: control;
+  align-self: center;
 }
 /* Override .settings-row so checkbox + label are one line, description below (grid wins over block) */
 .settings-row.settings-checkbox-inline {

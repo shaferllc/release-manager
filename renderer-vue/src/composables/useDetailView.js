@@ -48,7 +48,8 @@ export function useDetailView() {
     if (isTabEnabled('api')) t.push({ id: 'api', label: 'API', icon: TAB_ICONS.api });
     const extensions = getDetailTabExtensions();
     extensions.forEach((ext) => {
-      if (ext.featureFlagId && !isTabEnabled(ext.featureFlagId)) return;
+      const flagId = ext.featureFlagId ?? ext.id;
+      if (!isTabEnabled(flagId)) return;
       if (ext.isVisible && info.value && !ext.isVisible(info.value)) return;
       t.push({ id: ext.id, label: ext.label, icon: ext.icon });
     });

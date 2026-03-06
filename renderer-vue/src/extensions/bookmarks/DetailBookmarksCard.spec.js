@@ -3,6 +3,20 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import DetailBookmarksCard from './DetailBookmarksCard.vue';
 
+const ExtensionLayoutStub = {
+  name: 'ExtensionLayoutStub',
+  props: ['tabId', 'contentClass'],
+  template: `
+    <section :data-detail-tab="tabId" :class="contentClass">
+      <div class="extension-toolbar">
+        <slot name="toolbar-start" />
+        <slot name="toolbar-end" />
+      </div>
+      <slot />
+    </section>
+  `,
+};
+
 function flushPromises() {
   return new Promise((resolve) => setTimeout(resolve, 0));
 }
@@ -88,7 +102,7 @@ describe('DetailBookmarksCard', () => {
     window.releaseManager.getBookmarksExtensionPath.mockResolvedValue('/ext');
     const wrapper = mount(DetailBookmarksCard, {
       props: { info: {} },
-      global: { plugins: [createPinia()] },
+      global: { plugins: [createPinia()], stubs: { ExtensionLayout: ExtensionLayoutStub } },
     });
     await flushPromises();
     const section = wrapper.find('section[data-detail-tab="bookmarks"]');

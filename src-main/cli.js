@@ -15,14 +15,15 @@ function err(msg) {
 }
 
 /**
- * Get CLI args (after -- or from argv slice).
+ * Get CLI args. Only returns args after "--" so Electron flags (e.g. --enable-logging) are not treated as commands.
+ * Use: electron . -- projects   or   Shipwell -- info /path
  */
 function getCliArgs() {
   const i = process.argv.indexOf('--');
   if (i >= 0 && process.argv.length > i + 1) {
     return process.argv.slice(i + 1);
   }
-  return process.argv.slice(2);
+  return [];
 }
 
 const HELP = `

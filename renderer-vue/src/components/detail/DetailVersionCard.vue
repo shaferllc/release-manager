@@ -1,6 +1,7 @@
 <template>
-  <section class="card mb-6 detail-tab-panel" data-detail-tab="version">
-    <div class="card-section flex flex-wrap items-center gap-x-5 gap-y-3 pt-0">
+  <Card class="mb-4 detail-tab-panel" data-detail-tab="version">
+    <template #content>
+      <div class="card-section flex flex-wrap items-center gap-x-5 gap-y-3 pt-0">
         <Button variant="text" size="small" class="doc-trigger p-1 rounded-rm min-w-0 text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover text-xs font-normal shrink-0" title="Documentation" aria-label="Documentation" @click="openDocs('version-release')">(i)</Button>
         <div class="flex items-center gap-2.5">
           <span class="card-label text-rm-muted mb-0">Version</span>
@@ -107,11 +108,13 @@
         <label class="card-label text-rm-muted mb-3 block">GitHub token (optional override)</label>
         <InputText v-model="projectToken" type="password" class="w-full" placeholder="Leave empty to use token from Settings." autocomplete="off" @blur="saveProjectToken" />
       </div>
-  </section>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import Checkbox from 'primevue/checkbox';
 import InputText from 'primevue/inputtext';
 import Textarea from 'primevue/textarea';

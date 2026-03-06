@@ -50,8 +50,8 @@ export function useFeatureFlags() {
     }
   }
 
+  /** Any tab/extension id can be toggled; missing or true = enabled, false = disabled. */
   function isTabEnabled(tabId) {
-    if (!TAB_FLAG_IDS.includes(tabId)) return true;
     return tabFlags.value[tabId] !== false;
   }
 

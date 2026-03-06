@@ -84,24 +84,62 @@ function runShellCommand(dirPath, command, spawnImpl) {
 }
 
 /**
- * Open the system terminal (Terminal.app, cmd.exe, or Linux terminal) in dirPath.
+ * Open the system terminal in dirPath. On macOS, uses preferredTerminal when set:
+ * 'default' or '' = Terminal.app (macOS default), 'Terminal' = Terminal.app,
+ * 'iTerm' = iTerm2, 'Warp' = Warp.
+ * @param {string} dirPath
+ * @param {Function} [spawnImpl]
+ * @param {string} [preferredTerminal] - 'default' | 'Terminal' | 'iTerm' | 'Warp' (macOS only)
  * @returns {Promise<{ ok: boolean, error?: string }>}
  */
-function openInSystemTerminal(dirPath, spawnImpl) {
+function openInSystemTerminal(dirPath, spawnImpl, preferredTerminal) {
   const spawn = spawnImpl || require('child_process').spawn;
   if (!dirPath || typeof dirPath !== 'string') return Promise.resolve({ ok: false, error: 'Invalid path' });
   const platform = process.platform;
   try {
     if (platform === 'darwin') {
-      const escaped = dirPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-      const script = `tell application "Terminal" to do script "cd \\"${escaped}\\""`;
-      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
+      const app = (preferredTerminal === 'iTerm' || preferredTerminal === 'Warp') ? preferredTerminal : 'Terminal';
+      if (app === 'Warp') {
+        spawn('open', ['-a', 'Warp', dirPath], { detached: true, stdio: 'ignore' });
+      } else {
+        const escaped = dirPath.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+        const script = `tell application "${app}" to do script "cd \\"${escaped}\\""`;
+        spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
+      }
     } else if (platform === 'win32') {
       spawn('cmd.exe', ['/c', 'start', 'cmd', '/k', 'cd', '/d', dirPath], { detached: true, stdio: 'ignore' });
     } else {
       spawn('x-terminal-emulator', ['-e', `cd "${dirPath}" && exec $SHELL`], { detached: true, stdio: 'ignore' }).on('error', () => {
         spawn('gnome-terminal', ['--working-directory', dirPath], { detached: true, stdio: 'ignore' });
       });
+    }
+    return Promise.resolve({ ok: true });
+  } catch (e) {
+    return Promise.resolve({ ok: false, error: e.message });
+  }
+}
+
+/**
+ * Run a shell command in the system terminal (e.g. for SSH). macOS only: uses preferredTerminal.
+ * @param {string} command - Full command string to run (e.g. "ssh user@host")
+ * @param {Function} [spawnImpl]
+ * @param {string} [preferredTerminal] - 'default' | 'Terminal' | 'iTerm' | 'Warp'
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+function runCommandInSystemTerminal(command, spawnImpl, preferredTerminal) {
+  const spawn = spawnImpl || require('child_process').spawn;
+  if (process.platform !== 'darwin') return Promise.resolve({ ok: false, error: 'runCommandInSystemTerminal is darwin-only' });
+  if (!command || typeof command !== 'string') return Promise.resolve({ ok: false, error: 'Invalid command' });
+  try {
+    const app = (preferredTerminal === 'iTerm' || preferredTerminal === 'Warp') ? preferredTerminal : 'Terminal';
+    if (app === 'Warp') {
+      const escaped = command.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const script = `tell application "Warp" to do script "${escaped}"`;
+      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
+    } else {
+      const escaped = command.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      const script = `tell application "${app}" to do script "${escaped}"`;
+      spawn('osascript', ['-e', script], { detached: true, stdio: 'ignore' });
     }
     return Promise.resolve({ ok: true });
   } catch (e) {
@@ -197,6 +235,7 @@ module.exports = {
   runInDirCapture,
   runShellCommand,
   openInSystemTerminal,
+  runCommandInSystemTerminal,
   createTerminalPopoutState,
   createTerminalPopoutWindow,
 };

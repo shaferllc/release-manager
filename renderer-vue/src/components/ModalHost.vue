@@ -79,6 +79,7 @@
       @close="onModalClose"
       @apply-and-save="onGitattributesApplyAndSave"
     />
+    <SetupWizardModal v-else-if="activeModal === 'setupWizard'" @close="onModalClose" />
   </template>
 </template>
 
@@ -98,6 +99,7 @@ import BisectRefPickerModal from './modals/BisectRefPickerModal.vue';
 import CreateTagModal from './modals/CreateTagModal.vue';
 import AddWorktreeModal from './modals/AddWorktreeModal.vue';
 import GitattributesWizardModal from './modals/GitattributesWizardModal.vue';
+import SetupWizardModal from './modals/SetupWizardModal.vue';
 
 const { activeModal: activeModalRef, modalPayload: modalPayloadRef, closeModal, openModal } = useModals();
 const api = useApi();

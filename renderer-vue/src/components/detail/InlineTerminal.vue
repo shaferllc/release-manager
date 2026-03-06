@@ -1,16 +1,58 @@
 <template>
-  <div class="inline-terminal terminal-shape flex flex-col border-0 bg-transparent overflow-hidden h-full min-h-0" :style="minHeight ? { minHeight: minHeight + 'px' } : {}" @click="focusInput">
-    <div v-if="!compactHeader" class="inline-terminal-header flex items-center justify-between gap-2 px-2 py-1.5 border-b border-rm-border bg-rm-surface/80 shrink-0" @click.stop>
-      <span class="text-xs font-medium text-rm-muted truncate">Terminal · {{ displayPath }}</span>
-      <div class="flex items-center gap-1 shrink-0">
-        <Button v-if="showScripts && scripts.length" variant="text" size="small" class="text-[10px] px-1 min-w-0 text-rm-muted hover:text-rm-accent" title="Run script" @click="scriptsOpen = !scriptsOpen">{{ scriptsOpen ? 'Hide scripts' : 'Run script' }}</Button>
-        <Button variant="text" size="small" class="text-[10px] px-1 min-w-0 text-rm-muted hover:text-rm-accent" title="Copy output" @click="copyOutput">Copy</Button>
-        <Button variant="text" size="small" class="text-[10px] px-1 min-w-0 text-rm-accent hover:underline" @click="clear">Clear</Button>
-        <Button v-if="showPopOut" variant="text" size="small" class="text-[10px] px-1 min-w-0 text-rm-muted hover:text-rm-accent" title="Pop out in new window" @click="$emit('pop-out')">Pop out</Button>
-        <Button variant="text" size="small" class="text-[10px] px-1 min-w-0 text-rm-muted hover:text-rm-text" aria-label="Close terminal" @click="$emit('close')">×</Button>
+  <div class="inline-terminal flex flex-col overflow-hidden h-full min-h-0 bg-rm-bg" :style="minHeight ? { minHeight: minHeight + 'px' } : {}" @click="focusInput">
+    <div v-if="!compactHeader" class="inline-terminal-header flex items-center gap-3 px-3 py-2.5 border-b border-rm-border bg-rm-surface shrink-0" @click.stop>
+      <div class="inline-terminal-path flex items-center gap-2 min-w-0 flex-1 rounded-md border border-rm-border bg-rm-bg px-2.5 py-1.5">
+        <i class="pi pi-folder text-rm-muted text-xs shrink-0" aria-hidden="true" />
+        <span class="text-xs text-rm-text truncate font-mono" :title="dirPath">{{ displayPath }}</span>
+      </div>
+      <Button variant="text" size="small" icon="pi pi-copy" class="shrink-0 w-8 h-8 min-w-0 rounded text-rm-muted hover:text-rm-accent" v-tooltip.top="'Copy path'" @click="copyPath" />
+      <div class="flex items-center gap-0.5 shrink-0">
+        <Button
+          v-if="showScripts && scripts.length"
+          variant="text"
+          size="small"
+          :icon="scriptsOpen ? 'pi pi-chevron-up' : 'pi pi-play'"
+          class="w-8 h-8 min-w-0 rounded text-rm-muted hover:text-rm-accent"
+          v-tooltip.top="scriptsOpen ? 'Hide scripts' : 'Run script'"
+          @click="scriptsOpen = !scriptsOpen"
+        />
+        <Button
+          variant="text"
+          size="small"
+          icon="pi pi-copy"
+          class="w-8 h-8 min-w-0 rounded text-rm-muted hover:text-rm-accent"
+          v-tooltip.top="'Copy output'"
+          @click="copyOutput"
+        />
+        <Button
+          variant="text"
+          size="small"
+          icon="pi pi-trash"
+          class="w-8 h-8 min-w-0 rounded text-rm-muted hover:text-rm-accent"
+          v-tooltip.top="'Clear output'"
+          @click="clear"
+        />
+        <Button
+          v-if="showPopOut"
+          variant="text"
+          size="small"
+          icon="pi pi-external-link"
+          class="w-8 h-8 min-w-0 rounded text-rm-muted hover:text-rm-accent"
+          v-tooltip.top="'Pop out in new window'"
+          @click="$emit('pop-out')"
+        />
+        <Button
+          variant="text"
+          size="small"
+          icon="pi pi-times"
+          class="w-8 h-8 min-w-0 rounded text-rm-muted hover:text-rm-text"
+          v-tooltip.top="'Close terminal'"
+          aria-label="Close terminal"
+          @click="$emit('close')"
+        />
       </div>
     </div>
-    <div v-if="showScripts && scriptsOpen && scripts.length" class="inline-terminal-scripts px-2 py-1.5 border-b border-rm-border bg-rm-surface/50 shrink-0 flex flex-wrap gap-1">
+    <div v-if="showScripts && scriptsOpen && scripts.length" class="inline-terminal-scripts px-3 py-2 border-b border-rm-border bg-rm-surface/40 shrink-0 flex flex-wrap gap-2">
       <Button
         v-for="name in scripts"
         :key="name"
@@ -22,7 +64,7 @@
         {{ name }}
       </Button>
     </div>
-    <div ref="outputEl" class="inline-terminal-output flex-1 min-h-0 overflow-auto p-2 font-mono text-xs text-rm-text whitespace-pre-wrap break-words cursor-text" :class="{ 'inline-terminal-output-expand': expandOutput }" @click="focusInput">
+    <div ref="outputEl" class="inline-terminal-output flex-1 min-h-0 overflow-auto px-4 py-3 font-mono text-[13px] text-rm-text whitespace-pre-wrap break-words cursor-text" :class="{ 'inline-terminal-output-expand': expandOutput }" @click="focusInput">
       <template v-for="(block, i) in blocks" :key="i">
         <div class="inline-terminal-prompt text-rm-muted">{{ promptLine(block.cwd) }}</div>
         <div v-if="block.command" class="inline-terminal-command text-rm-text">{{ block.command }}</div>
@@ -38,15 +80,15 @@
       </template>
       <div class="inline-terminal-prompt text-rm-muted">{{ promptLine(dirPath) }}</div>
     </div>
-    <div class="inline-terminal-input-row flex items-center gap-2 px-2 py-1.5 border-t border-rm-border bg-rm-surface/50 shrink-0">
-      <span class="text-rm-muted font-mono text-xs shrink-0">$</span>
+    <div class="inline-terminal-input-row flex items-center gap-2 px-4 py-2 border-t border-rm-border bg-rm-surface/50 shrink-0">
+      <span class="text-rm-muted font-mono text-[13px] shrink-0">$</span>
       <InputText
         ref="inputEl"
         v-model="input"
         type="text"
         autocomplete="off"
         spellcheck="false"
-        class="inline-terminal-input flex-1 min-w-0 font-mono text-xs bg-transparent border-0 text-rm-text focus:outline-none focus:ring-2 focus:ring-rm-accent/50 focus:ring-inset"
+        class="inline-terminal-input flex-1 min-w-0 font-mono text-[13px] bg-transparent border-0 text-rm-text focus:outline-none focus:ring-0"
         placeholder="Enter command…"
         @keydown.enter="runCommand"
         @keydown.down="historyDown"
@@ -60,6 +102,7 @@
 <script setup>
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
+import { useApi } from '../../composables/useApi';
 import { useInlineTerminal } from '../../composables/useInlineTerminal';
 
 const props = defineProps({
@@ -71,6 +114,11 @@ const props = defineProps({
   expandOutput: { type: Boolean, default: false },
 });
 defineEmits(['close', 'pop-out']);
+
+const api = useApi();
+function copyPath() {
+  if (props.dirPath) api.copyToClipboard?.(props.dirPath);
+}
 
 const {
   input,
@@ -88,10 +136,11 @@ const {
   historyDown,
   runScript,
   runCommand,
+  runCommandText,
   focusInput,
 } = useInlineTerminal(() => props.dirPath, () => props.showScripts);
 
-defineExpose({ clear });
+defineExpose({ clear, runCommandText });
 </script>
 
 <style scoped>

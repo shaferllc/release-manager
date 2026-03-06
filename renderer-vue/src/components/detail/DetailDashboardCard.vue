@@ -1,6 +1,7 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-dashboard-card" data-detail-tab="dashboard">
-    <div class="card-section">
+  <Card class="mb-4 detail-tab-panel detail-dashboard-card" data-detail-tab="dashboard">
+    <template #content>
+      <div class="card-section">
       <span class="card-label">Overview</span>
       <DetailDashboardOverview :info="info" :uncommitted-count="uncommittedCount" :has-uncommitted="hasUncommitted" />
 
@@ -21,12 +22,14 @@
         </Button>
       </div>
     </div>
-  </section>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import { computed } from 'vue';
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import DetailDashboardOverview from './DetailDashboardOverview.vue';
 import { useAppStore } from '../../stores/app';
 

@@ -1,22 +1,31 @@
 <template>
-  <div class="dashboard-view flex-1 flex flex-col min-h-0 overflow-hidden">
-    <div class="dashboard-toolbar px-5 py-4 border-b border-rm-border bg-rm-surface/30 flex-shrink-0">
-      <div class="dashboard-controls flex flex-wrap items-center gap-4">
-        <label class="dashboard-label">
-          <span class="dashboard-label-text">Filter</span>
-          <Select v-model="filter" :options="filterOptions" optionLabel="label" optionValue="value" />
+  <Card class="dashboard-view detail-tab-panel flex-1 flex flex-col min-h-0 overflow-hidden">
+    <template #content>
+    <Toolbar class="extension-toolbar">
+      <template #start>
+        <p class="text-sm text-rm-muted m-0">
+          View all projects. Filter, sort, and click a row to open that project’s detail.
+        </p>
+      </template>
+      <template #end>
+        <label class="flex items-center gap-2">
+          <span class="text-xs font-medium text-rm-muted">Filter</span>
+          <Select v-model="filter" :options="filterOptions" optionLabel="label" optionValue="value" class="min-w-[8rem]" />
         </label>
-        <label class="dashboard-label">
-          <span class="dashboard-label-text">Sort</span>
-          <Select v-model="sort" :options="sortOptions" optionLabel="label" optionValue="value" />
+        <label class="flex items-center gap-2">
+          <span class="text-xs font-medium text-rm-muted">Sort</span>
+          <Select v-model="sort" :options="sortOptions" optionLabel="label" optionValue="value" class="min-w-[8rem]" />
         </label>
-        <Button severity="secondary" size="small" class="inline-flex items-center gap-x-1.5 shrink-0" @click="load">
-          <svg class="w-[11px] h-[11px] shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
-          Refresh
-        </Button>
-      </div>
-    </div>
-    <div class="dashboard-scroll flex-1 overflow-auto p-4">
+        <Button severity="secondary" size="small" icon="pi pi-refresh" label="Refresh" @click="load" />
+      </template>
+    </Toolbar>
+    <Panel class="dashboard-panel flex-1">
+      <template #header>
+        <div class="flex items-center justify-between gap-3 w-full">
+          <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Projects</h3>
+          <span v-if="rows.length" class="text-xs text-rm-muted">{{ rows.length }} project{{ rows.length === 1 ? '' : 's' }}</span>
+        </div>
+      </template>
       <DataTable
         :value="rows"
         dataKey="path"
@@ -45,16 +54,20 @@
         </Column>
       </DataTable>
       <Message v-if="rows.length === 0" severity="secondary" class="mt-4">No projects match the filter.</Message>
-    </div>
-  </div>
+    </Panel>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import Column from 'primevue/column';
 import DataTable from 'primevue/datatable';
 import Message from 'primevue/message';
+import Panel from 'primevue/panel';
 import Select from 'primevue/select';
+import Toolbar from 'primevue/toolbar';
 import { useDashboard } from '../composables/useDashboard';
 
 const {

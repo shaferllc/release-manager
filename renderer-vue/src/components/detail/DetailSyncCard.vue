@@ -1,6 +1,7 @@
 <template>
-  <section class="card mb-6 detail-tab-panel" data-detail-tab="sync">
-    <div class="card-section pt-0">
+  <Card class="mb-4 detail-tab-panel" data-detail-tab="sync">
+    <template #content>
+      <div class="card-section pt-0">
         <p class="m-0 mb-6 text-sm text-rm-muted">
           <strong>Sync</strong> runs <code class="bg-rm-bg px-1 rounded text-xs font-mono">git fetch</code>. Download fetches GitHub Release assets for your platform.
         </p>
@@ -28,11 +29,13 @@
         </p>
         <Button variant="text" size="small" class="doc-trigger mt-2 p-1 rounded-rm min-w-0 text-rm-muted hover:text-rm-accent hover:bg-rm-surface-hover text-xs font-normal" title="Documentation" aria-label="Documentation" @click="openDocs('sync')">(i) Sync docs</Button>
       </div>
-  </section>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import { useApi } from '../../composables/useApi';
 import { useAppStore } from '../../stores/app';
 import { useModals } from '../../composables/useModals';

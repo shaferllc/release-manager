@@ -4,22 +4,23 @@
     <NavBar @refresh="onRefresh" @add-project="addProject" />
     <main class="flex-1 flex min-h-0 min-w-0 overflow-hidden">
       <Sidebar />
-      <section class="main-content-section flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden bg-rm-bg">
-        <div class="main-content-scroll flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden">
-        <LicenseUpgradeBanner v-if="store.viewMode !== 'settings'" />
-        <NoSelection v-if="store.viewMode === 'detail' && !store.selectedPath" />
-        <DetailView v-else-if="store.viewMode === 'detail' && store.selectedPath" @refresh="onModalRefresh" />
-        <DashboardView v-else-if="store.viewMode === 'dashboard'" />
-        <SettingsView v-else-if="store.viewMode === 'settings'" />
-        <ExtensionsView v-else-if="store.viewMode === 'extensions'" />
-        <DocsView v-else-if="store.viewMode === 'docs'" />
-        <ChangelogView v-else-if="store.viewMode === 'changelog'" />
-        <ApiView v-else-if="store.viewMode === 'api'" />
-        <NoSelection v-else />
+      <div class="main-content-area flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+        <div class="main-content-inner flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden pb-4">
+          <LicenseUpgradeBanner v-if="store.viewMode !== 'settings'" />
+          <NoSelection v-if="store.viewMode === 'detail' && !store.selectedPath" />
+          <DetailView v-else-if="store.viewMode === 'detail' && store.selectedPath" @refresh="onModalRefresh" />
+          <DashboardView v-else-if="store.viewMode === 'dashboard'" />
+          <SettingsView v-else-if="store.viewMode === 'settings'" />
+          <ExtensionsView v-else-if="store.viewMode === 'extensions'" />
+          <DocsView v-else-if="store.viewMode === 'docs'" />
+          <ChangelogView v-else-if="store.viewMode === 'changelog'" />
+          <ApiView v-else-if="store.viewMode === 'api'" />
+          <NoSelection v-else />
         </div>
-      </section>
+      </div>
     </main>
     <ModalHost @refresh="onModalRefresh" />
+    <CommandPalette v-if="!isTerminalPopout" />
     <FeatureFlagsModal v-if="showFeatureFlagsModal" />
     <AppToasts />
     <LoadingBar />
@@ -28,7 +29,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, onUnmounted } from 'vue';
+import { ref, computed, onMounted, watch, onUnmounted, provide } from 'vue';
 import { useAppStore } from './stores/app';
 import { useApi } from './composables/useApi';
 import NavBar from './components/NavBar.vue';
@@ -53,8 +54,14 @@ import * as debug from './utils/debug';
 import { toPlainProjects } from './utils/plainProjects';
 import FeatureFlagsModal from './components/modals/FeatureFlagsModal.vue';
 import AppToasts from './components/AppToasts.vue';
+import CommandPalette from './components/CommandPalette.vue';
+import { useCommandPalette } from './commandPalette/useCommandPalette';
+import { registerBuiltinCommands } from './commandPalette/builtin';
+import { useModals } from './composables/useModals';
 
 const store = useAppStore();
+const commandPalette = useCommandPalette();
+const modals = useModals();
 const featureFlags = useFeatureFlags();
 const license = useLicense();
 const showFeatureFlagsModal = computed(() => !!featureFlags.isModalOpen?.value);
@@ -165,6 +172,25 @@ function onRefresh() {
   runWithOverlay(loadProjects());
 }
 
+async function syncAllProjects() {
+  const list = store.projects || [];
+  if (!list.length) return;
+  try {
+    for (const p of list) {
+      if (!p?.path) continue;
+      try {
+        if (api.syncFromRemote) await api.syncFromRemote(p.path);
+        else if (api.gitFetch) await api.gitFetch(p.path);
+      } catch (e) {
+        debug.warn('git', 'syncAll.projectFailed', p.path, e?.message ?? e);
+      }
+    }
+    await onModalRefresh();
+  } catch (e) {
+    debug.warn('git', 'syncAll.failed', e?.message ?? e);
+  }
+}
+
 function addProject() {
   debug.log('project', 'addProject clicked', { hasShowDialog: typeof api.showDirectoryDialog === 'function', hasSetProjects: typeof api.setProjects === 'function' });
   if (typeof api.showDirectoryDialog !== 'function') {
@@ -224,6 +250,8 @@ function addProject() {
     });
 }
 
+provide('onAddProject', addProject);
+
 watch(() => store.selectedPath, (path) => {
   if (path && api.setPreference) api.setPreference('selectedProjectPath', path);
 }, { immediate: false });
@@ -240,6 +268,12 @@ function isInputFocused() {
 }
 
 async function handleShortcut(e) {
+  const isCommandPalette = (e.key === 'p' || e.key === 'P') && (e.metaKey || e.ctrlKey) && e.shiftKey;
+  if (isCommandPalette) {
+    e.preventDefault();
+    commandPalette.toggle();
+    return;
+  }
   const action = await api.getShortcutAction?.(
     store.viewMode,
     store.selectedPath,
@@ -280,6 +314,14 @@ onMounted(async () => {
     featureFlags.loadFlags();
     license.loadStatus();
     loadProjects();
+    registerBuiltinCommands({
+      store,
+      onRefresh,
+      onAddProject: addProject,
+      onSyncAll: syncAllProjects,
+      openFeatureFlagsModal: featureFlags.openModal,
+      openSetupWizard: () => modals.openModal('setupWizard'),
+    });
   }
   try {
     const useTabs = await api.getPreference?.('detailUseTabs');
@@ -350,3 +392,4 @@ onUnmounted(() => {
   }
 });
 </script>
+

@@ -1,5 +1,5 @@
 <template>
-  <nav class="nav-bar flex items-center justify-between gap-4 px-4 py-3 bg-rm-surface border-b border-rm-border select-none">
+  <nav class="nav-bar flex items-center justify-between gap-4 px-4 pt-3 pb-4 bg-rm-surface border-b border-rm-border select-none">
     <div class="flex items-center gap-4 no-drag min-w-0">
       <h1
         class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 shrink-0 cursor-default select-none"
@@ -9,11 +9,22 @@
         <span ref="logoFallback" class="w-12 h-12 rounded-rm bg-rm-accent/20 flex items-center justify-center text-rm-accent text-sm font-bold shrink-0 hidden pointer-events-none" aria-hidden="true">R</span>
         <span class="pointer-events-none">Shipwell</span>
       </h1>
+      <Button
+        variant="text"
+        size="small"
+        class="tooltip-btn p-2 min-w-0"
+        title="Command palette (⌘⇧P)"
+        aria-label="Open command palette"
+        @click="openCommandPalette"
+      >
+        <i class="pi pi-search" aria-hidden="true" />
+        <span class="tooltip-bubble">Command palette (⌘⇧P)</span>
+      </Button>
       <div class="flex items-center gap-2 shrink-0 view-dropdown-wrap">
         <span class="text-xs font-medium text-rm-muted whitespace-nowrap">View</span>
         <Select
           :model-value="store.viewMode"
-          :options="viewOptionsFiltered"
+          :options="viewOptionsForSelect"
           option-label="label"
           option-value="value"
           placeholder="View"
@@ -71,6 +82,7 @@ import Select from 'primevue/select';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useCommandPalette } from '../commandPalette/useCommandPalette';
 import * as debug from '../utils/debug';
 
 const emit = defineEmits(['refresh', 'add-project']);
@@ -78,6 +90,11 @@ const emit = defineEmits(['refresh', 'add-project']);
 const store = useAppStore();
 const api = useApi();
 const { openModal: openFeatureFlagsModal } = useFeatureFlags();
+const commandPalette = useCommandPalette();
+
+function openCommandPalette() {
+  commandPalette.toggle();
+}
 const appNameClickCount = ref(0);
 let appNameClickResetTimer = null;
 const APP_NAME_CLICKS_NEEDED = 5;
@@ -127,6 +144,7 @@ const viewOptions = [
 ];
 
 const viewOptionsFiltered = computed(() => viewOptions.filter((o) => !o.sep));
+const viewOptionsForSelect = computed(() => (Array.isArray(viewOptionsFiltered.value) ? viewOptionsFiltered.value : []));
 
 function selectView(value) {
   debug.log('nav', 'viewMode', value);

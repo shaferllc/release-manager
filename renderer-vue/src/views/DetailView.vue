@@ -7,7 +7,7 @@
         :class="store.detailTab === 'coverage' ? 'detail-content-coverage' : 'flex-1 min-h-0'"
       >
         <DetailHeader :info="info" @remove="$emit('refresh')" />
-        <div v-if="store.useDetailTabs" class="detail-tabs-bar flex flex-wrap gap-1 border-b border-rm-border/50 shrink-0">
+        <div v-if="store.useDetailTabs" class="detail-tabs-bar flex flex-wrap gap-1 shrink-0 mb-6">
           <template v-for="(tab, index) in visibleTabs" :key="tab.id">
             <div
               v-if="dropTargetIndex === index && draggedTabId"
@@ -89,18 +89,23 @@ import DetailCoverageCard from '../components/detail/DetailCoverageCard.vue';
 import DetailApiCard from '../components/detail/DetailApiCard.vue';
 import DetailPullRequestsCard from '../components/detail/DetailPullRequestsCard.vue';
 import { useDetailView } from '../composables/useDetailView';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { getDetailTabExtension } from '../extensions/registry';
 import { computed, ref } from 'vue';
 
 defineEmits(['refresh']);
 
 const { store, info, error, visibleTabs, load, setDetailTabOrder } = useDetailView();
+const { isTabEnabled } = useFeatureFlags();
 const draggedTabId = ref(null);
 const dropTargetIndex = ref(null);
 
 const extensionComponent = computed(() => {
   const ext = getDetailTabExtension(store.detailTab);
-  return ext?.component ?? null;
+  if (!ext) return null;
+  const flagId = ext.featureFlagId ?? ext.id;
+  if (!isTabEnabled(flagId)) return null;
+  return ext.component;
 });
 
 function onTabDragStart(event, tabId) {

@@ -4,6 +4,20 @@ import { createPinia, setActivePinia } from 'pinia';
 import { useAppStore } from '../../stores/app';
 import DetailKanbanCard from './DetailKanbanCard.vue';
 
+const ExtensionLayoutStub = {
+  name: 'ExtensionLayoutStub',
+  props: ['tabId', 'contentClass'],
+  template: `
+    <section :data-detail-tab="tabId" :class="contentClass">
+      <div class="extension-toolbar">
+        <slot name="toolbar-start" />
+        <slot name="toolbar-end" />
+      </div>
+      <slot />
+    </section>
+  `,
+};
+
 const defaultColumns = [
   { id: 'todo', label: 'To Do', isBacklog: true },
   { id: 'in-progress', label: 'In Progress' },
@@ -61,7 +75,7 @@ describe('DetailKanbanCard', () => {
     window.releaseManager.getPreference = vi.fn().mockResolvedValue(mockBoardPayload());
     const wrapper = mount(DetailKanbanCard, {
       props: { info: {} },
-      global: { plugins: [pinia] },
+      global: { plugins: [pinia], stubs: { ExtensionLayout: ExtensionLayoutStub } },
     });
     await flushPromises();
     expect(wrapper.text()).toContain('Kanban');
@@ -73,7 +87,7 @@ describe('DetailKanbanCard', () => {
     window.releaseManager.getPreference = vi.fn().mockResolvedValue(mockBoardPayload());
     const wrapper = mount(DetailKanbanCard, {
       props: { info: {} },
-      global: { plugins: [pinia] },
+      global: { plugins: [pinia], stubs: { ExtensionLayout: ExtensionLayoutStub } },
     });
     await flushPromises();
     expect(wrapper.text()).toContain('To Do');
@@ -85,7 +99,7 @@ describe('DetailKanbanCard', () => {
     window.releaseManager.getPreference = vi.fn().mockResolvedValue(mockBoardPayload());
     const wrapper = mount(DetailKanbanCard, {
       props: { info: {} },
-      global: { plugins: [pinia] },
+      global: { plugins: [pinia], stubs: { ExtensionLayout: ExtensionLayoutStub } },
     });
     await flushPromises();
     expect(wrapper.text()).toContain('Test card');
@@ -97,7 +111,7 @@ describe('DetailKanbanCard', () => {
     window.releaseManager.getPreference = vi.fn().mockResolvedValue(mockBoardPayload());
     mount(DetailKanbanCard, {
       props: { info: {} },
-      global: { plugins: [pinia] },
+      global: { plugins: [pinia], stubs: { ExtensionLayout: ExtensionLayoutStub } },
     });
     await flushPromises();
     expect(window.releaseManager.getPreference).toHaveBeenCalledWith('ext.kanban.%2Fmy%2Fproject');
@@ -107,7 +121,7 @@ describe('DetailKanbanCard', () => {
     window.releaseManager.getPreference = vi.fn().mockResolvedValue(null);
     const wrapper = mount(DetailKanbanCard, {
       props: { info: {} },
-      global: { plugins: [pinia] },
+      global: { plugins: [pinia], stubs: { ExtensionLayout: ExtensionLayoutStub } },
     });
     await flushPromises();
     expect(wrapper.text()).toContain('To Do');
@@ -119,7 +133,7 @@ describe('DetailKanbanCard', () => {
     window.releaseManager.getPreference = vi.fn().mockResolvedValue(mockBoardPayload());
     const wrapper = mount(DetailKanbanCard, {
       props: { info: {} },
-      global: { plugins: [pinia] },
+      global: { plugins: [pinia], stubs: { ExtensionLayout: ExtensionLayoutStub } },
     });
     await flushPromises();
     const section = wrapper.find('section[data-detail-tab="kanban"]');
@@ -130,7 +144,7 @@ describe('DetailKanbanCard', () => {
     window.releaseManager.getPreference = vi.fn().mockResolvedValue(mockBoardPayload());
     const wrapper = mount(DetailKanbanCard, {
       props: { info: {} },
-      global: { plugins: [pinia] },
+      global: { plugins: [pinia], stubs: { ExtensionLayout: ExtensionLayoutStub } },
     });
     await flushPromises();
     const dropZones = wrapper.findAll('.kanban-column-cards[data-column-id]');

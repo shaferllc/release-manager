@@ -50,6 +50,12 @@ const CLAUDE_MODEL_PRESET_OPTIONS = [{ value: 'claude-sonnet-4-20250514', label:
 const OPENAI_MODEL_PRESET_OPTIONS = [{ value: 'gpt-4o-mini', label: 'GPT-4o mini' }, { value: 'gpt-4o', label: 'GPT-4o' }, { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' }, { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }, { value: 'o1-mini', label: 'o1 mini' }, { value: 'custom', label: 'Custom...' }];
 const GEMINI_MODEL_PRESET_OPTIONS = [{ value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }, { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }, { value: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash 8B' }, { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }, { value: 'custom', label: 'Custom...' }];
 const PREFERRED_EDITOR_OPTIONS = [{ value: '', label: 'Default (Cursor, then VS Code)' }, { value: 'cursor', label: 'Cursor' }, { value: 'code', label: 'VS Code' }];
+const PREFERRED_TERMINAL_OPTIONS = [
+  { value: 'default', label: 'Default (macOS: Terminal.app)' },
+  { value: 'Terminal', label: 'Terminal.app' },
+  { value: 'iTerm', label: 'iTerm2' },
+  { value: 'Warp', label: 'Warp' },
+];
 const FONT_SIZE_OPTIONS = [{ value: 'tighter', label: 'Tighter' }, { value: 'compact', label: 'Compact' }, { value: 'comfortable', label: 'Comfortable' }, { value: 'spacious', label: 'Spacious' }, { value: 'relaxed', label: 'Relaxed' }];
 const BORDER_RADIUS_OPTIONS = [{ value: 'sharp', label: 'Sharp' }, { value: 'rounded', label: 'Rounded' }, { value: 'pill', label: 'Pill' }];
 const TERMINAL_POPOUT_SIZE_OPTIONS = [{ value: 'compact', label: 'Compact' }, { value: 'default', label: 'Default' }, { value: 'spacious', label: 'Spacious' }];
@@ -91,6 +97,7 @@ export function useSettings() {
   const geminiModel = ref('');
   const geminiModelPreset = ref('gemini-1.5-flash');
   const preferredEditor = ref('');
+  const preferredTerminal = ref('default');
   const phpPath = ref('');
   const useDetailTabs = ref(true);
   const debugLogging = ref(false);
@@ -139,6 +146,17 @@ export function useSettings() {
   const ollamaModels = ref([]);
   const ollamaListLoading = ref(false);
   const ollamaListError = ref('');
+  const phpVersionOptions = ref([]);
+  const phpListLoading = ref(false);
+  const phpListError = ref('');
+
+  const ollamaModelOptions = computed(() => {
+    const list = ollamaModels.value || [];
+    const current = (ollamaModel.value || '').trim();
+    const options = list.map((m) => ({ label: m, value: m }));
+    if (current && !list.includes(current)) options.unshift({ label: `${current} (current)`, value: current });
+    return options;
+  });
 
   function applyAppearance() {
     const el = document.documentElement;
@@ -214,6 +232,7 @@ export function useSettings() {
   function saveAiProvider() { debug.log('settings', 'save aiProvider', aiProvider.value); api.setAiProvider?.(aiProvider.value); }
   function openUrl(url) { if (url && api.openUrl) api.openUrl(url); }
   function savePreferredEditor() { debug.log('settings', 'save preferredEditor', preferredEditor.value || ''); api.setPreference?.('preferredEditor', preferredEditor.value || ''); }
+  function savePreferredTerminal() { debug.log('settings', 'save preferredTerminal', preferredTerminal.value || 'default'); api.setPreference?.('preferredTerminal', preferredTerminal.value || 'default'); }
   async function listOllamaModels() {
     ollamaListError.value = ''; ollamaModels.value = []; ollamaListLoading.value = true;
     try {
@@ -224,6 +243,27 @@ export function useSettings() {
     finally { ollamaListLoading.value = false; }
   }
   function savePhpPath() { debug.log('settings', 'save phpPath'); api.setPreference?.('phpPath', phpPath.value?.trim() ?? ''); }
+  async function listPhpVersions() {
+    phpListError.value = '';
+    phpListLoading.value = true;
+    try {
+      const list = await api.getAvailablePhpVersions?.() || [];
+      phpVersionOptions.value = list.map((r) => ({ value: r.path, label: `PHP ${r.version}` }));
+    } catch (e) {
+      phpListError.value = e?.message || 'Failed to list PHP versions.';
+      phpVersionOptions.value = [];
+    } finally {
+      phpListLoading.value = false;
+    }
+  }
+  const phpVersionSelectOptions = computed(() => {
+    const opts = [{ value: '', label: 'Other (enter path below)' }, ...(phpVersionOptions.value || [])];
+    const current = (phpPath.value || '').trim();
+    if (current && !phpVersionOptions.value.some((o) => o.value === current)) {
+      opts.push({ value: current, label: `Custom: ${current}` });
+    }
+    return opts;
+  });
   function saveUseTabs() { debug.log('settings', 'save detailUseTabs', useDetailTabs.value); store.setUseDetailTabs(useDetailTabs.value); api.setPreference?.('detailUseTabs', useDetailTabs.value); }
   function saveTerminalPopoutSize() { api.setPreference?.('terminalPopoutSize', terminalPopoutSize.value); }
   function saveTerminalPopoutAlwaysOnTop() { api.setPreference?.('terminalPopoutAlwaysOnTop', terminalPopoutAlwaysOnTop.value); }
@@ -258,9 +298,9 @@ export function useSettings() {
 
   async function load() {
     try {
-      const [token, ollama, claude, openai, geminiSettings, provider, editor, php, sign, tabs, debugLoad, themeRes, appearanceAccent, appearanceFontSize, appearanceRadius, appearanceReducedMotion, appearanceZoomFactor, appearanceReduceTransparency, appearanceHighContrast, terminalSize, terminalAlwaysOnTop, terminalFullscreenable, launchAtLoginRes, defaultViewP, checkForUpdatesP, confirmBeforeQuitP, notificationsEnabledP, notificationSoundP, notificationsOnlyWhenNotFocusedP, doubleClickToOpenProjectP, confirmDestructiveActionsP, autoRefreshIntervalSecondsP, recentListLengthP, showTipsP, gitDefaultBranchP, gitAutoFetchIntervalMinutesP, gitSshKeyPathP, gitDiffToolP, proxyP, requestTimeoutSecondsP, offlineModeP, telemetryP, telemetryEndpointP, telemetryUserIdentifierP, crashReportsP, crashReportEndpointP, alwaysOnTopP, minimizeToTrayP, focusOutlineVisibleP, largeCursorP, screenReaderSupportP] = await Promise.all([
+      const [token, ollama, claude, openai, geminiSettings, provider, editor, preferredTerminalP, php, sign, tabs, debugLoad, themeRes, appearanceAccent, appearanceFontSize, appearanceRadius, appearanceReducedMotion, appearanceZoomFactor, appearanceReduceTransparency, appearanceHighContrast, terminalSize, terminalAlwaysOnTop, terminalFullscreenable, launchAtLoginRes, defaultViewP, checkForUpdatesP, confirmBeforeQuitP, notificationsEnabledP, notificationSoundP, notificationsOnlyWhenNotFocusedP, doubleClickToOpenProjectP, confirmDestructiveActionsP, autoRefreshIntervalSecondsP, recentListLengthP, showTipsP, gitDefaultBranchP, gitAutoFetchIntervalMinutesP, gitSshKeyPathP, gitDiffToolP, proxyP, requestTimeoutSecondsP, offlineModeP, telemetryP, telemetryEndpointP, telemetryUserIdentifierP, crashReportsP, crashReportEndpointP, alwaysOnTopP, minimizeToTrayP, focusOutlineVisibleP, largeCursorP, screenReaderSupportP] = await Promise.all([
         api.getGitHubToken?.() ?? '', api.getOllamaSettings?.() ?? {}, api.getClaudeSettings?.() ?? {}, api.getOpenAISettings?.() ?? {}, api.getGeminiSettings?.().catch(() => ({ apiKey: '', model: '' })),
-        api.getAiProvider?.().catch(() => 'ollama'), api.getPreference?.('preferredEditor').catch(() => ''), api.getPreference?.('phpPath').catch(() => ''), api.getPreference?.('signCommits').catch(() => false), api.getPreference?.('detailUseTabs').catch(() => true), api.getPreference?.('debug').catch(() => undefined),
+        api.getAiProvider?.().catch(() => 'ollama'), api.getPreference?.('preferredEditor').catch(() => ''), api.getPreference?.('preferredTerminal').catch(() => 'default'), api.getPreference?.('phpPath').catch(() => ''), api.getPreference?.('signCommits').catch(() => false), api.getPreference?.('detailUseTabs').catch(() => true), api.getPreference?.('debug').catch(() => undefined),
         api.getTheme?.().catch(() => ({ theme: 'dark' })), api.getPreference?.('appearanceAccent').catch(() => 'green'), api.getPreference?.('appearanceFontSize').catch(() => 'comfortable'), api.getPreference?.('appearanceRadius').catch(() => 'sharp'), api.getPreference?.('appearanceReducedMotion').catch(() => false), api.getAppZoomFactor?.().catch(() => 1), api.getPreference?.('appearanceReduceTransparency').catch(() => false), api.getPreference?.('appearanceHighContrast').catch(() => false), api.getPreference?.('terminalPopoutSize').catch(() => 'default'), api.getPreference?.('terminalPopoutAlwaysOnTop').catch(() => false), api.getPreference?.('terminalPopoutFullscreenable').catch(() => true),
         api.getLaunchAtLogin?.().catch(() => ({ openAtLogin: false })), api.getPreference?.('defaultView').catch(() => 'last'), api.getPreference?.('checkForUpdates').catch(() => 'auto'), api.getConfirmBeforeQuit?.().catch(() => false), api.getPreference?.('notificationsEnabled').catch(() => true), api.getPreference?.('notificationSound').catch(() => false), api.getPreference?.('notificationsOnlyWhenNotFocused').catch(() => false), api.getPreference?.('doubleClickToOpenProject').catch(() => false), api.getPreference?.('confirmDestructiveActions').catch(() => true), api.getPreference?.('autoRefreshIntervalSeconds').catch(() => 0), api.getPreference?.('recentListLength').catch(() => 10), api.getPreference?.('showTips').catch(() => true), api.getPreference?.('gitDefaultBranch').catch(() => 'main'), api.getPreference?.('gitAutoFetchIntervalMinutes').catch(() => 0), api.getPreference?.('gitSshKeyPath').catch(() => ''), api.getPreference?.('gitDiffTool').catch(() => ''), api.getProxy?.().catch(() => ''), api.getPreference?.('requestTimeoutSeconds').catch(() => 30), api.getPreference?.('offlineMode').catch(() => false), api.getPreference?.('telemetry').catch(() => false), api.getPreference?.('telemetryEndpoint').catch(() => ''), api.getPreference?.('telemetryUserIdentifier').catch(() => ''), api.getPreference?.('crashReports').catch(() => false), api.getPreference?.('crashReportEndpoint').catch(() => ''), api.getAlwaysOnTop?.().catch(() => false), api.getMinimizeToTray?.().catch(() => false),         api.getPreference?.('focusOutlineVisible').catch(() => false), api.getPreference?.('largeCursor').catch(() => false), api.getPreference?.('screenReaderSupport').catch(() => false),
       ]);
@@ -275,7 +315,10 @@ export function useSettings() {
       const geminiPresets = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-8b', 'gemini-2.0-flash'];
       geminiModelPreset.value = geminiPresets.includes(geminiSettings?.model?.trim()) ? geminiSettings.model.trim() : 'custom';
       aiProvider.value = provider === 'claude' ? 'claude' : provider === 'openai' ? 'openai' : provider === 'gemini' ? 'gemini' : 'ollama';
-      preferredEditor.value = editor === 'cursor' || editor === 'code' ? editor : ''; phpPath.value = php || '';
+      preferredEditor.value = editor === 'cursor' || editor === 'code' ? editor : '';
+      preferredTerminal.value = (preferredTerminalP === 'Terminal' || preferredTerminalP === 'iTerm' || preferredTerminalP === 'Warp') ? preferredTerminalP : 'default';
+      phpPath.value = php || '';
+      listPhpVersions();
       signCommits.value = !!sign; useDetailTabs.value = tabs !== false; debugLogging.value = debugLoad !== false;
       debug.setEnabled(debugLoad !== false); store.setUseDetailTabs(tabs !== false);
       if (themeRes?.theme) theme.value = themeRes.theme;
@@ -322,6 +365,7 @@ export function useSettings() {
     openaiModelPresetOptions: OPENAI_MODEL_PRESET_OPTIONS,
     geminiModelPresetOptions: GEMINI_MODEL_PRESET_OPTIONS,
     preferredEditorOptions: PREFERRED_EDITOR_OPTIONS,
+    preferredTerminalOptions: PREFERRED_TERMINAL_OPTIONS,
     fontSizeOptions: FONT_SIZE_OPTIONS,
     zoomOptions: ZOOM_OPTIONS,
     borderRadiusOptions: BORDER_RADIUS_OPTIONS,
@@ -342,7 +386,14 @@ export function useSettings() {
     geminiModel,
     geminiModelPreset,
     preferredEditor,
+    preferredTerminal,
+    savePreferredTerminal,
     phpPath,
+    phpVersionOptions,
+    phpVersionSelectOptions,
+    listPhpVersions,
+    phpListLoading,
+    phpListError,
     useDetailTabs,
     debugLogging,
     theme,
@@ -387,6 +438,7 @@ export function useSettings() {
     focusOutlineVisible,
     largeCursor,
     screenReaderSupport,
+    ollamaModelOptions,
     ollamaModels,
     ollamaListLoading,
     ollamaListError,

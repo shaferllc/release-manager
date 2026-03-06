@@ -1,37 +1,32 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-processes-card flex flex-col min-h-0" data-detail-tab="processes">
-    <!-- Toolbar: intro + actions grouped -->
-    <div class="processes-toolbar rounded-rm border border-rm-border bg-rm-surface/50 px-4 py-3 mb-5 flex flex-wrap items-center gap-4">
-      <p class="text-sm text-rm-muted m-0 flex-1 min-w-0 max-w-xl">
+  <ExtensionLayout tab-id="processes" content-class="detail-processes-card">
+    <template #toolbar-start>
+      <p class="text-sm text-rm-muted m-0">
         Run your dev stack in one place. Start or stop all at once and see status at a glance.
       </p>
-      <div class="processes-actions flex items-center gap-2">
-        <Button
-          severity="primary"
-          size="small"
-          :disabled="!projectPath || startingAll"
-          @click="startAll"
-        >
-          {{ startingAll ? 'Starting…' : 'Start all' }}
-        </Button>
-        <Button
-          severity="danger"
-          size="small"
-          :disabled="!projectPath || stoppingAll || !hasRunning"
-          @click="stopAll"
-        >
-          {{ stoppingAll ? 'Stopping…' : 'Stop all' }}
-        </Button>
-        <Button variant="text" size="small" class="!p-2" title="Refresh status" @click="refreshStatus">
-          <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>
-            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/>
-          </svg>
-        </Button>
-      </div>
-    </div>
+    </template>
+    <template #toolbar-end>
+      <Button
+        severity="primary"
+        size="small"
+        :disabled="!projectPath || startingAll"
+        @click="startAll"
+      >
+        {{ startingAll ? 'Starting…' : 'Start all' }}
+      </Button>
+      <Button
+        severity="danger"
+        size="small"
+        :disabled="!projectPath || stoppingAll || !hasRunning"
+        @click="stopAll"
+      >
+        {{ stoppingAll ? 'Stopping…' : 'Stop all' }}
+      </Button>
+      <Button variant="text" size="small" class="!p-2" title="Refresh status" @click="refreshStatus">
+        <i class="pi pi-refresh" />
+      </Button>
+    </template>
 
-    <!-- Processes list card -->
     <Panel class="processes-list">
       <template #header>
         <div class="flex items-center justify-between gap-3 w-full">
@@ -170,14 +165,15 @@
         <Button severity="primary" size="small" :disabled="!newProcess.name.trim() || !newProcess.command.trim()" @click="addProcess">Add</Button>
       </template>
     </Dialog>
-  </section>
+  </ExtensionLayout>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import ExtensionLayout from '../../components/detail/ExtensionLayout.vue';
 import InputText from 'primevue/inputtext';
 import Panel from 'primevue/panel';
-import Dialog from 'primevue/dialog';
 import { useProcesses } from './useProcesses';
 
 const props = defineProps({ info: { type: Object, default: null } });
@@ -211,17 +207,6 @@ const {
 </script>
 
 <style scoped>
-/* Toolbar */
-.processes-toolbar {
-  border-radius: 8px;
-}
-
-.processes-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
 /* List card */
 .processes-list {
   border-radius: 8px;

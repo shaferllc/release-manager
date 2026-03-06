@@ -1,6 +1,7 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-coverage-card" data-detail-tab="coverage">
-    <div class="card-section">
+  <Card class="mb-4 detail-tab-panel detail-coverage-card" data-detail-tab="coverage">
+    <template #content>
+      <div class="card-section">
       <span class="card-label shrink-0 mb-0">Coverage</span>
       <p class="m-0 mb-4 text-sm text-rm-muted shrink-0">Run coverage for this project (npm: typically <code class="bg-rm-surface px-1 rounded text-xs">test:coverage</code> or similar; PHP: Pest/PHPUnit).</p>
 
@@ -97,12 +98,14 @@
       <p v-if="(output || lastOutput) && lastEntry?.date && !running" class="text-xs text-rm-muted mb-2 shrink-0">Run at {{ formatDate(lastEntry.date) }}</p>
       <pre v-if="running || output || lastOutput" class="detail-coverage-output m-0 p-4 rounded-rm bg-rm-surface text-xs font-mono text-rm-text min-h-[12rem] border border-rm-border whitespace-pre-wrap break-words">{{ running && !output ? 'Running coverage…' : (output || lastOutput) }}</pre>
     </div>
-  </section>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import { ref, watch, computed } from 'vue';
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
 import ProgressSpinner from 'primevue/progressspinner';

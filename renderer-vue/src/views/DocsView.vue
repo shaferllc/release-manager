@@ -1,8 +1,18 @@
 <template>
-  <div class="docs-content flex-1 overflow-auto">
-    <div class="w-full py-8 px-8 text-sm text-rm-text">
-      <h2 class="text-xl font-semibold text-rm-text tracking-tight mb-6">Documentation</h2>
-
+  <Card class="docs-content detail-tab-panel flex-1 flex flex-col min-h-0 overflow-auto">
+    <template #content>
+    <div class="w-full py-6 px-6 text-sm text-rm-text">
+      <Toolbar class="extension-toolbar">
+        <template #start>
+          <p class="text-sm text-rm-muted m-0">
+            Shipwell helps you version, tag, and release multiple projects. Use the sections below for overview, adding projects, detail view, dashboard, and settings.
+          </p>
+        </template>
+      </Toolbar>
+      <Panel>
+        <template #header>
+          <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Documentation</h3>
+        </template>
       <Accordion v-model:value="activePanel" class="docs-accordion">
         <AccordionPanel value="overview">
           <AccordionHeader class="text-base font-semibold text-rm-text">Overview</AccordionHeader>
@@ -55,8 +65,10 @@
           </AccordionContent>
         </AccordionPanel>
       </Accordion>
+      </Panel>
     </div>
-  </div>
+    </template>
+  </Card>
 </template>
 
 <script setup>
@@ -65,6 +77,9 @@ import Accordion from 'primevue/accordion';
 import AccordionPanel from 'primevue/accordionpanel';
 import AccordionHeader from 'primevue/accordionheader';
 import AccordionContent from 'primevue/accordioncontent';
+import Card from 'primevue/card';
+import Panel from 'primevue/panel';
+import Toolbar from 'primevue/toolbar';
 
 const activePanel = ref('overview');
 </script>

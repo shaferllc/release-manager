@@ -5,9 +5,10 @@ const { spawn } = require('child_process');
  * @param {Object} deps
  * @param {Function} deps.getPreference
  * @param {Function} deps.setPreference
+ * @param {Function} [deps.runCommandInSystemTerminal] - (command) => Promise<{ok, error}>; used on darwin to respect preferred terminal
  */
 function createSshManager(deps) {
-  const { getPreference, setPreference } = deps;
+  const { getPreference, setPreference, runCommandInSystemTerminal } = deps;
 
   function getSshConnections() {
     const list = getPreference('sshConnections');
@@ -37,6 +38,9 @@ function createSshManager(deps) {
       return s;
     })();
     try {
+      if (platform === 'darwin' && typeof runCommandInSystemTerminal === 'function') {
+        return runCommandInSystemTerminal(finalCmd);
+      }
       if (platform === 'darwin') {
         const escaped = finalCmd.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const script = `tell application "Terminal" to do script "${escaped}"`;

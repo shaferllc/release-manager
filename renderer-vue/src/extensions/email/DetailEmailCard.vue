@@ -1,10 +1,11 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-email-card flex flex-col min-h-0" data-detail-tab="email">
-    <div class="email-toolbar rounded-rm border border-rm-border bg-rm-surface/50 px-4 py-3 mb-5 flex flex-wrap items-center gap-4">
-      <p class="text-sm text-rm-muted m-0 flex-1 min-w-0 max-w-xl">
-        Each project has its own SMTP port. Start the server to get a port for this project; point your app’s SMTP at it to catch outgoing mail here.
-      </p>
-      <div class="email-actions flex items-center gap-2 flex-wrap ml-auto">
+  <ExtensionLayout tab-id="email" content-class="detail-email-card">
+    <template #toolbar-start>
+      <p class="text-sm text-rm-muted m-0">
+          Each project has its own SMTP port. Start the server to get a port for this project; point your app’s SMTP at it to catch outgoing mail here.
+        </p>
+    </template>
+    <template #toolbar-end>
         <Tag :severity="smtpStatus.running ? 'info' : 'secondary'">
           {{ smtpStatus.running ? `Running on port ${smtpStatus.port}` : 'Stopped' }}
         </Tag>
@@ -17,8 +18,7 @@
         <Button severity="secondary" size="small" icon="pi pi-send" label="Compose" v-tooltip.top="'Open compose modal to send an email'" @click="openComposeModal" />
         <Button severity="secondary" size="small" icon="pi pi-ellipsis-v" label="More" aria-haspopup="true" aria-controls="email-toolbar-more-menu" v-tooltip.top="'Connection info, configure app, email settings'" @click="emailToolbarMoreMenuRef?.toggle($event)" />
         <Menu id="email-toolbar-more-menu" ref="emailToolbarMoreMenuRef" :model="emailToolbarMoreMenuItems" :popup="true" class="email-toolbar-more-menu" />
-      </div>
-    </div>
+    </template>
 
     <Dialog
       v-model:visible="emailSettingsModalVisible"
@@ -88,7 +88,7 @@
             </div>
             <div>
               <label for="project-outgoing-encryption" class="block text-xs text-rm-muted mb-0.5">Encryption</label>
-              <Select id="project-outgoing-encryption" v-model="projectOutgoingEncryption" :options="outgoingEncryptionOptions" option-label="label" option-value="value" class="w-full text-sm" @change="saveProjectOutgoing" />
+              <Select id="project-outgoing-encryption" v-model="projectOutgoingEncryption" :options="projectOutgoingEncryptionOptionsSafe" option-label="label" option-value="value" class="w-full text-sm" @change="saveProjectOutgoing" />
             </div>
           </div>
           <div>
@@ -100,7 +100,8 @@
       </div>
     </Dialog>
 
-    <div v-if="emails.length > 0" class="email-bulk-toolbar rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-2 mb-3 flex flex-wrap items-center gap-2">
+    <Toolbar v-if="emails.length > 0" class="extension-toolbar extension-toolbar-compact mb-3">
+      <template #end>
       <Button severity="secondary" size="small" label="Select all" @click="selectAll" />
       <Button severity="secondary" size="small" :disabled="selectedIds.length === 0" label="Clear selection" @click="clearSelection" />
       <Button severity="secondary" size="small" label="Clear all" v-tooltip.top="'Clear all caught emails'" aria-label="Clear all emails" @click="clearAll" />
@@ -108,7 +109,8 @@
       <Button v-if="selectedIds.length > 0" severity="secondary" size="small" icon="pi pi-share-alt" label="Share selected" aria-haspopup="true" aria-controls="email-bulk-share-menu" @click="bulkShareMenuRef?.toggle($event)" />
       <Menu id="email-bulk-share-menu" ref="bulkShareMenuRef" :model="bulkShareMenuItems" :popup="true" class="email-share-menu" />
       <span v-if="selectedIds.length > 0" class="text-xs text-rm-muted">{{ selectedIds.length }} selected</span>
-    </div>
+      </template>
+    </Toolbar>
 
     <Panel class="email-inbox-wrap flex-1">
       <template #header>
@@ -150,7 +152,7 @@
               <span v-if="shareMessage" class="text-xs text-rm-muted">{{ shareMessage }}</span>
             </div>
             <div class="email-message-tabs flex gap-1 px-4 py-2 border-b border-rm-border bg-rm-surface/20 shrink-0">
-              <SelectButton v-model="viewMode" :options="viewModeOptions" option-label="label" option-value="value" class="email-view-mode-select" />
+              <SelectButton v-model="viewMode" :options="viewModeOptionsSafe" option-label="label" option-value="value" class="email-view-mode-select" />
             </div>
             <div class="email-message-content flex-1 overflow-auto p-4 min-h-0">
               <div v-if="viewMode === 'html'" class="email-html-body prose prose-invert max-w-none" v-html="selectedEmail.sanitizedHtml || '<p class=\'text-rm-muted\'>No HTML content</p>'"></div>
@@ -355,11 +357,11 @@ config.action_mailer.smtp_settings = {
         <Button severity="primary" size="small" label="Send" icon="pi pi-send" :disabled="!composeSubject && !composeBody" @click="sendFromComposeModal" />
       </template>
     </Dialog>
-  </section>
+  </ExtensionLayout>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import Accordion from 'primevue/accordion';
 import AccordionPanel from 'primevue/accordionpanel';
 import AccordionHeader from 'primevue/accordionheader';
@@ -369,6 +371,7 @@ import Checkbox from 'primevue/checkbox';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import Menu from 'primevue/menu';
+import ExtensionLayout from '../../components/detail/ExtensionLayout.vue';
 import Panel from 'primevue/panel';
 import Tag from 'primevue/tag';
 import Divider from 'primevue/divider';
@@ -386,6 +389,7 @@ const store = useAppStore();
 const projectPath = computed(() => (props.info?.path ?? store.selectedPath ?? '').trim() || '');
 const api = useApi();
 const { smtpStatus, emails, selectedEmail, selectedIds, selectedEmails, viewMode, viewModeOptions, emailLinks, startingSmtp, stoppingSmtp, sendingTestEmail, startSmtp, stopSmtp, clearAll, sendTestEmail, toggleSelectEmail, setSelection, selectAll, clearSelection, isSelected, deleteEmail, deleteSelected } = useEmail(projectPath);
+const viewModeOptionsSafe = computed(() => (Array.isArray(viewModeOptions) ? viewModeOptions : []));
 
 const projectMailboxEmail = ref('');
 const projectSmtpPort = ref(null);
@@ -444,7 +448,7 @@ async function copyConnectionInfo() {
   try {
     await copyToClipboard(connectionEnvText.value);
     connectionCopyFeedback.value = 'Copied';
-    setTimeout(() => { connectionCopyFeedback.value = ''; }, 2000);
+    scheduleClear(2000, () => { connectionCopyFeedback.value = ''; });
   } catch (_) {}
 }
 
@@ -463,7 +467,7 @@ async function copyInstruction(app) {
   try {
     await copyToClipboard(text);
     shareMessage.value = 'Copied to clipboard';
-    setTimeout(() => { shareMessage.value = ''; }, 2000);
+    scheduleClear(2000, () => { shareMessage.value = ''; });
   } catch (_) {}
 }
 
@@ -501,7 +505,7 @@ const OUTGOING_ENCRYPTION_OPTIONS = [
   { value: 'tls', label: 'TLS' },
   { value: 'ssl', label: 'SSL' },
 ];
-const outgoingEncryptionOptions = OUTGOING_ENCRYPTION_OPTIONS;
+const projectOutgoingEncryptionOptionsSafe = computed(() => Array.isArray(OUTGOING_ENCRYPTION_OPTIONS) ? OUTGOING_ENCRYPTION_OPTIONS : []);
 
 const projectCheckBrokenLinks = ref(false);
 const projectEnableSpamChecking = ref(true);
@@ -591,6 +595,10 @@ async function saveProjectOutgoing() {
 
 watch(projectPath, () => { loadProjectMailbox(); loadProjectSmtpPort(); loadProjectEmailOptions(); loadProjectOutgoing(); }, { immediate: true });
 onMounted(() => { loadProjectMailbox(); loadProjectSmtpPort(); loadProjectEmailOptions(); loadProjectOutgoing(); });
+onUnmounted(() => {
+  pendingTimeouts.forEach((id) => clearTimeout(id));
+  pendingTimeouts.clear();
+});
 
 const shareMenuRef = ref(null);
 const bulkShareMenuRef = ref(null);
@@ -616,6 +624,15 @@ const composeSubject = ref('');
 const composeBody = ref('');
 const composeAttachments = ref([]);
 const composeFileUploadRef = ref(null);
+const pendingTimeouts = new Set();
+function scheduleClear(delay, fn) {
+  const id = setTimeout(() => {
+    pendingTimeouts.delete(id);
+    fn();
+  }, delay);
+  pendingTimeouts.add(id);
+  return id;
+}
 
 const shareMenuItems = computed(() => [
   { label: 'Copy summary', icon: 'pi pi-copy', command: () => copySummary() },
@@ -654,7 +671,7 @@ async function copySummary() {
   ];
   await copyToClipboard(lines.join('\n'));
   shareMessage.value = 'Summary copied to clipboard';
-  setTimeout(() => { shareMessage.value = ''; }, 2000);
+  scheduleClear(2000, () => { shareMessage.value = ''; });
 }
 
 async function copyRaw() {
@@ -662,7 +679,7 @@ async function copyRaw() {
   if (!e?.raw) return;
   await copyToClipboard(e.raw);
   shareMessage.value = 'Raw email copied to clipboard';
-  setTimeout(() => { shareMessage.value = ''; }, 2000);
+  scheduleClear(2000, () => { shareMessage.value = ''; });
 }
 
 function saveAsEml() {
@@ -678,7 +695,7 @@ function saveAsEml() {
   a.click();
   URL.revokeObjectURL(url);
   shareMessage.value = 'Saved as .eml';
-  setTimeout(() => { shareMessage.value = ''; }, 2000);
+  scheduleClear(2000, () => { shareMessage.value = ''; });
 }
 
 function buildSummaryLines(e) {
@@ -699,7 +716,7 @@ async function copySummarySelected() {
   const text = blocks.join('\n\n---\n\n');
   await copyToClipboard(text);
   shareMessage.value = `Summary of ${list.length} email(s) copied`;
-  setTimeout(() => { shareMessage.value = ''; }, 2000);
+  scheduleClear(2000, () => { shareMessage.value = ''; });
 }
 
 async function copyRawSelected() {
@@ -708,7 +725,7 @@ async function copyRawSelected() {
   const text = list.map((e) => e?.raw ?? '').join('\n\n---\n\n');
   await copyToClipboard(text);
   shareMessage.value = `Raw of ${list.length} email(s) copied`;
-  setTimeout(() => { shareMessage.value = ''; }, 2000);
+  scheduleClear(2000, () => { shareMessage.value = ''; });
 }
 
 function saveSelectedAsEml() {
@@ -727,7 +744,7 @@ function saveSelectedAsEml() {
     URL.revokeObjectURL(url);
   });
   shareMessage.value = `Saved ${list.length} as .eml`;
-  setTimeout(() => { shareMessage.value = ''; }, 2000);
+  scheduleClear(2000, () => { shareMessage.value = ''; });
 }
 
 function buildForwardBody() {

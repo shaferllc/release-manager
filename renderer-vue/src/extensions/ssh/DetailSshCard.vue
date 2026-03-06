@@ -1,11 +1,10 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-ssh-card flex flex-col min-h-0" data-detail-tab="ssh">
-    <!-- Toolbar -->
-    <div class="ssh-toolbar rounded-rm border border-rm-border bg-rm-surface/50 px-4 py-3 mb-5 flex flex-wrap items-center gap-4">
-      <p class="text-sm text-rm-muted m-0 flex-1 min-w-0 max-w-xl">
+  <ExtensionLayout tab-id="ssh" content-class="detail-ssh-card">
+    <template #toolbar-start>
+      <p class="text-sm text-rm-muted m-0">
         Save SSH connection details and open an interactive session in your system terminal with one click.
       </p>
-    </div>
+    </template>
 
     <Message v-if="sshError" severity="error" class="text-sm mb-3">{{ sshError }}</Message>
 
@@ -92,11 +91,12 @@
         </div>
       </div>
     </Panel>
-  </section>
+  </ExtensionLayout>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import ExtensionLayout from '../../components/detail/ExtensionLayout.vue';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
 import Panel from 'primevue/panel';

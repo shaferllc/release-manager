@@ -1,46 +1,47 @@
 <template>
-  <section class="card detail-tab-panel detail-kanban-card flex flex-col min-h-0" data-detail-tab="kanban">
-    <div class="kanban-toolbar flex flex-wrap items-center gap-4 mb-5">
-      <h3 class="kanban-title card-label mb-0">Kanban</h3>
-      <div class="flex items-center gap-2">
-        <span class="text-rm-muted text-sm font-medium">Board</span>
-        <template v-if="editingBoardName">
-          <InputText
-            ref="editBoardNameInputRef"
-            v-model="editBoardNameInput"
-            class="text-sm w-40"
-            placeholder="Board name"
-            @keydown.enter="saveRenameBoard"
-            @keydown.escape="cancelRenameBoard"
-          />
-          <Button variant="text" size="small" class="text-sm" @click="saveRenameBoard">Save</Button>
-          <Button variant="text" size="small" class="text-sm" @click="cancelRenameBoard">Cancel</Button>
-        </template>
-        <template v-else>
-          <Select
-            v-model="activeBoardId"
-            :options="boardList"
-            option-label="name"
-            option-value="id"
-            class="kanban-select text-sm min-w-[10rem]"
-          />
-          <Button variant="text" size="small" class="text-sm p-1 min-w-0" aria-label="Rename board" title="Rename board" @click="startRenameBoard">✎</Button>
-          <Button
-            v-if="boardList.length > 1"
-            variant="text"
-            severity="danger"
-            size="small"
-            class="text-sm p-1 min-w-0"
-            aria-label="Delete board"
-            title="Delete board"
-            @click="confirmDeleteBoard"
-          >
-            ×
-          </Button>
-          <Button variant="outlined" size="small" class="text-sm" @click="addBoard">+ Board</Button>
-        </template>
-      </div>
-      <div class="kanban-toolbar-actions flex flex-wrap items-center gap-4">
+  <ExtensionLayout tab-id="kanban" content-class="detail-kanban-card">
+    <template #toolbar-start>
+        <h3 class="kanban-title card-label mb-0 mr-4">Kanban</h3>
+        <div class="flex items-center gap-2">
+          <span class="text-rm-muted text-sm font-medium">Board</span>
+          <template v-if="editingBoardName">
+            <InputText
+              ref="editBoardNameInputRef"
+              v-model="editBoardNameInput"
+              class="text-sm w-40"
+              placeholder="Board name"
+              @keydown.enter="saveRenameBoard"
+              @keydown.escape="cancelRenameBoard"
+            />
+            <Button variant="text" size="small" class="text-sm" @click="saveRenameBoard">Save</Button>
+            <Button variant="text" size="small" class="text-sm" @click="cancelRenameBoard">Cancel</Button>
+          </template>
+          <template v-else>
+            <Select
+              v-model="activeBoardId"
+              :options="boardList"
+              option-label="name"
+              option-value="id"
+              class="kanban-select text-sm min-w-[10rem]"
+            />
+            <Button variant="text" size="small" class="text-sm p-1 min-w-0" aria-label="Rename board" title="Rename board" @click="startRenameBoard">✎</Button>
+            <Button
+              v-if="boardList.length > 1"
+              variant="text"
+              severity="danger"
+              size="small"
+              class="text-sm p-1 min-w-0"
+              aria-label="Delete board"
+              title="Delete board"
+              @click="confirmDeleteBoard"
+            >
+              ×
+            </Button>
+            <Button variant="outlined" size="small" class="text-sm" @click="addBoard">+ Board</Button>
+          </template>
+        </div>
+    </template>
+    <template #toolbar-end>
         <Button
           variant="outlined"
           size="small"
@@ -90,8 +91,7 @@
         <Button variant="text" size="small" class="text-sm" :class="{ 'text-rm-accent': showFeaturesPanel }" @click="showFeaturesPanel = !showFeaturesPanel">
           Features
         </Button>
-      </div>
-    </div>
+    </template>
     <div v-if="showFeaturesPanel" class="kanban-features-panel rounded-rm border border-rm-border bg-rm-surface/50 p-4 mb-4">
       <p class="text-sm text-rm-muted mb-3">Enable optional features (all off by default).</p>
       <div class="flex flex-wrap gap-6">
@@ -743,7 +743,7 @@
         <Button severity="secondary" size="small" @click="cardDetailVisible = false; cardDetailCardId = null">Close</Button>
       </template>
     </Dialog>
-  </section>
+  </ExtensionLayout>
 </template>
 
 <script setup>
@@ -754,6 +754,7 @@ import Column from 'primevue/column';
 import DataTable from 'primevue/datatable';
 import DatePicker from 'primevue/datepicker';
 import Dialog from 'primevue/dialog';
+import ExtensionLayout from '../../components/detail/ExtensionLayout.vue';
 import InputText from 'primevue/inputtext';
 import Select from 'primevue/select';
 import Textarea from 'primevue/textarea';
@@ -819,6 +820,7 @@ const draggedCardId = ref(null);
 const dragOverColumnId = ref(null);
 const dragSourceColumnId = ref(null);
 const dropIndicatorAfterCardId = ref(null);
+const dragCleanupRef = ref(null);
 const timerTick = ref(0);
 let timerInterval = null;
 const workSessionsModalVisible = ref(false);
@@ -1817,10 +1819,16 @@ function onCardPointerDown(e, card) {
     } catch (_) {}
     document.removeEventListener('pointermove', onPointerMove, true);
     document.removeEventListener('pointerup', onPointerUp, true);
+    dragCleanupRef.value = null;
   }
 
   document.addEventListener('pointermove', onPointerMove, true);
   document.addEventListener('pointerup', onPointerUp, true);
+  dragCleanupRef.value = () => {
+    document.removeEventListener('pointermove', onPointerMove, true);
+    document.removeEventListener('pointerup', onPointerUp, true);
+    dragCleanupRef.value = null;
+  };
   try {
     cardEl.setPointerCapture(pointerId);
   } catch (_) {}
@@ -1980,6 +1988,8 @@ onMounted(() => {
   document.addEventListener('visibilitychange', onVisibilityChange);
 });
 onUnmounted(() => {
+  dragCleanupRef.value?.();
+  dragCleanupRef.value = null;
   if (timerInterval) clearInterval(timerInterval);
   document.removeEventListener('visibilitychange', onVisibilityChange);
 });
@@ -2072,10 +2082,6 @@ function timeAgo(iso) {
 <style scoped>
 .detail-kanban-card {
   padding: 1.5rem 1.5rem 1.75rem;
-}
-
-.kanban-toolbar {
-  padding-bottom: 0.25rem;
 }
 
 .kanban-title {

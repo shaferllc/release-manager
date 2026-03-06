@@ -95,19 +95,24 @@ export function useInlineTerminal(getDirPath, getShowScripts) {
   async function runCommand() {
     const cmd = input.value?.trim();
     input.value = '';
+    if (cmd) runCommandText(cmd);
+  }
+
+  async function runCommandText(cmd) {
+    const trimmed = typeof cmd === 'string' ? cmd.trim() : '';
     historyIndex.value = -1;
     const dirPath = getDirPath?.();
-    if (!cmd || !dirPath) return;
-    if (history.value[history.value.length - 1] !== cmd) {
-      history.value.push(cmd);
+    if (!trimmed || !dirPath) return;
+    if (history.value[history.value.length - 1] !== trimmed) {
+      history.value.push(trimmed);
       if (history.value.length > HISTORY_MAX) history.value.shift();
     }
-    const block = { cwd: dirPath, command: cmd, running: true };
+    const block = { cwd: dirPath, command: trimmed, running: true };
     blocks.value.push(block);
     running.value = true;
     nextTick(scrollToBottom);
     try {
-      const result = await api.runShellCommand?.(dirPath, cmd);
+      const result = await api.runShellCommand?.(dirPath, trimmed);
       block.running = false;
       block.stdout = result?.stdout ?? '';
       block.stderr = result?.stderr ?? '';
@@ -159,6 +164,7 @@ export function useInlineTerminal(getDirPath, getShowScripts) {
     historyDown,
     runScript,
     runCommand,
+    runCommandText,
     focusInput,
   };
 }

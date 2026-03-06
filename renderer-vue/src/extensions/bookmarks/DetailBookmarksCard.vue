@@ -1,13 +1,15 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-bookmarks-card flex flex-col min-h-0" data-detail-tab="bookmarks">
-    <div class="bookmarks-toolbar rounded-rm border border-rm-border bg-rm-surface/50 px-4 py-3 mb-5 flex flex-wrap items-center gap-4">
-      <p class="text-sm text-rm-muted m-0 flex-1 min-w-0 max-w-xl">
+  <ExtensionLayout tab-id="bookmarks" content-class="detail-bookmarks-card">
+    <template #toolbar-start>
+      <p class="text-sm text-rm-muted m-0">
         Save and organize links for this project. Docs, dashboards, CI, and more.
       </p>
+    </template>
+    <template #toolbar-end>
       <Button severity="primary" size="small" @click="openAddBookmark">
         Add bookmark
       </Button>
-    </div>
+    </template>
 
     <Panel class="bookmarks-list flex-1">
       <template #header>
@@ -30,11 +32,11 @@
         </div>
       </div>
 
-      <ul v-else class="bookmarks-ul divide-y divide-rm-border">
+      <ul v-else class="bookmarks-ul list-none m-0 p-0">
         <li
           v-for="b in sortedBookmarks"
           :key="b.id"
-          class="bookmark-row flex items-center gap-3 px-4 py-3 min-w-0 hover:bg-rm-surface-hover/50"
+          class="bookmark-row flex items-center gap-3 px-4 py-3 min-w-0 border-b border-rm-border last:border-b-0 hover:bg-rm-surface-hover/50"
         >
           <div class="min-w-0 flex-1">
             <a
@@ -174,13 +176,14 @@
         </Button>
       </template>
     </Dialog>
-  </section>
+  </ExtensionLayout>
 </template>
 
 <script setup>
 import { ref, computed, watch } from 'vue';
 import Button from 'primevue/button';
 import Dialog from 'primevue/dialog';
+import ExtensionLayout from '../../components/detail/ExtensionLayout.vue';
 import InputText from 'primevue/inputtext';
 import Panel from 'primevue/panel';
 import Textarea from 'primevue/textarea';
@@ -368,5 +371,11 @@ async function oneClickInstall() {
 }
 .empty-state-actions {
   margin-top: 0.75rem;
+}
+
+/* Single border under header: remove Panel content top border so it doesn't double with header bottom */
+.bookmarks-list :deep(.p-panel-content-wrapper),
+.bookmarks-list :deep(.p-panel-content) {
+  border-top: none;
 }
 </style>

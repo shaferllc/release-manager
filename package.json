@@ -105,6 +105,7 @@
   },
   "dependencies": {
     "basic-ftp": "^5.2.0",
+    "extract-zip": "^2.0.1",
     "electron-store": "^8.1.0",
     "localtunnel": "^2.0.2",
     "mailparser": "^3.6.5",

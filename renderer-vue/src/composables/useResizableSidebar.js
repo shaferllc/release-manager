@@ -1,4 +1,4 @@
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useApi } from './useApi';
 
 const DEFAULT_MIN = 160;
@@ -23,6 +23,7 @@ export function useResizableSidebar({
 }) {
   const api = useApi();
   const sidebarWidth = ref(defaultWidth);
+  const resizeListenersRef = ref(null);
 
   const sidebarStyle = computed(() => ({
     width: `${sidebarWidth.value}px`,
@@ -56,12 +57,25 @@ export function useResizableSidebar({
       document.removeEventListener('pointerup', up);
       document.body.style.cursor = '';
       document.body.style.userSelect = '';
+      resizeListenersRef.value = null;
     };
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
     document.addEventListener('pointermove', move);
     document.addEventListener('pointerup', up);
+    resizeListenersRef.value = { move, up };
   }
+
+  onUnmounted(() => {
+    const listeners = resizeListenersRef.value;
+    if (listeners) {
+      document.removeEventListener('pointermove', listeners.move);
+      document.removeEventListener('pointerup', listeners.up);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      resizeListenersRef.value = null;
+    }
+  });
 
   onMounted(async () => {
     if (typeof api.getPreference !== 'function' || !preferenceKey) return;

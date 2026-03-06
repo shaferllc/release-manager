@@ -4,7 +4,9 @@
  * these into the tab bar and renders the extension component when the tab is active.
  */
 
-const extensions = [];
+import { ref } from 'vue';
+
+const extensions = ref([]);
 
 /**
  * Register a detail-tab extension.
@@ -23,11 +25,11 @@ export function registerDetailTabExtension(def) {
     console.warn('[extensions] registerDetailTabExtension: id, label, and component are required', def);
     return;
   }
-  if (extensions.some((e) => e.id === def.id)) {
+  if (extensions.value.some((e) => e.id === def.id)) {
     console.warn('[extensions] registerDetailTabExtension: duplicate id', def.id);
     return;
   }
-  extensions.push({
+  extensions.value.push({
     id: def.id,
     label: def.label,
     description: def.description ?? '',
@@ -43,7 +45,7 @@ export function registerDetailTabExtension(def) {
  * @returns {Array<{ id: string, label: string, description: string, version: string, icon: string, component: import('vue').Component, featureFlagId: string|null, isVisible: ((info: object) => boolean)|null }>}
  */
 export function getDetailTabExtensions() {
-  return [...extensions];
+  return [...extensions.value];
 }
 
 /**
@@ -52,5 +54,5 @@ export function getDetailTabExtensions() {
  * @returns {object|null}
  */
 export function getDetailTabExtension(tabId) {
-  return extensions.find((e) => e.id === tabId) ?? null;
+  return extensions.value.find((e) => e.id === tabId) ?? null;
 }

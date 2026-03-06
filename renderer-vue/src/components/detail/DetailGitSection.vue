@@ -1,6 +1,7 @@
 <template>
-  <section class="card mb-6 detail-tab-panel flex flex-col min-h-0" data-detail-tab="git">
-    <div class="flex flex-col flex-1 min-h-0">
+  <Card class="mb-4 detail-tab-panel flex flex-col min-h-0" data-detail-tab="git">
+    <template #content>
+      <div class="flex flex-col flex-1 min-h-0">
     <!-- Empty repo: show init CTA -->
     <div v-if="info && !info.hasGit" class="flex flex-col items-center justify-center gap-4 py-12 px-6 text-center">
       <p class="text-sm text-rm-muted m-0">This folder is not a Git repository.</p>
@@ -1417,12 +1418,14 @@
         </div>
       </div>
     </Dialog>
-  </section>
+    </template>
+  </Card>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import Button from 'primevue/button';
+import Card from 'primevue/card';
 import Checkbox from 'primevue/checkbox';
 import Column from 'primevue/column';
 import DataTable from 'primevue/datatable';

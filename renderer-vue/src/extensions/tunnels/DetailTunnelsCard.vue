@@ -1,11 +1,10 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-tunnels-card flex flex-col min-h-0" data-detail-tab="tunnels">
-    <!-- Toolbar -->
-    <div class="tunnels-toolbar rounded-rm border border-rm-border bg-rm-surface/50 px-4 py-3 mb-5 flex flex-wrap items-center gap-4">
-      <p class="text-sm text-rm-muted m-0 flex-1 min-w-0 max-w-xl">
+  <ExtensionLayout tab-id="tunnels" content-class="detail-tunnels-card">
+    <template #toolbar-start>
+      <p class="text-sm text-rm-muted m-0">
         Expose local ports via secure public URLs. Share your dev server, test webhooks, or demo without deploying.
       </p>
-    </div>
+    </template>
 
     <Message v-if="tunnelError" severity="error" class="text-sm mb-3">{{ tunnelError }}</Message>
 
@@ -69,11 +68,12 @@
         </div>
       </div>
     </Panel>
-  </section>
+  </ExtensionLayout>
 </template>
 
 <script setup>
 import Button from 'primevue/button';
+import ExtensionLayout from '../../components/detail/ExtensionLayout.vue';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
 import Panel from 'primevue/panel';

@@ -1,50 +1,50 @@
 <template>
-  <section class="card mb-6 detail-tab-panel detail-markdown-card flex flex-col min-h-0" data-detail-tab="markdown">
-    <div class="markdown-toolbar rounded-rm border border-rm-border bg-rm-surface/50 px-4 py-3 mb-4 flex flex-wrap items-center gap-3">
-      <p class="text-sm text-rm-muted m-0 flex-1 min-w-0">
+  <ExtensionLayout tab-id="markdown" content-class="detail-markdown-card">
+    <template #toolbar-start>
+      <p class="text-sm text-rm-muted m-0">
         Browse and edit Markdown documentation in this project. Select a file to view or edit.
       </p>
-      <div class="markdown-actions flex items-center gap-2 flex-wrap relative">
-        <Button
-          v-if="selectedPath && contentDirty"
-          severity="primary"
-          size="small"
-          :loading="saving"
-          :disabled="saving"
-          aria-label="Save file"
-          @click="saveContent"
-        >
-          {{ saving ? 'Saving…' : 'Save' }}
-        </Button>
-        <Button
-          v-if="selectedPath"
-          severity="secondary"
-          size="small"
-          icon="pi pi-external-link"
-          v-tooltip.top="'Open in external editor'"
-          aria-label="Open in editor"
-          @click="openInEditor"
-        />
-        <Button
-          v-if="selectedPath"
-          severity="secondary"
-          size="small"
-          icon="pi pi-download"
-          v-tooltip.top="'Export document'"
-          aria-haspopup="true"
-          aria-controls="markdown-export-menu"
-          aria-label="Export"
-          @click="exportMenuRef?.toggle($event)"
-        />
-        <Menu
-          id="markdown-export-menu"
-          ref="exportMenuRef"
-          :model="exportMenuItems"
-          :popup="true"
-          class="markdown-export-menu"
-        />
-      </div>
-    </div>
+    </template>
+    <template #toolbar-end>
+      <Button
+        v-if="selectedPath && contentDirty"
+        severity="primary"
+        size="small"
+        :loading="saving"
+        :disabled="saving"
+        aria-label="Save file"
+        @click="saveContent"
+      >
+        {{ saving ? 'Saving…' : 'Save' }}
+      </Button>
+      <Button
+        v-if="selectedPath"
+        severity="secondary"
+        size="small"
+        icon="pi pi-external-link"
+        v-tooltip.top="'Open in external editor'"
+        aria-label="Open in editor"
+        @click="openInEditor"
+      />
+      <Button
+        v-if="selectedPath"
+        severity="secondary"
+        size="small"
+        icon="pi pi-download"
+        v-tooltip.top="'Export document'"
+        aria-haspopup="true"
+        aria-controls="markdown-export-menu"
+        aria-label="Export"
+        @click="exportMenuRef?.toggle($event)"
+      />
+      <Menu
+        id="markdown-export-menu"
+        ref="exportMenuRef"
+        :model="exportMenuItems"
+        :popup="true"
+        class="markdown-export-menu"
+      />
+    </template>
 
     <div v-if="saveError" class="markdown-save-error rounded-rm border border-red-500/50 bg-red-500/10 px-4 py-2 mb-4 text-sm text-red-400">
       {{ saveError }}
@@ -269,15 +269,16 @@
         <img :src="lightboxSrc" class="max-w-full max-h-full object-contain" alt="Enlarged" @click.stop />
       </div>
     </Teleport>
-  </section>
+  </ExtensionLayout>
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick } from 'vue';
+import { ref, computed, watch, nextTick, onUnmounted } from 'vue';
 import mermaid from 'mermaid';
 import { renderGfmToHtml, parseHeadings } from '../../utils/renderGfm';
 import { parseTagsFromMarkdown } from './markdownTags';
 import Button from 'primevue/button';
+import ExtensionLayout from '../../components/detail/ExtensionLayout.vue';
 import Menu from 'primevue/menu';
 import Message from 'primevue/message';
 import ProgressSpinner from 'primevue/progressspinner';
@@ -489,6 +490,11 @@ function cancelLinkPreviewHide() {
 function linkPreviewLeave() {
   linkPreviewHideTimer = setTimeout(() => { linkPreview.value = null; }, 150);
 }
+
+onUnmounted(() => {
+  clearTimeout(linkPreviewTimer);
+  clearTimeout(linkPreviewHideTimer);
+});
 
 // Image lightbox
 const lightboxSrc = ref(null);

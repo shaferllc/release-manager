@@ -10,7 +10,7 @@ const Store = require('electron-store');
 const appRoot = path.join(__dirname, '..');
 const { marked } = require(path.join(appRoot, 'node_modules', 'marked'));
 const sanitizeHtml = require(path.join(appRoot, 'node_modules', 'sanitize-html'));
-const { getReleasesUrl, getActionsUrl, getPullRequestsUrl, getRepoSlug, pickAssetForPlatform } = require('./lib/github');
+const { getReleasesUrl, getActionsUrl, getPullRequestsUrl, getIssuesUrl, getRepoSlug, pickAssetForPlatform } = require('./lib/github');
 const { formatGitHubError } = require('./lib/githubErrors');
 const { filterValidProjects } = require('./lib/projects');
 const debug = require('./debug');
@@ -30,6 +30,7 @@ const {
   buildReleaseNotesPrompt,
   buildTagMessagePrompt,
   buildTestFixPrompt,
+  buildGenerateTestsPrompt,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
 } = require('./lib/ollama');
@@ -72,10 +73,49 @@ const { createLicenseServer } = require('./lib/licenseServer');
 const appSettings = require('./lib/appSettings');
 const { sendCrashReport: sendCrashReportToIngestion } = require('./lib/crashReports');
 const { track: telemetryTrack, flush: telemetryFlush, startFlushTimer: telemetryStartFlushTimer, stopFlushTimer: telemetryStopFlushTimer } = require('./lib/telemetry');
+const extractZip = require(path.join(appRoot, 'node_modules', 'extract-zip'));
 const { SMTPServer } = require(path.join(appRoot, 'node_modules', 'smtp-server'));
 const { simpleParser } = require(path.join(appRoot, 'node_modules', 'mailparser'));
 const localtunnel = require(path.join(appRoot, 'node_modules', 'localtunnel'));
 const { Client: FtpClient } = require(path.join(appRoot, 'node_modules', 'basic-ftp'));
+
+// Register extension handlers immediately so they exist before whenReady and after renderer reload
+function getInstalledUserExtensionsSync() {
+  const extensionsDir = path.join(app.getPath('userData'), 'extensions');
+  if (!fs.existsSync(extensionsDir)) return [];
+  const list = [];
+  const dirs = fs.readdirSync(extensionsDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+  for (const d of dirs) {
+    const manifestPath = path.join(extensionsDir, d.name, 'manifest.json');
+    if (!fs.existsSync(manifestPath)) continue;
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      list.push({ id: manifest.id ?? d.name, name: manifest.name ?? d.name, version: manifest.version ?? '', description: manifest.description ?? '' });
+    } catch (_) {}
+  }
+  return list;
+}
+function getExtensionScriptContentSync(extensionId) {
+  const extensionsDir = path.join(app.getPath('userData'), 'extensions');
+  const entryPath = path.join(extensionsDir, extensionId, 'index.js');
+  if (!fs.existsSync(entryPath)) return null;
+  try {
+    return fs.readFileSync(entryPath, 'utf8');
+  } catch (_) {
+    return null;
+  }
+}
+function expandPathSync(p) {
+  if (!p || typeof p !== 'string') return p;
+  const os = require('os');
+  const home = os.homedir();
+  if (p === '~') return home;
+  if (p.startsWith('~/') || p.startsWith('~\\')) return path.join(home, p.slice(2));
+  return p;
+}
+ipcMain.handle('rm-get-installed-user-extensions', () => getInstalledUserExtensionsSync());
+ipcMain.handle('rm-get-extension-script-content', (_e, extensionId) => getExtensionScriptContentSync(extensionId));
+ipcMain.handle('rm-expand-path', (_e, p) => expandPathSync(p));
 
 // Use same app name in dev and prod so userData is shared (dev no longer uses "Electron")
 const pkg = require(path.join(__dirname, '..', 'package.json'));
@@ -231,7 +271,12 @@ const emailService = createEmailService({
 });
 const tunnelService = createTunnelService({ send: sendToAllWindows, localtunnel });
 const ftpService = createFtpClient({ FtpClient });
-const sshManager = createSshManager({ getPreference, setPreference });
+const sshManager = createSshManager({
+  getPreference,
+  setPreference,
+  runCommandInSystemTerminal: (command) =>
+    terminalService.runCommandInSystemTerminal(command, require('child_process').spawn, getPreference('preferredTerminal') || 'default'),
+});
 const dialogsService = createDialogsService({
   dialog,
   getBrowserWindow: () => BrowserWindow.getAllWindows()[0] || null,
@@ -493,6 +538,37 @@ async function fetchGitHubReleases(owner, repo, token = null) {
 /** state: 'open' | 'closed' | 'all'. Returns list of PRs from GitHub API. */
 async function fetchGitHubPullRequests(owner, repo, token, state = 'open') {
   const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/pulls?state=${encodeURIComponent(state)}&per_page=50`;
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28' };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, { headers, redirect: 'follow' });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(res.status === 404 ? 'Repo not found' : text || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data : [];
+}
+
+/** state: 'open' | 'closed' | 'all'. labels: optional string (comma-separated) or array. Returns list of issues (excludes pull_request entries from API). */
+async function fetchGitHubIssues(owner, repo, token, state = 'open', labels = null) {
+  const params = new URLSearchParams({ state, per_page: '50' });
+  if (labels) params.set('labels', Array.isArray(labels) ? labels.join(',') : String(labels));
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues?${params}`;
+  const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28' };
+  if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
+  const res = await fetch(url, { headers, redirect: 'follow' });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(res.status === 404 ? 'Repo not found' : text || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  const list = Array.isArray(data) ? data : [];
+  return list.filter((i) => !i.pull_request);
+}
+
+/** Returns list of labels for the repo. */
+async function fetchGitHubLabels(owner, repo, token) {
+  const url = `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/labels?per_page=100`;
   const headers = { Accept: 'application/vnd.github+json', 'User-Agent': GITHUB_API_USER_AGENT, 'X-GitHub-Api-Version': '2022-11-28' };
   if (token && typeof token === 'string') headers.Authorization = `Bearer ${token}`;
   const res = await fetch(url, { headers, redirect: 'follow' });
@@ -783,6 +859,36 @@ app.whenReady().then(() => {
     const model = getStore().get('ollamaModel') || DEFAULT_MODEL;
     return ollamaGenerate(baseUrl, model, prompt);
   }
+
+  async function installExtensionFromUrl(extensionId, extensionInfo, downloadUrl, extensionsDir, targetDir, tempDir) {
+    const res = await fetch(downloadUrl, { signal: AbortSignal.timeout(60000), redirect: 'follow' });
+    if (!res.ok) return { ok: false, error: `Download failed: HTTP ${res.status}` };
+    const buf = Buffer.from(await res.arrayBuffer());
+    const ext = path.extname(new URL(res.url).pathname).toLowerCase() || (buf[0] === 0x50 && buf[1] === 0x4b ? '.zip' : '.js');
+    const tempFile = path.join(tempDir, `rm-ext-${extensionId}-${Date.now()}${ext}`);
+    fs.writeFileSync(tempFile, buf);
+    try {
+      if (ext === '.zip') {
+        if (fs.existsSync(targetDir)) fs.rmSync(targetDir, { recursive: true });
+        fs.mkdirSync(targetDir, { recursive: true });
+        await extractZip(tempFile, { dir: targetDir });
+      } else {
+        fs.mkdirSync(targetDir, { recursive: true });
+        fs.writeFileSync(path.join(targetDir, 'index.js'), buf);
+      }
+      const manifest = {
+        id: extensionId,
+        name: extensionInfo?.name ?? extensionId,
+        version: extensionInfo?.version ?? '1.0.0',
+        description: extensionInfo?.description ?? '',
+      };
+      fs.writeFileSync(path.join(targetDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+      return { ok: true, path: targetDir };
+    } finally {
+      try { fs.unlinkSync(tempFile); } catch (_) {}
+    }
+  }
+
   const apiRegistry = {
     getProjects: () => getProjects(),
     getAllProjectsInfo: async () => {
@@ -966,6 +1072,14 @@ app.whenReady().then(() => {
       const prompt = buildTestFixPrompt(testScriptName, stdout, stderr);
       return generateWithProvider(prompt);
     },
+    generateTestsForFile: async (dirPath, relativePath) => {
+      const read = readProjectFileImpl(dirPath, relativePath);
+      if (!read.ok) return { ok: false, error: read.error || 'Failed to read file' };
+      const prompt = buildGenerateTestsPrompt(relativePath, read.content);
+      const result = await generateWithProvider(prompt);
+      if (!result.ok) return { ok: false, error: result.error || 'AI generation failed' };
+      return { ok: true, text: result.text || '' };
+    },
     getGitStatus: (dirPath) => getGitApi().getGitStatus(dirPath),
     getTrackedFiles: (dirPath) => getGitApi().getTrackedFiles(dirPath),
     getProjectFiles: (dirPath) => getGitApi().getProjectFiles(dirPath),
@@ -1094,6 +1208,33 @@ app.whenReady().then(() => {
         return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch pull requests'), pullRequests: [] };
       }
     },
+    getIssuesUrl: (gitRemote) => getIssuesUrl(gitRemote),
+    getGitHubIssues: async (gitRemote, token = null, options = {}) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo', issues: [] };
+      const authToken = token || getStore().get('githubToken') || null;
+      if (!authToken) return { ok: false, error: 'GitHub token required. Set it in Settings.', issues: [] };
+      const state = options.state || 'open';
+      const labels = options.labels ?? null;
+      try {
+        const issues = await fetchGitHubIssues(slug.owner, slug.repo, authToken, state, labels);
+        return { ok: true, issues };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch issues'), issues: [] };
+      }
+    },
+    getGitHubLabels: async (gitRemote, token = null) => {
+      const slug = getRepoSlug(gitRemote);
+      if (!slug) return { ok: false, error: 'Not a GitHub repo', labels: [] };
+      const authToken = token || getStore().get('githubToken') || null;
+      if (!authToken) return { ok: false, error: 'GitHub token required.', labels: [] };
+      try {
+        const labels = await fetchGitHubLabels(slug.owner, slug.repo, authToken);
+        return { ok: true, labels };
+      } catch (e) {
+        return { ok: false, error: formatGitHubError(e.message || 'Failed to fetch labels'), labels: [] };
+      }
+    },
     createPullRequest: async (dirPath, baseBranch, title, body, token = null) => {
       let remoteName;
       try {
@@ -1190,6 +1331,14 @@ app.whenReady().then(() => {
       }
     },
     getAppPath: () => app.getAppPath(),
+    expandPath: (p) => {
+      if (!p || typeof p !== 'string') return p;
+      const os = require('os');
+      const home = os.homedir();
+      if (p === '~') return home;
+      if (p.startsWith('~/') || p.startsWith('~\\')) return path.join(home, p.slice(2));
+      return p;
+    },
     getMcpServerStatus: () => ({
       running: mcpServerProcess != null && !mcpServerProcess.killed,
       pid: mcpServerProcess?.pid ?? undefined,
@@ -1285,6 +1434,101 @@ app.whenReady().then(() => {
         return { ok: true, content };
       } catch (e) {
         return { ok: false, error: e.message || 'Could not load changelog.' };
+      }
+    },
+    getExtensionsDir: () => path.join(app.getPath('userData'), 'extensions'),
+    getMarketplaceExtensions: async (baseUrl) => {
+      const url = (baseUrl || '').replace(/\/$/, '') + '/api/extensions';
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(15000), headers: { Accept: 'application/json' } });
+        if (!res.ok) return { ok: false, error: `HTTP ${res.status}`, data: [] };
+        const json = await res.json();
+        const data = json.data ?? json ?? [];
+        return { ok: true, data: Array.isArray(data) ? data : [] };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Failed to fetch marketplace', data: [] };
+      }
+    },
+    installExtension: async (extensionId, extensionInfo, downloadUrlOrBaseUrl) => {
+      const extensionsDir = path.join(app.getPath('userData'), 'extensions');
+      const targetDir = path.join(extensionsDir, extensionId);
+      const tempDir = app.getPath('temp');
+      let downloadUrl = typeof downloadUrlOrBaseUrl === 'string' ? downloadUrlOrBaseUrl : null;
+      if (!downloadUrl && extensionInfo?.download_url) downloadUrl = extensionInfo.download_url;
+      if (!downloadUrl) {
+        const base = (extensionInfo?.baseUrl || downloadUrlOrBaseUrl || '').replace(/\/$/, '');
+        if (base) downloadUrl = base + '/api/extensions/' + encodeURIComponent(extensionId) + '/download';
+      }
+      if (!downloadUrl) return { ok: false, error: 'No download URL' };
+      try {
+        const res = await fetch(downloadUrl, { signal: AbortSignal.timeout(60000), redirect: 'follow' });
+        if (!res.ok) {
+          const text = await res.text();
+          try {
+            const j = JSON.parse(text);
+            if (j.download_url) return installExtensionFromUrl(extensionId, extensionInfo, j.download_url, extensionsDir, targetDir, tempDir);
+          } catch (_) {}
+          return { ok: false, error: `Download failed: HTTP ${res.status}` };
+        }
+        const contentType = res.headers.get('content-type') || '';
+        const isJson = contentType.includes('application/json');
+        if (isJson) {
+          const j = await res.json();
+          if (j.download_url) return installExtensionFromUrl(extensionId, extensionInfo, j.download_url, extensionsDir, targetDir, tempDir);
+          return { ok: false, error: 'No download_url in response' };
+        }
+        const buf = Buffer.from(await res.arrayBuffer());
+        const ext = path.extname(new URL(res.url).pathname).toLowerCase() || (buf[0] === 0x50 && buf[1] === 0x4b ? '.zip' : '.js');
+        const tempFile = path.join(tempDir, `rm-ext-${extensionId}-${Date.now()}${ext}`);
+        fs.mkdirSync(extensionsDir, { recursive: true });
+        fs.writeFileSync(tempFile, buf);
+        try {
+          if (ext === '.zip') {
+            if (fs.existsSync(targetDir)) fs.rmSync(targetDir, { recursive: true });
+            fs.mkdirSync(targetDir, { recursive: true });
+            await extractZip(tempFile, { dir: targetDir });
+          } else {
+            fs.mkdirSync(targetDir, { recursive: true });
+            fs.writeFileSync(path.join(targetDir, 'index.js'), buf);
+          }
+          const manifest = {
+            id: extensionId,
+            name: extensionInfo?.name ?? extensionId,
+            version: extensionInfo?.version ?? '1.0.0',
+            description: extensionInfo?.description ?? '',
+          };
+          fs.writeFileSync(path.join(targetDir, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+          return { ok: true, path: targetDir };
+        } finally {
+          try { fs.unlinkSync(tempFile); } catch (_) {}
+        }
+      } catch (e) {
+        return { ok: false, error: e.message || 'Install failed' };
+      }
+    },
+    getInstalledUserExtensions: () => {
+      const extensionsDir = path.join(app.getPath('userData'), 'extensions');
+      if (!fs.existsSync(extensionsDir)) return [];
+      const list = [];
+      const dirs = fs.readdirSync(extensionsDir, { withFileTypes: true }).filter((d) => d.isDirectory());
+      for (const d of dirs) {
+        const manifestPath = path.join(extensionsDir, d.name, 'manifest.json');
+        if (!fs.existsSync(manifestPath)) continue;
+        try {
+          const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          list.push({ id: manifest.id ?? d.name, name: manifest.name ?? d.name, version: manifest.version ?? '', description: manifest.description ?? '' });
+        } catch (_) {}
+      }
+      return list;
+    },
+    getExtensionScriptContent: (extensionId) => {
+      const extensionsDir = path.join(app.getPath('userData'), 'extensions');
+      const entryPath = path.join(extensionsDir, extensionId, 'index.js');
+      if (!fs.existsSync(entryPath)) return null;
+      try {
+        return fs.readFileSync(entryPath, 'utf8');
+      } catch (_) {
+        return null;
       }
     },
     getPreference: (key) => getPreference(key),
@@ -1471,7 +1715,8 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
     return { ok: true, tag: pushResult.tag, bump: null };
   }
   function openInTerminalImpl(dirPath) {
-    return terminalService.openInSystemTerminal(dirPath, spawn);
+    const preferred = getPreference('preferredTerminal') || 'default';
+    return terminalService.openInSystemTerminal(dirPath, spawn, preferred);
   }
 
   function openInEditorImpl(targetPath) {
@@ -1713,6 +1958,7 @@ const effectiveBump = (force ? bump : (suggested || bump)) || bump;
   });
   ipcMain.handle('rm-read-project-file', (_e, dirPath, relativePath) => readProjectFileImpl(dirPath, relativePath));
   ipcMain.handle('rm-write-project-file', (_e, dirPath, relativePath, content) => writeProjectFileImpl(dirPath, relativePath, content));
+  ipcMain.handle('rm-generate-tests-for-file', (_e, dirPath, relativePath) => apiRegistry.generateTestsForFile(dirPath, relativePath));
 
   ipcMain.handle('rm-send-test-email', (_e, port, projectPath) => emailService.sendTestEmail(port, projectPath));
   ipcMain.handle('rm-clear-emails', (_e, projectPath) => Promise.resolve(emailService.clearEmails(projectPath)));
@@ -1877,6 +2123,7 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-ollama-generate-release-notes': 'ollamaGenerateReleaseNotes',
     'rm-ollama-generate-tag-message': 'ollamaGenerateTagMessage',
     'rm-ollama-suggest-test-fix': 'ollamaSuggestTestFix',
+    'rm-generate-tests-for-file': 'generateTestsForFile',
     'rm-get-git-status': 'getGitStatus',
     'rm-get-tracked-files': 'getTrackedFiles',
     'rm-get-project-files': 'getProjectFiles',
@@ -1976,6 +2223,9 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-get-releases-url': 'getReleasesUrl',
     'rm-get-pull-requests-url': 'getPullRequestsUrl',
     'rm-get-pull-requests': 'getPullRequests',
+    'rm-get-issues-url': 'getIssuesUrl',
+    'rm-get-github-issues': 'getGitHubIssues',
+    'rm-get-github-labels': 'getGitHubLabels',
     'rm-create-pull-request': 'createPullRequest',
     'rm-merge-pull-request': 'mergePullRequest',
     'rm-get-github-releases': 'getGitHubReleases',
@@ -1985,6 +2235,7 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-write-eml-draft-and-open': 'writeEmlDraftAndOpen',
     'rm-get-app-info': 'getAppInfo',
     'rm-get-app-path': 'getAppPath',
+    'rm-expand-path': 'expandPath',
     'rm-get-mcp-server-status': 'getMcpServerStatus',
     'rm-start-mcp-server': 'startMcpServer',
     'rm-stop-mcp-server': 'stopMcpServer',
@@ -2050,6 +2301,11 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-set-minimize-to-tray': 'setMinimizeToTray',
 'rm-export-settings-to-file': 'exportSettingsToFile',
     'rm-import-settings-from-file': 'importSettingsFromFile',
+    'rm-get-extensions-dir': 'getExtensionsDir',
+    'rm-get-marketplace-extensions': 'getMarketplaceExtensions',
+    'rm-install-extension': 'installExtension',
+    'rm-get-installed-user-extensions': 'getInstalledUserExtensions',
+    'rm-get-extension-script-content': 'getExtensionScriptContent',
     'rm-send-crash-report': 'sendCrashReport',
     'rm-send-telemetry': 'sendTelemetry',
     'rm-flush-telemetry': 'flushTelemetry',
@@ -2059,9 +2315,13 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
   const explicitlyHandled = new Set([
     'rm-get-theme', 'rm-set-theme', 'rm-get-preference', 'rm-set-preference',
     'rm-read-project-file', 'rm-write-project-file',
+    'rm-generate-tests-for-file',
     'rm-send-test-email',
     'rm-clear-emails',
     'rm-delete-emails',
+    'rm-get-installed-user-extensions',
+    'rm-get-extension-script-content',
+    'rm-expand-path',
   ]);
   for (const [channel, methodName] of Object.entries(IPC_TO_METHOD)) {
     if (explicitlyHandled.has(channel)) continue;
