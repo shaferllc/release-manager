@@ -119,6 +119,13 @@ npm run cli -- api getBranches '["/path/to/project"]'
 
 ## Troubleshooting
 
+- **"Sign-in not configured"** – For **Development** environment to work without entering Client ID/Secret in Settings, create a `.env` in this repo (copy from `.env.example`) and set `LICENSE_DEV_CLIENT_ID` and `LICENSE_DEV_CLIENT_SECRET`. In **shipwell-web** run `php artisan passport:client --password` and use the returned Client ID and Secret. The app loads `.env` at startup when running `npm run dev` or `npm start`.
+- **Login / “fetch failed”** – To see why sign-in fails, run with debug logging:
+  - **Main process (sign-in requests):** `npm run dev` (logging is on when `NODE_ENV=development`) or `LICENSE_DEBUG=1 npm start`. Watch the terminal for `[licenseServer]` lines: they show the URL used, each request (POST /oauth/token, GET /api/user), response status, and any fetch error (message, cause).
+  - **Renderer:** Open DevTools (e.g. **View → Toggle Developer Tools**). In the console, look for `[useLicense]` and `[login]` messages when you try to sign in or when the app loads login status.
+  - **Main process (login status):** With `npm run dev`, the terminal also logs `[RM Debug] [main] [license]` when `getLicenseStatus` is called and whether a token exists and remote validation passed.
+  - Cross-check with the **shipwell-web** app: enable `AUTH_DEBUG_LOG=true` in its `.env` and check `storage/logs/laravel.log` to see if the server received the request and what status it returned.
+
 - **App exits with SIGABRT** – Reload is only enabled when you run `npm run dev`. If you use `npm start`, the watcher is off and the app should not crash from it. If you still see SIGABRT (e.g. when using `npm run dev`), run with reload disabled: `DISABLE_ELECTRON_RELOAD=1 npm run dev`, or use `npm start` and restart the app manually after code changes.
 
 ## Tests
@@ -128,5 +135,16 @@ Logic in `src-main/lib/` is unit-tested (Jest). Run `npm run test:coverage` for 
 ## Releasing this app
 
 Push a tag `v*` (e.g. `v0.2.0`); GitHub Actions builds and creates a Release. Or add this repo as a project in the app and use Release there.
+
+**Sign-in for everyone (built app):** So that Production (and optional Staging) sign-in works in the built app without users configuring Client ID/Secret, add these **repository secrets** in GitHub (Settings → Secrets and variables → Actions):
+
+- `LICENSE_PROD_CLIENT_ID` – Passport password-grant client ID for your production backend (e.g. app.shipwell.com).
+- `LICENSE_PROD_CLIENT_SECRET` – That client’s secret.
+
+Optional for Staging:
+
+- `LICENSE_STAGING_CLIENT_ID`, `LICENSE_STAGING_CLIENT_SECRET` – Same for staging (e.g. staging.shipwell.com).
+
+The release workflow runs `scripts/generate-license-bundled.js` before packaging; it writes `license-server.bundled.json` from these env vars so the packaged app has credentials for prod (and staging). Do not commit that file; it is gitignored. Local `npm run build` without these env vars still succeeds; the built app just won’t have bundled prod credentials.
 
 Workflows live in `.github/workflows/` and must be on the **default branch** (e.g. `main`) to appear. Open **Actions** at: `https://github.com/<owner>/<repo>/actions`. If no workflows show, check **Settings → Actions → General** and ensure "Allow all actions" (or the desired level) is enabled.

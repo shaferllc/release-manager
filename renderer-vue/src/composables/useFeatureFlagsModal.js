@@ -1,21 +1,30 @@
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useApi } from './useApi';
 import { useFeatureFlags } from './useFeatureFlags';
 import { useLicense } from './useLicense';
+import { getDetailTabExtensions } from '../extensions/registry';
+import { groupEntriesByCategory } from '../extensions/tabCategories';
 
-const TAB_LABELS = {
-  'pull-requests': 'Pull requests',
-  'processes': 'Dev stack',
-  'email': 'Email',
-  'tunnels': 'Tunnels',
-  'ftp': 'FTP',
-  'ssh': 'SSH',
-  'composer': 'Composer',
-  'tests': 'Tests',
-  'coverage': 'Coverage',
-  'api': 'API',
-  'kanban': 'Kanban',
-};
+/** All tab flag IDs and their display labels. Built-in first, then extensions (extensions can override). */
+function getAllTabLabels() {
+  const builtin = {
+    'pull-requests': 'Pull requests',
+    'processes': 'Dev stack',
+    'email': 'Email',
+    'tunnels': 'Tunnels',
+    'ftp': 'FTP',
+    'ssh': 'SSH',
+    'composer': 'Composer',
+    'tests': 'Tests',
+    'coverage': 'Coverage',
+    'api': 'API',
+    'kanban': 'Kanban',
+    'markdown': 'Markdown',
+    'wiki': 'Wiki',
+  };
+  const extLabels = Object.fromEntries(getDetailTabExtensions().map((e) => [e.id, e.label]));
+  return { ...builtin, ...extLabels };
+}
 
 /** Feature/test areas with the spec file that covers them (path relative to renderer-vue). */
 export const FEATURE_TEST_LIST = [
@@ -31,8 +40,8 @@ export const FEATURE_TEST_LIST = [
 ];
 
 /**
- * Composable for Feature Flags (Hidden options) modal: tab flags, license form,
- * license server config, login/logout, quick test runner. No arguments.
+ * Composable for Feature Flags (Hidden options) modal: tab flags, app login
+ * (server config + login/logout), quick test runner. No arguments.
  */
 export function useFeatureFlagsModal() {
   const api = useApi();
@@ -41,23 +50,38 @@ export function useFeatureFlagsModal() {
     setTabFlag,
     loadFlags,
     closeModal,
-    TAB_FLAG_IDS,
   } = useFeatureFlags();
+
+  const featureFlagsSearchQuery = ref('');
+
+  /** All tab ids with labels, from built-in + extensions (single source of truth). */
+  const tabLabels = computed(() => getAllTabLabels());
+
+  /** Tab flag ids derived from labels, so list is always complete and includes all extensions. */
+  const tabFlagIds = computed(() => Object.keys(tabLabels.value));
+
+  /** Sorted alphabetically by label, filtered by search (matches label or id). */
+  const sortedFilteredTabEntries = computed(() => {
+    const labels = tabLabels.value;
+    const q = (featureFlagsSearchQuery.value || '').trim().toLowerCase();
+    let entries = Object.entries(labels).map(([id, label]) => ({ id, label: label || id }));
+    if (q) {
+      entries = entries.filter(
+        (e) =>
+          (e.label && e.label.toLowerCase().includes(q)) ||
+          (e.id && e.id.toLowerCase().includes(q))
+      );
+    }
+    entries.sort((a, b) => (a.label || a.id).localeCompare(b.label || b.id, undefined, { sensitivity: 'base' }));
+    return entries;
+  });
+
+  /** Same as above but grouped by category for display. */
+  const featureFlagsByCategory = computed(() => groupEntriesByCategory(sortedFilteredTabEntries.value));
+
   const license = useLicense();
 
-  const licenseKeyInput = ref('');
-  const licenseSaving = ref(false);
-  const licenseServerUrl = ref('');
-  const licenseServerClientId = ref('');
-  const licenseServerClientSecret = ref('');
-  const licenseLoginEmail = ref('');
-  const licenseLoginPassword = ref('');
-  const licenseRemoteLoggedIn = ref(false);
-  const licenseRemoteEmail = ref('');
-  const licenseLoginLoading = ref(false);
-  const licenseLoginError = ref('');
-  const licenseMessage = ref('');
-  const licenseMessageOk = ref(false);
+  const licenseLogoutLoading = ref(false);
 
   const testMapOpen = ref(false);
   const testResult = ref(null);
@@ -123,107 +147,30 @@ export function useFeatureFlagsModal() {
     }
   }
 
-  async function saveLicense() {
-    licenseMessage.value = '';
-    licenseSaving.value = true;
-    try {
-      const result = await license.setLicenseKey(licenseKeyInput.value);
-      licenseKeyInput.value = '';
-      if (result?.ok) {
-        licenseMessage.value = result.hasLicense ? 'License saved.' : 'License cleared.';
-        licenseMessageOk.value = true;
-      } else {
-        licenseMessage.value = 'Could not save license.';
-        licenseMessageOk.value = false;
-      }
-    } catch {
-      licenseMessage.value = 'Could not save license.';
-      licenseMessageOk.value = false;
-    } finally {
-      licenseSaving.value = false;
-    }
-  }
-
-  function saveLicenseServerConfig() {
-    api.setLicenseServerConfig?.({
-      url: licenseServerUrl.value?.trim() ?? '',
-      clientId: licenseServerClientId.value?.trim() ?? '',
-      clientSecret: licenseServerClientSecret.value?.trim() ?? '',
-    });
-  }
-
-  async function loginToLicenseServer() {
-    licenseLoginError.value = '';
-    licenseLoginLoading.value = true;
-    try {
-      const result = await api.loginToLicenseServer?.(licenseLoginEmail.value?.trim() ?? '', licenseLoginPassword.value ?? '');
-      if (result?.ok) {
-        licenseLoginPassword.value = '';
-        await license.loadStatus();
-        const session = await api.getLicenseRemoteSession?.().catch(() => ({}));
-        licenseRemoteLoggedIn.value = !!session?.loggedIn;
-        licenseRemoteEmail.value = session?.email ?? '';
-      } else {
-        licenseLoginError.value = result?.error || 'Login failed';
-      }
-    } catch (e) {
-      licenseLoginError.value = e?.message || 'Login failed';
-    } finally {
-      licenseLoginLoading.value = false;
-    }
-  }
-
   async function logoutFromLicenseServer() {
-    licenseLoginError.value = '';
-    licenseLoginLoading.value = true;
+    licenseLogoutLoading.value = true;
     try {
       await api.logoutFromLicenseServer?.();
       await license.loadStatus();
-      licenseRemoteLoggedIn.value = false;
-      licenseRemoteEmail.value = '';
     } finally {
-      licenseLoginLoading.value = false;
+      licenseLogoutLoading.value = false;
     }
   }
 
-  onMounted(async () => {
+  onMounted(() => {
     loadFlags();
-    try {
-      const [config, session] = await Promise.all([
-        api.getLicenseServerConfig?.().catch(() => ({ url: '', clientId: '', clientSecret: '' })),
-        api.getLicenseRemoteSession?.().catch(() => ({ loggedIn: false })),
-      ]);
-      if (config) {
-        licenseServerUrl.value = config.url || '';
-        licenseServerClientId.value = config.clientId || '';
-        licenseServerClientSecret.value = config.clientSecret || '';
-      }
-      if (session) {
-        licenseRemoteLoggedIn.value = !!session.loggedIn;
-        licenseRemoteEmail.value = session.email || '';
-      }
-    } catch (_) {}
   });
 
   return {
     license,
     tabFlags,
-    TAB_FLAG_IDS,
-    tabLabels: TAB_LABELS,
+    tabFlagIds,
+    tabLabels,
+    featureFlagsSearchQuery,
+    sortedFilteredTabEntries,
+    featureFlagsByCategory,
     FEATURE_TEST_LIST,
-    licenseKeyInput,
-    licenseSaving,
-    licenseServerUrl,
-    licenseServerClientId,
-    licenseServerClientSecret,
-    licenseLoginEmail,
-    licenseLoginPassword,
-    licenseRemoteLoggedIn,
-    licenseRemoteEmail,
-    licenseLoginLoading,
-    licenseLoginError,
-    licenseMessage,
-    licenseMessageOk,
+    licenseLogoutLoading,
     testMapOpen,
     testResult,
     testRunning,
@@ -231,9 +178,6 @@ export function useFeatureFlagsModal() {
     toggle,
     runTest,
     runAllTests,
-    saveLicense,
-    saveLicenseServerConfig,
-    loginToLicenseServer,
     logoutFromLicenseServer,
   };
 }

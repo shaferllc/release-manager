@@ -189,16 +189,52 @@ html[data-theme="light"][data-high-contrast="true"] { --rm-border: 160 165 175; 
 html[data-high-contrast="true"] .border-rm-border { border-color: rgb(var(--rm-border)) !important; }
 html[data-high-contrast="true"] .text-rm-muted { color: rgb(var(--rm-text) / 0.85) !important; }
 
-/* Focus outline (accessibility) */
+/* Focus outline (accessibility): always show a visible focus ring on keyboard navigation */
 html:not([data-focus-outline-visible="true"]) *:focus { outline: none; }
-html[data-focus-outline-visible="true"] *:focus-visible { outline: 2px solid rgb(var(--rm-accent)); outline-offset: 2px; }
+html[data-focus-outline-visible="true"] *:focus-visible {
+  outline: 2px solid rgb(var(--rm-accent));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(var(--rm-accent) / 0.2);
+}
+html[data-focus-outline-visible="true"] button:focus-visible,
+html[data-focus-outline-visible="true"] [role="button"]:focus-visible,
+html[data-focus-outline-visible="true"] a:focus-visible,
+html[data-focus-outline-visible="true"] select:focus-visible {
+  outline: 2px solid rgb(var(--rm-accent));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(var(--rm-accent) / 0.2);
+}
 
-/* Large cursor in inputs (accessibility) */
+/* Large cursor in inputs (accessibility): thick bright caret, larger text, highlighted active field */
 html[data-large-cursor="true"] input,
 html[data-large-cursor="true"] textarea,
-html[data-large-cursor="true"] [contenteditable="true"] { caret-color: rgb(var(--rm-accent)); }
+html[data-large-cursor="true"] [contenteditable="true"] {
+  caret-color: rgb(var(--rm-accent));
+  caret-shape: bar;
+}
+html[data-large-cursor="true"] input:focus,
+html[data-large-cursor="true"] textarea:focus,
+html[data-large-cursor="true"] [contenteditable="true"]:focus {
+  border-color: rgb(var(--rm-accent)) !important;
+  box-shadow: inset 0 0 0 1px rgb(var(--rm-accent) / 0.5), 0 0 0 3px rgb(var(--rm-accent) / 0.15);
+}
 html[data-large-cursor="true"] input,
-html[data-large-cursor="true"] textarea { font-size: 1.05em; }
+html[data-large-cursor="true"] textarea {
+  font-size: 1.075em;
+  line-height: 1.6;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+}
+@keyframes a11y-caret-blink {
+  0%, 100% { border-left-color: rgb(var(--rm-accent)); }
+  50% { border-left-color: transparent; }
+}
+html[data-large-cursor="true"] input:focus,
+html[data-large-cursor="true"] textarea:focus {
+  animation: a11y-caret-blink 1s step-end infinite;
+  border-left-width: 3px !important;
+  border-left-color: rgb(var(--rm-accent)) !important;
+}
 
 @layer base {
   * {

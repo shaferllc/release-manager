@@ -1,0 +1,13 @@
+{
+  "folders": [
+    {
+      "name": "release-manager",
+      "path": "."
+    },
+    {
+      "name": "shipwell-web",
+      "path": "../shipwell-web"
+    }
+  ],
+  "settings": {}
+}

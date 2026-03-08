@@ -2,7 +2,7 @@
   <Dialog
     :visible="true"
     header="Hidden options"
-    :style="{ width: '28rem' }"
+    :style="{ width: '40rem' }"
     :modal="true"
     :dismissableMask="true"
     class="max-w-md"
@@ -13,72 +13,52 @@
       <section>
         <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-2">Feature flags</h4>
         <p class="text-xs text-rm-muted m-0 mb-2">Enable or disable detail tabs. Core tabs (Dashboard, Git, Version) are always visible.</p>
-        <div class="flex flex-col gap-2">
-          <label
-            v-for="id in TAB_FLAG_IDS"
-            :key="id"
-            class="flex items-center gap-3 cursor-pointer"
-          >
-            <Checkbox
-              :model-value="tabFlags[id] !== false"
-              binary
-              @update:model-value="(v) => toggle(id, v)"
-            />
-            <span class="text-sm text-rm-text">{{ tabLabels[id] || id }}</span>
-          </label>
+        <div class="mb-3 flex flex-col gap-1.5">
+          <label class="text-xs font-medium text-rm-muted block">Search</label>
+          <InputText
+            v-model="featureFlagsSearchQuery"
+            placeholder="Filter by name..."
+            class="w-full text-sm feature-flags-search"
+          />
         </div>
-        <div class="border-t border-rm-border pt-4 mt-2">
-          <label class="flex items-center gap-3 cursor-pointer">
-            <Checkbox
-              :model-value="license.bypassLicense"
-              binary
-              @update:model-value="license.setBypassLicense"
-            />
-            <span class="text-sm text-rm-text">Enable full app without license</span>
-          </label>
-          <p class="text-xs text-rm-muted mt-1 ml-6 m-0">Show all tabs, AI generation, and batch release without a license key.</p>
+        <p class="text-xs text-rm-muted m-0 mb-2">Sort: A–Z by category</p>
+        <div class="flex flex-col gap-3 max-h-64 overflow-y-auto">
+          <template v-for="group in featureFlagsByCategory" :key="group.categoryId">
+            <div class="flex flex-col gap-1.5">
+              <h5 class="text-xs font-semibold text-rm-muted uppercase tracking-wider m-0">{{ group.label }}</h5>
+              <label
+                v-for="entry in group.entries"
+                :key="entry.id"
+                class="flex items-center gap-3 cursor-pointer pl-0"
+              >
+                <Checkbox
+                  :model-value="tabFlags[entry.id] !== false"
+                  binary
+                  @update:model-value="(v) => toggle(entry.id, v)"
+                />
+                <span class="text-sm text-rm-text">{{ entry.label }}</span>
+              </label>
+            </div>
+          </template>
+          <p v-if="featureFlagsByCategory.length === 0" class="text-xs text-rm-muted m-0">No matching tabs.</p>
         </div>
       </section>
 
       <section class="border-t border-rm-border pt-4">
-        <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-2">License</h4>
-        <p class="text-xs text-rm-muted m-0 mb-2">License will be brought back later. Configure key or server here when ready.</p>
-        <div class="space-y-3">
-          <div>
-            <div class="flex items-center justify-between gap-2 mb-1">
-              <span class="text-sm font-medium text-rm-text">Status</span>
-              <span class="text-sm" :class="license.hasLicense ? 'text-rm-success' : 'text-rm-muted'">
-                {{ license.hasLicense ? (license.licenseSource === 'remote' && license.licenseEmail ? `Active (${license.licenseEmail})` : 'Active') : 'No license' }}
-              </span>
-            </div>
-            <div class="flex flex-wrap items-center gap-2">
-              <InputText v-model="licenseKeyInput" type="password" class="flex-1 min-w-0 max-w-xs" placeholder="License key" autocomplete="off" />
-              <Button severity="primary" size="small" :disabled="licenseSaving" @click="saveLicense">Save</Button>
-            </div>
-            <Message v-if="licenseMessage" :severity="licenseMessageOk ? 'success' : 'warn'" class="mt-1 text-xs">{{ licenseMessage }}</Message>
-          </div>
-          <div>
-            <span class="text-xs font-medium text-rm-muted block mb-1">License server (Laravel Passport)</span>
-            <div class="grid gap-2">
-              <InputText v-model="licenseServerUrl" type="url" placeholder="https://your-app.com" autocomplete="off" @blur="saveLicenseServerConfig" />
-              <div class="grid grid-cols-2 gap-2">
-                <InputText v-model="licenseServerClientId" type="text" placeholder="Client ID" autocomplete="off" @blur="saveLicenseServerConfig" />
-                <InputText v-model="licenseServerClientSecret" type="password" placeholder="Client secret" autocomplete="off" @blur="saveLicenseServerConfig" />
-              </div>
-            </div>
-          </div>
-          <div>
-            <span class="text-xs font-medium text-rm-muted block mb-1">Log in with account</span>
-            <p v-if="licenseRemoteLoggedIn" class="text-xs font-medium text-rm-success m-0 mb-1">Logged in as {{ licenseRemoteEmail || 'your account' }}</p>
-            <p v-else class="text-xs text-rm-muted m-0 mb-1">Not logged in</p>
-            <div class="flex flex-wrap items-center gap-2">
-              <InputText v-model="licenseLoginEmail" type="email" class="w-40" placeholder="Email" autocomplete="email" />
-              <InputText v-model="licenseLoginPassword" type="password" class="w-32" placeholder="Password" autocomplete="current-password" />
-              <Button severity="primary" size="small" :disabled="licenseLoginLoading" @click="loginToLicenseServer">Log in</Button>
-              <Button severity="secondary" size="small" :disabled="licenseLoginLoading" @click="logoutFromLicenseServer">Log out</Button>
-            </div>
-            <Message v-if="licenseLoginError" severity="warn" class="mt-1 text-xs">{{ licenseLoginError }}</Message>
-          </div>
+        <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-2">App account</h4>
+        <div class="flex items-center justify-between gap-2 flex-wrap">
+          <span class="text-sm" :class="license.isLoggedIn ? 'text-rm-success' : 'text-rm-muted'">
+            {{ license.isLoggedIn ? (license.licenseSource === 'remote' && license.licenseEmail ? `Signed in as ${license.licenseEmail}` : 'Signed in') : 'Not signed in' }}
+          </span>
+          <Button
+            v-if="license.isLoggedIn"
+            severity="secondary"
+            size="small"
+            :disabled="licenseLogoutLoading"
+            @click="logoutFromLicenseServer"
+          >
+            Sign out
+          </Button>
         </div>
       </section>
 
@@ -171,28 +151,15 @@ import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
-import Message from 'primevue/message';
 import { useFeatureFlagsModal } from '../../composables/useFeatureFlagsModal';
 
 const {
   license,
   tabFlags,
-  TAB_FLAG_IDS,
-  tabLabels,
+  featureFlagsSearchQuery,
+  featureFlagsByCategory,
   FEATURE_TEST_LIST,
-  licenseKeyInput,
-  licenseSaving,
-  licenseServerUrl,
-  licenseServerClientId,
-  licenseServerClientSecret,
-  licenseLoginEmail,
-  licenseLoginPassword,
-  licenseRemoteLoggedIn,
-  licenseRemoteEmail,
-  licenseLoginLoading,
-  licenseLoginError,
-  licenseMessage,
-  licenseMessageOk,
+  licenseLogoutLoading,
   testMapOpen,
   testResult,
   testRunning,
@@ -200,9 +167,13 @@ const {
   toggle,
   runTest,
   runAllTests,
-  saveLicense,
-  saveLicenseServerConfig,
-  loginToLicenseServer,
   logoutFromLicenseServer,
 } = useFeatureFlagsModal();
 </script>
+
+<style scoped>
+.feature-flags-search :deep(input) {
+  min-height: 2rem;
+  padding: 0.375rem 0.5rem;
+}
+</style>

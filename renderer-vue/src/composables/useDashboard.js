@@ -43,6 +43,16 @@ export function useDashboard() {
     return list;
   });
 
+  const summary = computed(() => {
+    const list = data.value;
+    return {
+      total: list.length,
+      needsRelease: list.filter((r) => r.needsRelease).length,
+      noTag: list.filter((r) => !r.latestTag || String(r.latestTag).trim() === '').length,
+      totalAhead: list.reduce((sum, r) => sum + (r.ahead > 0 ? r.ahead : 0), 0),
+    };
+  });
+
   function unreleasedLabel(row) {
     const n = row.commitsSinceLatestTag;
     if (n == null || n === 0) return '—';
@@ -76,6 +86,7 @@ export function useDashboard() {
     filter,
     sort,
     rows,
+    summary,
     unreleasedLabel,
     aheadBehindLabel,
     selectProject,

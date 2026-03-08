@@ -206,13 +206,19 @@ contextBridge.exposeInMainWorld('releaseManager', {
     ipcRenderer.invoke('rm-install-extension', extensionId, extensionInfo, downloadUrlOrBaseUrl),
   getInstalledUserExtensions: () => ipcRenderer.invoke('rm-get-installed-user-extensions'),
   getExtensionScriptContent: (extensionId) => ipcRenderer.invoke('rm-get-extension-script-content', extensionId),
+  uninstallExtension: (extensionId) => ipcRenderer.invoke('rm-uninstall-extension', extensionId),
+  uploadExtensionToMarketplace: (baseUrl, filePath) =>
+    ipcRenderer.invoke('rm-upload-extension-to-marketplace', baseUrl, filePath),
   getPreference: (key) => ipcRenderer.invoke('rm-get-preference', key),
   setPreference: (key, value) => ipcRenderer.invoke('rm-set-preference', key, value),
   getLicenseStatus: () => ipcRenderer.invoke('rm-get-license-status'),
-  setLicenseKey: (key) => ipcRenderer.invoke('rm-set-license-key', key),
   getLicenseServerConfig: () => ipcRenderer.invoke('rm-get-license-server-config'),
+  getLicenseServerEnvironments: () => ipcRenderer.invoke('rm-get-license-server-environments'),
   setLicenseServerConfig: (config) => ipcRenderer.invoke('rm-set-license-server-config', config),
   loginToLicenseServer: (email, password) => ipcRenderer.invoke('rm-login-to-license-server', email, password),
+  loginWithGitHub: () => ipcRenderer.invoke('rm-login-with-github'),
+  registerToLicenseServer: (name, email, password, passwordConfirmation) => ipcRenderer.invoke('rm-register-to-license-server', name, email, password, passwordConfirmation),
+  requestPasswordReset: (email) => ipcRenderer.invoke('rm-request-password-reset', email),
   logoutFromLicenseServer: () => ipcRenderer.invoke('rm-logout-from-license-server'),
   getLicenseRemoteSession: () => ipcRenderer.invoke('rm-get-license-remote-session'),
   getAvailablePhpVersions: () => ipcRenderer.invoke('rm-get-available-php-versions'),
@@ -256,5 +262,20 @@ contextBridge.exposeInMainWorld('releaseManager', {
   },
   onProcessStatusChanged: (callback) => {
     ipcRenderer.on('rm-process-status-changed', () => callback());
+  },
+  onLicenseStatusChanged: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('rm-license-status-changed', handler);
+    return () => ipcRenderer.removeListener('rm-license-status-changed', handler);
+  },
+  onGitHubOAuthSuccess: (callback) => {
+    const handler = () => callback();
+    ipcRenderer.on('rm-github-oauth-success', handler);
+    return () => ipcRenderer.removeListener('rm-github-oauth-success', handler);
+  },
+  onGitHubOAuthError: (callback) => {
+    const handler = (_e, error) => callback(error);
+    ipcRenderer.on('rm-github-oauth-error', handler);
+    return () => ipcRenderer.removeListener('rm-github-oauth-error', handler);
   },
 });

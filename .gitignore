@@ -14,6 +14,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
+# Bundled license config (generated in CI from secrets; do not commit)
+license-server.bundled.json
 
 # Logs
 *.log

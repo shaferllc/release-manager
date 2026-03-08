@@ -4,6 +4,7 @@ import { useApi } from './useApi';
 import { useLicense } from './useLicense';
 import { useModals } from './useModals';
 import { useNotifications } from './useNotifications';
+import { useHiddenExtensions } from './useHiddenExtensions';
 import { getSettingsSections } from '../extensions/settingsRegistry';
 import * as debug from '../utils/debug';
 
@@ -25,6 +26,7 @@ const SECTION_ICONS = {
 };
 
 const SECTIONS = [
+  { id: 'account', label: 'Account', icon: SECTION_ICONS.account },
   { id: 'application', label: 'Application', icon: SECTION_ICONS.application },
   { id: 'notifications', label: 'Notifications', icon: SECTION_ICONS.notifications },
   { id: 'behavior', label: 'Behavior', icon: SECTION_ICONS.behavior },
@@ -69,6 +71,7 @@ const ACCENT_OPTIONS = [
   { value: 'rose', label: 'Rose', hex: 'rgb(244, 63, 94)' },
 ];
 const ZOOM_OPTIONS = [{ value: 0.8, label: '80%' }, { value: 0.9, label: '90%' }, { value: 1, label: '100%' }, { value: 1.1, label: '110%' }, { value: 1.25, label: '125%' }, { value: 1.5, label: '150%' }];
+const DEV_TIER_OPTIONS = [{ value: '', label: 'Default (from account)' }, { value: 'free', label: 'Free' }, { value: 'plus', label: 'Plus' }, { value: 'pro', label: 'Pro' }];
 
 /**
  * Composable for Settings view: sections, all preference refs, load on mount, save handlers, export/import/reset.
@@ -149,6 +152,9 @@ export function useSettings() {
   const phpVersionOptions = ref([]);
   const phpListLoading = ref(false);
   const phpListError = ref('');
+  const licenseServerEnvironment = ref('dev');
+  const licenseServerEnvironments = ref([]);
+  const devTierOverride = ref(''); // '' | 'free' | 'plus' | 'pro'
 
   const ollamaModelOptions = computed(() => {
     const list = ollamaModels.value || [];
@@ -257,18 +263,27 @@ export function useSettings() {
     }
   }
   const phpVersionSelectOptions = computed(() => {
-    const opts = [{ value: '', label: 'Other (enter path below)' }, ...(phpVersionOptions.value || [])];
+    const list = (phpVersionOptions.value || []).filter((o) => o != null);
+    const opts = [{ value: '', label: 'Other (enter path below)' }, ...list];
     const current = (phpPath.value || '').trim();
-    if (current && !phpVersionOptions.value.some((o) => o.value === current)) {
+    if (current && !list.some((o) => o.value === current)) {
       opts.push({ value: current, label: `Custom: ${current}` });
     }
-    return opts;
+    return opts.filter((o) => o != null);
   });
   function saveUseTabs() { debug.log('settings', 'save detailUseTabs', useDetailTabs.value); store.setUseDetailTabs(useDetailTabs.value); api.setPreference?.('detailUseTabs', useDetailTabs.value); }
   function saveTerminalPopoutSize() { api.setPreference?.('terminalPopoutSize', terminalPopoutSize.value); }
   function saveTerminalPopoutAlwaysOnTop() { api.setPreference?.('terminalPopoutAlwaysOnTop', terminalPopoutAlwaysOnTop.value); }
   function saveTerminalPopoutFullscreenable() { api.setPreference?.('terminalPopoutFullscreenable', terminalPopoutFullscreenable.value); }
   function saveDebugLogging() { api.setPreference?.('debug', debugLogging.value); debug.setEnabled(debugLogging.value); debug.log('settings', 'debug logging', debugLogging.value ? 'on' : 'off'); }
+  function saveLicenseServerEnvironment() {
+    api.setLicenseServerConfig?.({ environment: licenseServerEnvironment.value });
+    license.loadStatus?.();
+  }
+  function saveDevTierOverride(value) {
+    api.setPreference?.('devTierOverride', value || '');
+    license.loadStatus?.();
+  }
 
   async function exportSettingsToFile() {
     dataPrivacyMessage.value = '';
@@ -298,11 +313,13 @@ export function useSettings() {
 
   async function load() {
     try {
-      const [token, ollama, claude, openai, geminiSettings, provider, editor, preferredTerminalP, php, sign, tabs, debugLoad, themeRes, appearanceAccent, appearanceFontSize, appearanceRadius, appearanceReducedMotion, appearanceZoomFactor, appearanceReduceTransparency, appearanceHighContrast, terminalSize, terminalAlwaysOnTop, terminalFullscreenable, launchAtLoginRes, defaultViewP, checkForUpdatesP, confirmBeforeQuitP, notificationsEnabledP, notificationSoundP, notificationsOnlyWhenNotFocusedP, doubleClickToOpenProjectP, confirmDestructiveActionsP, autoRefreshIntervalSecondsP, recentListLengthP, showTipsP, gitDefaultBranchP, gitAutoFetchIntervalMinutesP, gitSshKeyPathP, gitDiffToolP, proxyP, requestTimeoutSecondsP, offlineModeP, telemetryP, telemetryEndpointP, telemetryUserIdentifierP, crashReportsP, crashReportEndpointP, alwaysOnTopP, minimizeToTrayP, focusOutlineVisibleP, largeCursorP, screenReaderSupportP] = await Promise.all([
+      const [token, ollama, claude, openai, geminiSettings, provider, editor, preferredTerminalP, php, sign, tabs, debugLoad, themeRes, appearanceAccent, appearanceFontSize, appearanceRadius, appearanceReducedMotion, appearanceZoomFactor, appearanceReduceTransparency, appearanceHighContrast, terminalSize, terminalAlwaysOnTop, terminalFullscreenable, launchAtLoginRes, defaultViewP, checkForUpdatesP, confirmBeforeQuitP, notificationsEnabledP, notificationSoundP, notificationsOnlyWhenNotFocusedP, doubleClickToOpenProjectP, confirmDestructiveActionsP, autoRefreshIntervalSecondsP, recentListLengthP, showTipsP, gitDefaultBranchP, gitAutoFetchIntervalMinutesP, gitSshKeyPathP, gitDiffToolP, proxyP, requestTimeoutSecondsP, offlineModeP, telemetryP, telemetryEndpointP, telemetryUserIdentifierP, crashReportsP, crashReportEndpointP, alwaysOnTopP, minimizeToTrayP, focusOutlineVisibleP, largeCursorP, screenReaderSupportP, licenseServerConfigP, licenseServerEnvironmentsP, devTierOverrideP] = await Promise.all([
         api.getGitHubToken?.() ?? '', api.getOllamaSettings?.() ?? {}, api.getClaudeSettings?.() ?? {}, api.getOpenAISettings?.() ?? {}, api.getGeminiSettings?.().catch(() => ({ apiKey: '', model: '' })),
         api.getAiProvider?.().catch(() => 'ollama'), api.getPreference?.('preferredEditor').catch(() => ''), api.getPreference?.('preferredTerminal').catch(() => 'default'), api.getPreference?.('phpPath').catch(() => ''), api.getPreference?.('signCommits').catch(() => false), api.getPreference?.('detailUseTabs').catch(() => true), api.getPreference?.('debug').catch(() => undefined),
         api.getTheme?.().catch(() => ({ theme: 'dark' })), api.getPreference?.('appearanceAccent').catch(() => 'green'), api.getPreference?.('appearanceFontSize').catch(() => 'comfortable'), api.getPreference?.('appearanceRadius').catch(() => 'sharp'), api.getPreference?.('appearanceReducedMotion').catch(() => false), api.getAppZoomFactor?.().catch(() => 1), api.getPreference?.('appearanceReduceTransparency').catch(() => false), api.getPreference?.('appearanceHighContrast').catch(() => false), api.getPreference?.('terminalPopoutSize').catch(() => 'default'), api.getPreference?.('terminalPopoutAlwaysOnTop').catch(() => false), api.getPreference?.('terminalPopoutFullscreenable').catch(() => true),
         api.getLaunchAtLogin?.().catch(() => ({ openAtLogin: false })), api.getPreference?.('defaultView').catch(() => 'last'), api.getPreference?.('checkForUpdates').catch(() => 'auto'), api.getConfirmBeforeQuit?.().catch(() => false), api.getPreference?.('notificationsEnabled').catch(() => true), api.getPreference?.('notificationSound').catch(() => false), api.getPreference?.('notificationsOnlyWhenNotFocused').catch(() => false), api.getPreference?.('doubleClickToOpenProject').catch(() => false), api.getPreference?.('confirmDestructiveActions').catch(() => true), api.getPreference?.('autoRefreshIntervalSeconds').catch(() => 0), api.getPreference?.('recentListLength').catch(() => 10), api.getPreference?.('showTips').catch(() => true), api.getPreference?.('gitDefaultBranch').catch(() => 'main'), api.getPreference?.('gitAutoFetchIntervalMinutes').catch(() => 0), api.getPreference?.('gitSshKeyPath').catch(() => ''), api.getPreference?.('gitDiffTool').catch(() => ''), api.getProxy?.().catch(() => ''), api.getPreference?.('requestTimeoutSeconds').catch(() => 30), api.getPreference?.('offlineMode').catch(() => false), api.getPreference?.('telemetry').catch(() => false), api.getPreference?.('telemetryEndpoint').catch(() => ''), api.getPreference?.('telemetryUserIdentifier').catch(() => ''), api.getPreference?.('crashReports').catch(() => false), api.getPreference?.('crashReportEndpoint').catch(() => ''), api.getAlwaysOnTop?.().catch(() => false), api.getMinimizeToTray?.().catch(() => false),         api.getPreference?.('focusOutlineVisible').catch(() => false), api.getPreference?.('largeCursor').catch(() => false), api.getPreference?.('screenReaderSupport').catch(() => false),
+        api.getLicenseServerConfig?.().catch(() => ({})), api.getLicenseServerEnvironments?.().catch(() => []),
+        api.getPreference?.('devTierOverride').catch(() => ''),
       ]);
       githubToken.value = token || '';
       ollamaBaseUrl.value = ollama?.baseUrl || ''; ollamaModel.value = ollama?.model || '';
@@ -337,16 +354,27 @@ export function useSettings() {
       autoRefreshIntervalSeconds.value = typeof autoRefreshIntervalSecondsP === 'number' ? autoRefreshIntervalSecondsP : 0; recentListLength.value = [5, 10, 20].includes(recentListLengthP) ? recentListLengthP : 10; showTips.value = showTipsP !== false;
       gitDefaultBranch.value = gitDefaultBranchP || 'main'; gitAutoFetchIntervalMinutes.value = typeof gitAutoFetchIntervalMinutesP === 'number' ? gitAutoFetchIntervalMinutesP : 0; gitSshKeyPath.value = gitSshKeyPathP || ''; gitDiffTool.value = gitDiffToolP || '';
       proxy.value = proxyP || ''; requestTimeoutSeconds.value = [10, 30, 60].includes(requestTimeoutSecondsP) ? requestTimeoutSecondsP : 30; offlineMode.value = !!offlineModeP;
-      telemetry.value = !!telemetryP; telemetryEndpoint.value = typeof telemetryEndpointP === 'string' ? telemetryEndpointP : ''; telemetryUserIdentifier.value = typeof telemetryUserIdentifierP === 'string' ? telemetryUserIdentifierP : '';
+      telemetry.value = !!telemetryP;
+      telemetryEndpoint.value = typeof telemetryEndpointP === 'string' && telemetryEndpointP.trim()
+        ? telemetryEndpointP.trim()
+        : 'https://shipwell-web.test/api/telemetry';
+      telemetryUserIdentifier.value = typeof telemetryUserIdentifierP === 'string' ? telemetryUserIdentifierP : '';
       crashReports.value = !!crashReportsP; crashReportEndpoint.value = typeof crashReportEndpointP === 'string' ? crashReportEndpointP : '';
       alwaysOnTop.value = !!alwaysOnTopP; minimizeToTray.value = !!minimizeToTrayP; focusOutlineVisible.value = !!focusOutlineVisibleP; largeCursor.value = !!largeCursorP; screenReaderSupport.value = !!screenReaderSupportP;
+      licenseServerEnvironments.value = Array.isArray(licenseServerEnvironmentsP) ? licenseServerEnvironmentsP : [];
+      const env = licenseServerConfigP?.environment;
+      licenseServerEnvironment.value = env && licenseServerEnvironments.value.some((e) => e.id === env) ? env : 'dev';
+      devTierOverride.value = devTierOverrideP && ['free', 'plus', 'pro'].includes(devTierOverrideP) ? devTierOverrideP : '';
       applyAppearance();
     } catch (_) {}
   }
 
   onMounted(() => load());
 
-  const sections = computed(() => [...SECTIONS, ...getSettingsSections()]);
+  const { isHidden: isExtensionHidden } = useHiddenExtensions();
+  const sections = computed(() =>
+    [...SECTIONS, ...getSettingsSections()].filter((s) => s != null && s.id != null && !isExtensionHidden(s.id))
+  );
 
   return {
     sections,
@@ -501,5 +529,11 @@ export function useSettings() {
     saveScreenReaderSupport,
     saveDebugLogging,
     saveSignCommits,
+    licenseServerEnvironment,
+    licenseServerEnvironments,
+    saveLicenseServerEnvironment,
+    devTierOverride,
+    saveDevTierOverride,
+    devTierOptions: DEV_TIER_OPTIONS,
   };
 }

@@ -11,6 +11,15 @@ const fs = require('fs');
 const BATCH_MAX = 100;
 const FLUSH_INTERVAL_MS = 60000; // 1 minute
 
+/** Internal endpoint for usage data (not user-configurable). Override with TELEMETRY_URL for testing. */
+const TELEMETRY_ENDPOINT_DEFAULT = 'https://shipwell-web.test/api/telemetry';
+function getTelemetryEndpoint() {
+  if (typeof process !== 'undefined' && process.env && process.env.TELEMETRY_URL) {
+    return process.env.TELEMETRY_URL;
+  }
+  return TELEMETRY_ENDPOINT_DEFAULT;
+}
+
 let queue = [];
 let flushTimer = null;
 
@@ -35,9 +44,11 @@ function getAppVersion() {
 
 function buildCommonPayload(getPreference) {
   const userIdentifier = getPreference && getPreference('telemetryUserIdentifier');
+  const deviceId = getPreference && getPreference('telemetryDeviceId');
   return {
     app_version: getAppVersion(),
     os: getOsString(),
+    ...(typeof deviceId === 'string' && deviceId.trim() ? { device_id: deviceId.trim() } : {}),
     ...(typeof userIdentifier === 'string' && userIdentifier.trim() ? { user_identifier: userIdentifier.trim() } : {}),
   };
 }
@@ -52,11 +63,7 @@ function buildCommonPayload(getPreference) {
  */
 async function sendSingleEvent(getPreference, event, properties, fetchImpl) {
   if (!getPreference || !getPreference('telemetry')) return { ok: false, error: 'Telemetry is disabled in settings.' };
-  const endpoint = getPreference('telemetryEndpoint');
-  const url = typeof endpoint === 'string' ? endpoint.trim() : '';
-  if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
-    return { ok: false, error: 'Telemetry endpoint URL is not set or invalid.' };
-  }
+  const url = getTelemetryEndpoint();
   const body = {
     ...buildCommonPayload(getPreference),
     event: String(event),
@@ -93,11 +100,7 @@ async function sendSingleEvent(getPreference, event, properties, fetchImpl) {
  */
 async function sendBatch(getPreference, events, fetchImpl) {
   if (!getPreference || !getPreference('telemetry')) return { ok: false, error: 'Telemetry is disabled in settings.' };
-  const endpoint = getPreference('telemetryEndpoint');
-  const url = typeof endpoint === 'string' ? endpoint.trim() : '';
-  if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
-    return { ok: false, error: 'Telemetry endpoint URL is not set or invalid.' };
-  }
+  const url = getTelemetryEndpoint();
   if (!Array.isArray(events) || events.length === 0) return { ok: true, accepted_count: 0, events: [] };
   const batch = events.slice(0, BATCH_MAX).map((e) => {
     const out = { event: String(e.event) };
@@ -121,7 +124,8 @@ async function sendBatch(getPreference, events, fetchImpl) {
       try {
         data = JSON.parse(text);
       } catch (_) {}
-      return { ok: true, accepted_count: data.accepted_count, events: data.events };
+      const acceptedCount = data.accepted_count ?? data.accepted;
+      return { ok: true, accepted_count: acceptedCount, events: data.events };
     }
     return { ok: false, error: text || `HTTP ${res.status}` };
   } catch (e) {
@@ -138,8 +142,8 @@ async function sendBatch(getPreference, events, fetchImpl) {
  */
 function track(getPreference, event, properties) {
   if (!getPreference || !getPreference('telemetry')) return;
-  const endpoint = getPreference('telemetryEndpoint');
-  if (!endpoint || typeof endpoint !== 'string' || (!endpoint.startsWith('http://') && !endpoint.startsWith('https://'))) return;
+  const url = getTelemetryEndpoint();
+  if (!url) return;
   queue.push({ event: String(event), properties: properties != null && typeof properties === 'object' ? properties : undefined });
   if (queue.length >= BATCH_MAX) {
     flush(getPreference).catch(() => {});

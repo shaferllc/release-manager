@@ -1,11 +1,14 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen, Menu, Notification } = require('electron');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
+
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme, clipboard, screen, Menu, Notification } = require('electron');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const terminalService = require('./services/terminal');
 const terminalPopoutState = terminalService.createTerminalPopoutState();
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
+const crypto = require('crypto');
 const Store = require('electron-store');
 const appRoot = path.join(__dirname, '..');
 const { marked } = require(path.join(appRoot, 'node_modules', 'marked'));
@@ -183,9 +186,21 @@ function setThemeSetting(theme) {
   }
 }
 
+const TELEMETRY_DEVICE_ID_PREF = 'telemetryDeviceId';
+
 function getPreference(key) {
   const prefs = getStore().get('preferences');
-  return typeof prefs === 'object' && prefs !== null && key in prefs ? prefs[key] : undefined;
+  let value = typeof prefs === 'object' && prefs !== null && key in prefs ? prefs[key] : undefined;
+  // Lazy-init per-device / per-install ID for telemetry (stable UUID, not user-facing).
+  if (key === TELEMETRY_DEVICE_ID_PREF) {
+    const valid = typeof value === 'string' && value.trim().length >= 16;
+    if (!valid) {
+      value = crypto.randomUUID();
+      setPreference(TELEMETRY_DEVICE_ID_PREF, value);
+    }
+    return value;
+  }
+  return value;
 }
 
 function setPreference(key, value) {
@@ -198,36 +213,56 @@ function setPreference(key, value) {
   debug.log(getStore, 'prefs', 'setPreference', key, safeValue);
 }
 
-const LICENSE_KEY_PREF = 'licenseKey';
-
-/** Simple validation: non-empty trimmed key. Replace with server/signature check for production. */
-function isValidLicenseKey(key) {
-  const k = typeof key === 'string' ? key.trim() : '';
-  return k.length > 0;
-}
-
-function getLicenseStatus() {
-  const key = getPreference(LICENSE_KEY_PREF);
-  return { hasLicense: isValidLicenseKey(key) };
-}
-
-function setLicenseKey(key) {
-  const k = typeof key === 'string' ? key.trim() : '';
-  setPreference(LICENSE_KEY_PREF, k);
-  return { ok: true, hasLicense: isValidLicenseKey(k) };
-}
-
-const licenseServer = createLicenseServer({ getPreference, setPreference });
-
-async function getLicenseStatus() {
-  const remoteValid = await licenseServer.hasValidRemoteLicense();
-  if (remoteValid) {
-    const session = await licenseServer.getRemoteSession();
-    return { hasLicense: true, source: 'remote', email: session.email || null };
+let bundledLicenseConfig = null;
+try {
+  const bundledPath = path.join(appRoot, 'license-server.bundled.json');
+  if (fs.existsSync(bundledPath)) {
+    const raw = fs.readFileSync(bundledPath, 'utf8');
+    bundledLicenseConfig = JSON.parse(raw);
   }
-  const key = getPreference(LICENSE_KEY_PREF);
-  if (isValidLicenseKey(key)) return { hasLicense: true, source: 'key' };
-  return { hasLicense: false, source: null };
+} catch (_) {}
+
+const appAuthServer = createLicenseServer({ getPreference, setPreference, bundledConfig: bundledLicenseConfig });
+
+/** Login status: remote controls plan and permissions; hasLicense means logged in with valid token. */
+async function getLicenseStatus() {
+  debug.log(getStore, 'license', 'getLicenseStatus called');
+  const stored = appAuthServer.getStoredToken();
+  const hasToken = stored && typeof stored.accessToken === 'string' && stored.accessToken.length > 0;
+  if (!hasToken) {
+    debug.log(getStore, 'license', 'getLicenseStatus no stored token');
+    return { hasLicense: false, source: null };
+  }
+  debug.log(getStore, 'license', 'getLicenseStatus has token, checking remote');
+  const remoteValid = await appAuthServer.hasValidRemoteLicense();
+  if (!remoteValid) {
+    debug.log(getStore, 'license', 'getLicenseStatus remote invalid, clearing token');
+    appAuthServer.clearStoredToken();
+    return { hasLicense: false, source: null };
+  }
+  const session = await appAuthServer.getRemoteSession();
+  let tier = session?.tier ?? 'free';
+  let plan_label = session?.plan_label ?? null;
+  let permissions = session?.permissions ?? null;
+  let features = session?.features ?? null;
+  const devOverride = getPreference('devTierOverride');
+  if (devOverride === 'pro' || devOverride === 'plus') {
+    tier = devOverride;
+    plan_label = devOverride === 'pro' ? 'Pro' : 'Plus';
+    permissions = null;
+    features = null;
+    debug.log(getStore, 'license', 'getLicenseStatus dev override', { tier: devOverride });
+  }
+  debug.log(getStore, 'license', 'getLicenseStatus ok', { email: session?.email, tier, hasPermissions: !!permissions?.tabs });
+  return {
+    hasLicense: true,
+    source: 'remote',
+    email: session?.email ?? null,
+    tier,
+    plan_label,
+    permissions,
+    features,
+  };
 }
 
 function getEffectiveTheme() {
@@ -768,10 +803,154 @@ function createTerminalPopoutWindow(dirPath) {
   });
 }
 
+// Deep link protocol: shipwell://oauth/callback?token=...&email=...
+const PROTOCOL = 'shipwell';
+if (process.defaultApp) {
+  if (process.argv.length >= 2) {
+    app.setAsDefaultProtocolClient(PROTOCOL, process.execPath, [path.resolve(process.argv[1])]);
+  }
+} else {
+  app.setAsDefaultProtocolClient(PROTOCOL);
+}
+
+let pendingDeepLinkUrl = null;
+
+function handleOAuthParams({ token, email, error }) {
+  if (error) {
+    console.warn('[oauth] error:', error);
+    sendToAllWindows('rm-github-oauth-error', error);
+    return;
+  }
+  if (token) {
+    appAuthServer.loginWithToken(token, email || null).then((result) => {
+      if (result.ok) {
+        sendToAllWindows('rm-license-status-changed');
+        sendToAllWindows('rm-github-oauth-success');
+      } else {
+        sendToAllWindows('rm-github-oauth-error', result.error || 'Login failed');
+      }
+    });
+  }
+}
+
+function handleDeepLink(url) {
+  if (!url || typeof url !== 'string' || !url.startsWith(`${PROTOCOL}://`)) return;
+  try {
+    const parsed = new URL(url);
+    if (parsed.pathname === '/oauth/callback' || parsed.pathname === '//oauth/callback') {
+      handleOAuthParams({
+        token: parsed.searchParams.get('token'),
+        email: parsed.searchParams.get('email'),
+        error: parsed.searchParams.get('error'),
+      });
+    }
+  } catch (e) {
+    console.warn('[deepLink] Failed to parse URL:', url, e?.message);
+  }
+}
+
+// Local HTTP server to receive OAuth callback (works in dev and production)
+const http = require('http');
+let oauthCallbackServer = null;
+let oauthCallbackPort = null;
+
+function startOAuthCallbackServer() {
+  return new Promise((resolve) => {
+    if (oauthCallbackServer) {
+      resolve(oauthCallbackPort);
+      return;
+    }
+    const server = http.createServer((req, res) => {
+      try {
+        const url = new URL(req.url, `http://localhost`);
+        if (url.pathname === '/oauth/callback') {
+          const token = url.searchParams.get('token');
+          const email = url.searchParams.get('email');
+          const error = url.searchParams.get('error');
+
+          res.writeHead(200, { 'Content-Type': 'text/html' });
+          res.end(`<html><body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#0f172a;color:#e2e8f0"><div style="text-align:center"><h1>${error ? 'Sign-in failed' : 'Signed in!'}</h1><p>${error || 'You can close this tab and return to Shipwell.'}</p></div></body></html>`);
+
+          handleOAuthParams({ token, email, error });
+
+          // Focus the main window
+          const w = BrowserWindow.getAllWindows()[0];
+          if (w) {
+            if (w.isMinimized()) w.restore();
+            w.focus();
+          }
+
+          // Shut down the callback server after a short delay
+          setTimeout(() => stopOAuthCallbackServer(), 2000);
+        } else {
+          res.writeHead(404);
+          res.end('Not found');
+        }
+      } catch (e) {
+        console.warn('[oauthServer] request error:', e?.message);
+        res.writeHead(500);
+        res.end('Error');
+      }
+    });
+    server.listen(0, '127.0.0.1', () => {
+      oauthCallbackPort = server.address().port;
+      oauthCallbackServer = server;
+      console.log('[oauthServer] listening on port', oauthCallbackPort);
+      resolve(oauthCallbackPort);
+    });
+    server.on('error', (err) => {
+      console.warn('[oauthServer] failed to start:', err?.message);
+      resolve(null);
+    });
+  });
+}
+
+function stopOAuthCallbackServer() {
+  if (oauthCallbackServer) {
+    oauthCallbackServer.close();
+    oauthCallbackServer = null;
+    oauthCallbackPort = null;
+  }
+}
+
+// macOS: open-url fires when app is already running or launched via protocol
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  if (app.isReady()) {
+    handleDeepLink(url);
+  } else {
+    pendingDeepLinkUrl = url;
+  }
+});
+
+// Windows/Linux: second-instance fires when another instance tries to launch
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', (_event, argv) => {
+    const deepLinkUrl = argv.find((arg) => arg.startsWith(`${PROTOCOL}://`));
+    if (deepLinkUrl) handleDeepLink(deepLinkUrl);
+    const w = BrowserWindow.getAllWindows()[0];
+    if (w) {
+      if (w.isMinimized()) w.restore();
+      w.focus();
+    }
+  });
+}
+
 app.whenReady().then(() => {
   store = new Store({ name: 'release-manager' });
   appSettings.init(getStore, getPreference, setPreference);
   appSettings.applyProxy();
+  // Require login every launch: clear stored token so user must log in to access the app
+  appAuthServer.clearStoredToken();
+
+  // Process any deep link that arrived before the app was ready
+  if (pendingDeepLinkUrl) {
+    handleDeepLink(pendingDeepLinkUrl);
+    pendingDeepLinkUrl = null;
+  }
   // One-time migration from old JSON config so projects survive rebuilds
   const oldConfigPath = path.join(app.getPath('userData'), 'shipwell-config.json');
   if (fs.existsSync(oldConfigPath)) {
@@ -1436,6 +1615,34 @@ app.whenReady().then(() => {
         return { ok: false, error: e.message || 'Could not load changelog.' };
       }
     },
+    getAppReleases: async () => {
+      const repoEnv = (process.env.GITHUB_REPO || '').trim();
+      if (!repoEnv) {
+        return {
+          ok: false,
+          error: 'GITHUB_REPO is not set in .env',
+          hint: 'Set GITHUB_REPO=owner/repo in .env',
+          releases: [],
+        };
+      }
+      const parts = repoEnv.split('/').map((p) => p.trim()).filter(Boolean);
+      if (parts.length < 2) {
+        return { ok: false, error: 'GITHUB_REPO must be owner/repo (e.g. shaferllc/shipwell)', releases: [] };
+      }
+      const owner = parts[0];
+      const repo = parts[1].replace(/\.git$/, '');
+      const token = getStore().get('githubToken') || null;
+      try {
+        const releases = await fetchGitHubReleases(owner, repo, token);
+        return { ok: true, releases };
+      } catch (e) {
+        return {
+          ok: false,
+          error: e.message || 'Could not load releases',
+          releases: [],
+        };
+      }
+    },
     getExtensionsDir: () => path.join(app.getPath('userData'), 'extensions'),
     getMarketplaceExtensions: async (baseUrl) => {
       const url = (baseUrl || '').replace(/\/$/, '') + '/api/extensions';
@@ -1531,14 +1738,70 @@ app.whenReady().then(() => {
         return null;
       }
     },
+    uninstallExtension: (extensionId) => {
+      if (!extensionId || typeof extensionId !== 'string') return { ok: false, error: 'Invalid extension id' };
+      const extensionsDir = path.join(app.getPath('userData'), 'extensions');
+      const targetDir = path.join(extensionsDir, extensionId);
+      if (!targetDir.startsWith(extensionsDir)) return { ok: false, error: 'Invalid path' };
+      if (!fs.existsSync(targetDir)) return { ok: false, error: 'Extension not found' };
+      try {
+        fs.rmSync(targetDir, { recursive: true });
+        return { ok: true };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Uninstall failed' };
+      }
+    },
+    uploadExtensionToMarketplace: async (baseUrl, filePath) => {
+      if (!baseUrl || !filePath) return { ok: false, error: 'Base URL and file path are required' };
+      const url = baseUrl.replace(/\/$/, '') + '/api/extensions/upload';
+      if (!fs.existsSync(filePath)) return { ok: false, error: 'File not found: ' + filePath };
+      try {
+        const fileBuffer = fs.readFileSync(filePath);
+        const fileName = path.basename(filePath);
+        const boundary = '----RMExtUpload' + Date.now();
+        const CRLF = '\r\n';
+        const parts = [];
+        parts.push(`--${boundary}${CRLF}`);
+        parts.push(`Content-Disposition: form-data; name="extension"; filename="${fileName}"${CRLF}`);
+        parts.push(`Content-Type: application/zip${CRLF}${CRLF}`);
+        const header = Buffer.from(parts.join(''));
+        const footer = Buffer.from(`${CRLF}--${boundary}--${CRLF}`);
+        const body = Buffer.concat([header, fileBuffer, footer]);
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+          body,
+          signal: AbortSignal.timeout(120000),
+        });
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          return { ok: false, error: `Upload failed: HTTP ${res.status}${text ? ' - ' + text : ''}` };
+        }
+        const json = await res.json().catch(() => ({}));
+        return { ok: true, ...json };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Upload failed' };
+      }
+    },
     getPreference: (key) => getPreference(key),
     getLicenseStatus: () => getLicenseStatus(),
-    setLicenseKey: (key) => setLicenseKey(key),
-    getLicenseServerConfig: () => licenseServer.getConfig(),
-    setLicenseServerConfig: (config) => { licenseServer.setConfig(config); return null; },
-    loginToLicenseServer: (email, password) => licenseServer.login(email, password),
-    logoutFromLicenseServer: () => licenseServer.logout(),
-    getLicenseRemoteSession: () => licenseServer.getRemoteSession(),
+    getLicenseServerConfig: () => appAuthServer.getConfig(),
+    getLicenseServerEnvironments: () => appAuthServer.getEnvironments(),
+    setLicenseServerConfig: (config) => { appAuthServer.setConfig(config); return null; },
+    loginToLicenseServer: (email, password) => appAuthServer.login(email, password),
+    loginWithGitHub: async () => {
+      const baseOAuthUrl = appAuthServer.getGitHubOAuthUrl();
+      if (!baseOAuthUrl) return { ok: false, error: 'Sign-in server URL not configured.' };
+      const port = await startOAuthCallbackServer();
+      if (!port) return { ok: false, error: 'Could not start local OAuth listener.' };
+      const url = `${baseOAuthUrl}?callback_port=${port}`;
+      shell.openExternal(url);
+      return { ok: true };
+    },
+    registerToLicenseServer: (name, email, password, passwordConfirmation) => appAuthServer.register(name, email, password, passwordConfirmation),
+    requestPasswordReset: (email) => appAuthServer.requestPasswordReset(email),
+    logoutFromLicenseServer: () => appAuthServer.logout(),
+    getLicenseRemoteSession: () => appAuthServer.getRemoteSession(),
     getAvailablePhpVersions: () => getAvailablePhpVersions(),
     getPhpVersionFromRequire: (phpRequire) => parsePhpRequireToVersion(phpRequire),
     setPreference: (key, value) => {
@@ -2273,10 +2536,13 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-get-changelog': 'getChangelog',
     'rm-get-preference': 'getPreference',
     'rm-get-license-status': 'getLicenseStatus',
-    'rm-set-license-key': 'setLicenseKey',
     'rm-get-license-server-config': 'getLicenseServerConfig',
+    'rm-get-license-server-environments': 'getLicenseServerEnvironments',
     'rm-set-license-server-config': 'setLicenseServerConfig',
     'rm-login-to-license-server': 'loginToLicenseServer',
+    'rm-login-with-github': 'loginWithGitHub',
+    'rm-register-to-license-server': 'registerToLicenseServer',
+    'rm-request-password-reset': 'requestPasswordReset',
     'rm-logout-from-license-server': 'logoutFromLicenseServer',
     'rm-get-license-remote-session': 'getLicenseRemoteSession',
     'rm-get-available-php-versions': 'getAvailablePhpVersions',
@@ -2306,6 +2572,8 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-install-extension': 'installExtension',
     'rm-get-installed-user-extensions': 'getInstalledUserExtensions',
     'rm-get-extension-script-content': 'getExtensionScriptContent',
+    'rm-uninstall-extension': 'uninstallExtension',
+    'rm-upload-extension-to-marketplace': 'uploadExtensionToMarketplace',
     'rm-send-crash-report': 'sendCrashReport',
     'rm-send-telemetry': 'sendTelemetry',
     'rm-flush-telemetry': 'flushTelemetry',
@@ -2322,7 +2590,13 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-get-installed-user-extensions',
     'rm-get-extension-script-content',
     'rm-expand-path',
+    'rm-logout-from-license-server',
   ]);
+  ipcMain.handle('rm-logout-from-license-server', async () => {
+    appAuthServer.logout();
+    sendToAllWindows('rm-license-status-changed');
+    return { ok: true };
+  });
   for (const [channel, methodName] of Object.entries(IPC_TO_METHOD)) {
     if (explicitlyHandled.has(channel)) continue;
     ipcMain.handle(channel, (_e, ...args) => {

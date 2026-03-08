@@ -70,6 +70,16 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add project
       </Button>
+      <Button
+        variant="text"
+        size="small"
+        class="tooltip-btn p-2 min-w-0 text-rm-muted hover:text-rm-text"
+        title="Sign out and return to login screen"
+        aria-label="Sign out"
+        @click="onSignOut"
+      >
+        <span class="text-xs font-medium">Sign out</span>
+      </Button>
       <span v-if="navStatus" class="text-[11px] text-rm-muted whitespace-nowrap">{{ navStatus }}</span>
     </div>
   </nav>
@@ -82,6 +92,7 @@ import Select from 'primevue/select';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useLicense } from '../composables/useLicense';
 import { useCommandPalette } from '../commandPalette/useCommandPalette';
 import * as debug from '../utils/debug';
 
@@ -90,6 +101,7 @@ const emit = defineEmits(['refresh', 'add-project']);
 const store = useAppStore();
 const api = useApi();
 const { openModal: openFeatureFlagsModal } = useFeatureFlags();
+const license = useLicense();
 const commandPalette = useCommandPalette();
 
 function openCommandPalette() {
@@ -144,7 +156,13 @@ const viewOptions = [
 ];
 
 const viewOptionsFiltered = computed(() => viewOptions.filter((o) => !o.sep));
-const viewOptionsForSelect = computed(() => (Array.isArray(viewOptionsFiltered.value) ? viewOptionsFiltered.value : []));
+const viewOptionsForSelect = computed(() => {
+  const list = Array.isArray(viewOptionsFiltered.value) ? viewOptionsFiltered.value : [];
+  if (!license.isLoggedIn?.value) {
+    return list.filter((o) => o.value === 'settings').map((o) => ({ ...o, label: 'Log in' }));
+  }
+  return list;
+});
 
 function selectView(value) {
   debug.log('nav', 'viewMode', value);
@@ -205,6 +223,11 @@ async function onSyncAll() {
 
 function onAddProject() {
   emit('add-project');
+}
+
+async function onSignOut() {
+  await api.logoutFromLicenseServer?.();
+  await license.loadStatus();
 }
 
 onMounted(() => {

@@ -1,12 +1,15 @@
 <template>
-  <div v-if="!license.hasLicense" class="license-upgrade-banner">
+  <div v-if="license.isLoggedIn?.value && !license.isPro?.value" class="license-upgrade-banner">
     <div class="license-upgrade-banner-inner">
-      <h2 class="license-upgrade-headline">Unlock the full app</h2>
-      <p class="license-upgrade-subhead">Add a license to get every feature — more tabs, AI generation, and batch release.</p>
+      <h2 class="license-upgrade-headline">Upgrade to Pro</h2>
+      <p class="license-upgrade-subhead">
+        <span v-if="license.isPlus?.value">You're on Plus. Upgrade to Pro for every feature.</span>
+        <span v-else>You're on the free plan. Upgrade to unlock more tabs and features.</span>
+      </p>
       <div class="license-upgrade-benefits">
         <div class="license-upgrade-benefit">
-          <span class="license-upgrade-benefit-title">Project tabs</span>
-          <span class="license-upgrade-benefit-desc">Pull requests, Dev stack, Email, Tunnels, FTP, SSH, API</span>
+          <span class="license-upgrade-benefit-title">All tabs</span>
+          <span class="license-upgrade-benefit-desc">Pull requests, Dev stack, Terminal, Email, Tunnels, FTP, SSH, API, and more</span>
         </div>
         <div class="license-upgrade-benefit">
           <span class="license-upgrade-benefit-title">AI generation</span>
@@ -17,24 +20,14 @@
           <span class="license-upgrade-benefit-desc">Bump and release multiple projects at once</span>
         </div>
       </div>
-      <Button severity="primary" class="license-upgrade-cta" @click="goToSettings">
-        Add license
-      </Button>
     </div>
   </div>
 </template>
 
 <script setup>
-import Button from 'primevue/button';
-import { useAppStore } from '../stores/app';
 import { useLicense } from '../composables/useLicense';
 
-const store = useAppStore();
 const license = useLicense();
-
-function goToSettings() {
-  store.setViewMode('settings');
-}
 </script>
 
 <style scoped>

@@ -2,7 +2,9 @@ import { ref, watch, onMounted, computed } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from './useApi';
 import { useFeatureFlags } from './useFeatureFlags';
+import { useLicense } from './useLicense';
 import { useDetailTabOrder } from './useDetailTabOrder';
+import { useHiddenExtensions } from './useHiddenExtensions';
 import { getDetailTabExtensions } from '../extensions/registry';
 
 const TAB_ICONS = {
@@ -31,6 +33,8 @@ export function useDetailView() {
   const store = useAppStore();
   const api = useApi();
   const { isTabEnabled } = useFeatureFlags();
+  const license = useLicense();
+  const { isHidden: isExtensionHidden } = useHiddenExtensions();
   const { detailTabOrder, setDetailTabOrder } = useDetailTabOrder();
 
   const info = ref(null);
@@ -41,15 +45,18 @@ export function useDetailView() {
   const showCoverageTab = computed(() => projectType.value === 'npm' || projectType.value === 'php');
 
   const visibleTabs = computed(() => {
-    const t = BASE_TABS.filter((tab) => isTabEnabled(tab.id));
-    if (isTabEnabled('composer') && info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: TAB_ICONS.composer });
-    if (isTabEnabled('tests') && showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: TAB_ICONS.tests });
-    if (isTabEnabled('coverage') && showCoverageTab.value) t.push({ id: 'coverage', label: 'Coverage', icon: TAB_ICONS.coverage });
-    if (isTabEnabled('api')) t.push({ id: 'api', label: 'API', icon: TAB_ICONS.api });
+    const allowed = (id) => isTabEnabled(id) && license.isTabAllowed(id);
+    const t = BASE_TABS.filter((tab) => tab && tab.id && allowed(tab.id));
+    if (allowed('composer') && info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: TAB_ICONS.composer });
+    if (allowed('tests') && showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: TAB_ICONS.tests });
+    if (allowed('coverage') && showCoverageTab.value) t.push({ id: 'coverage', label: 'Coverage', icon: TAB_ICONS.coverage });
+    if (allowed('api')) t.push({ id: 'api', label: 'API', icon: TAB_ICONS.api });
     const extensions = getDetailTabExtensions();
     extensions.forEach((ext) => {
+      if (!ext || ext.id == null) return;
+      if (isExtensionHidden(ext.id)) return;
       const flagId = ext.featureFlagId ?? ext.id;
-      if (!isTabEnabled(flagId)) return;
+      if (!isTabEnabled(flagId) || !license.isTabAllowed(ext.id)) return;
       if (ext.isVisible && info.value && !ext.isVisible(info.value)) return;
       t.push({ id: ext.id, label: ext.label, icon: ext.icon });
     });
@@ -64,7 +71,7 @@ export function useDetailView() {
         return i - j;
       });
     }
-    return t;
+    return t.filter((tab) => tab && tab.id != null);
   });
 
   watch(visibleTabs, (tabs) => {

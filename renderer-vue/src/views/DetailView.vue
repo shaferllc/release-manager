@@ -8,7 +8,7 @@
       >
         <DetailHeader :info="info" @remove="$emit('refresh')" />
         <div v-if="store.useDetailTabs" class="detail-tabs-bar flex flex-wrap gap-1 shrink-0 mb-6">
-          <template v-for="(tab, index) in visibleTabs" :key="tab.id">
+          <template v-for="(tab, index) in visibleTabs" :key="tab?.id ?? index">
             <div
               v-if="dropTargetIndex === index && draggedTabId"
               class="detail-tab-drop-indicator w-0.5 h-6 rounded-full bg-rm-accent shrink-0"

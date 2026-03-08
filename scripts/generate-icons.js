@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Generates proper icon sizes from assets/icons/icon.png.
- * Strips white background (makes near-white pixels transparent), then resizes to 16–1024px.
+ * Strips white background, trims transparent padding, then resizes to 16–1024px so the graphic fills the icon.
  * Requires: npm install sharp (devDependency).
  */
 const fs = require('fs');
@@ -12,6 +12,12 @@ const iconsDir = path.join(__dirname, '..', 'assets', 'icons');
 const iconPath = path.join(iconsDir, 'icon.png');
 const minSourceSize = 128;
 const WHITE_THRESHOLD = 240;
+/** Pixels with alpha below this are considered empty for trim. */
+const TRIM_ALPHA_THRESHOLD = 128;
+/** RGB all above this is treated as empty (white/light background) for trim. */
+const TRIM_LIGHT_RGB_THRESHOLD = 235;
+/** After trim, scale content to this fraction of the icon size (leaves a small margin). */
+const FILL_RATIO = 0.92;
 
 function stripWhiteToTransparent(inputSharp) {
   return inputSharp
@@ -32,6 +38,58 @@ function stripWhiteToTransparent(inputSharp) {
         raw: { width, height, channels },
       });
     });
+}
+
+/** True if pixel at index i is considered empty for trim (transparent or very light). */
+function isEmptyPixel(data, i, channels) {
+  const r = data[i];
+  const g = data[i + 1];
+  const b = data[i + 2];
+  const a = channels === 4 ? data[i + 3] : 255;
+  if (a <= TRIM_ALPHA_THRESHOLD) return true;
+  if (r >= TRIM_LIGHT_RGB_THRESHOLD && g >= TRIM_LIGHT_RGB_THRESHOLD && b >= TRIM_LIGHT_RGB_THRESHOLD) return true;
+  return false;
+}
+
+/** Get bounding box of non-empty pixels. Returns { left, top, width, height } or null. */
+function getTrimBox(data, width, height, channels) {
+  let minX = width;
+  let maxX = -1;
+  let minY = height;
+  let maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * channels;
+      if (!isEmptyPixel(data, i, channels)) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+  return {
+    left: minX,
+    top: minY,
+    width: maxX - minX + 1,
+    height: maxY - minY + 1,
+  };
+}
+
+/** Trim transparent padding and return a sharp instance of the trimmed image. */
+async function trimToContent(sharpInstance) {
+  const { data, info } = await sharpInstance.raw().toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  const box = getTrimBox(data, width, height, channels);
+  if (!box || box.width < 1 || box.height < 1) return sharpInstance;
+  if (box.width >= width && box.height >= height) return sharpInstance;
+  return sharpInstance.extract({
+    left: box.left,
+    top: box.top,
+    width: box.width,
+    height: box.height,
+  });
 }
 
 async function main() {
@@ -61,20 +119,50 @@ async function main() {
   }
 
   const source = sharp(iconPath);
-  const pipeline = await stripWhiteToTransparent(source);
+  const withTransparency = await stripWhiteToTransparent(source);
+  // Use sharp's trim to remove transparent/same-color edges (threshold: include pixels that differ from corner)
+  let trimmed = withTransparency;
+  try {
+    const trimmedBuffer = await withTransparency.clone().trim({ threshold: 5 }).png().toBuffer();
+    trimmed = sharp(trimmedBuffer);
+  } catch (_) {
+    trimmed = await trimToContent(withTransparency);
+  }
+  const trimmedMeta = await trimmed.metadata();
+  const tw = trimmedMeta.width || 1;
+  const th = trimmedMeta.height || 1;
+  const maxDim = Math.max(tw, th);
+  if (maxDim < 1) {
+    console.log('No visible content after trim.');
+    process.exit(1);
+  }
+  console.log(`  Trimmed to content: ${tw}×${th}`);
+
   const tmp1024 = path.join(iconsDir, 'icon-1024-tmp.png');
   for (const size of SIZES) {
     const outPath = size === 1024 ? tmp1024 : path.join(iconsDir, `icon-${size}.png`);
-    await pipeline
-      .clone()
-      .resize(size, size)
+    const scale = (size * FILL_RATIO) / maxDim;
+    const w = Math.round(tw * scale);
+    const h = Math.round(th * scale);
+    const left = Math.round((size - w) / 2);
+    const top = Math.round((size - h) / 2);
+    const resized = await trimmed.clone().resize(w, h).png().toBuffer();
+    await sharp({
+      create: {
+        width: size,
+        height: size,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .composite([{ input: resized, left, top }])
       .png()
       .toFile(outPath);
     console.log(`  ${size}×${size} → ${size === 1024 ? 'icon.png' : `icon-${size}.png`}`);
   }
   fs.renameSync(tmp1024, iconPath);
 
-  console.log('Generated icon sizes in assets/icons/ (white background made transparent)');
+  console.log('Generated icon sizes in assets/icons/ (trimmed, then scaled to fill)');
 
   // macOS: build icon.icns so Dock/desktop use full resolution (512/1024)
   if (process.platform === 'darwin') {

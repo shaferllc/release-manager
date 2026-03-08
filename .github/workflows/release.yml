@@ -56,6 +56,11 @@ jobs:
         run: npm ci || npm install
 
       - name: Build app
+        env:
+          LICENSE_PROD_CLIENT_ID: ${{ secrets.LICENSE_PROD_CLIENT_ID }}
+          LICENSE_PROD_CLIENT_SECRET: ${{ secrets.LICENSE_PROD_CLIENT_SECRET }}
+          LICENSE_STAGING_CLIENT_ID: ${{ secrets.LICENSE_STAGING_CLIENT_ID }}
+          LICENSE_STAGING_CLIENT_SECRET: ${{ secrets.LICENSE_STAGING_CLIENT_SECRET }}
         run: npm run build
 
       - name: List build output

@@ -18,7 +18,7 @@ Detail-view tabs (Dashboard, Git, Version, etc.) can be extended via a **plugin 
 2. Implement a Vue component that receives the `info` prop (same as built-in detail cards).
 3. In an `index.js`, call `registerDetailTabExtension({ id, label, icon, component, featureFlagId?, isVisible? })`.
 4. **Add one line to `extensions/index.js`**: `import './my-tab';` so the extension is loaded at app startup.
-5. Add the extension’s `id` to `TAB_FLAG_IDS` in `composables/useFeatureFlags.js` if it should be toggleable in Feature Flags.
+5. Feature flags: all registered extensions are automatically toggleable in Hidden options (Feature Flags). No extra step needed.
 6. Add the `id` to `validDetailTabs` in `App.vue` so the persisted tab selection is valid.
 
 ## Command palette integration

@@ -17,6 +17,9 @@ describe('ExtensionsView', () => {
       getInstalledUserExtensions: vi.fn(),
       getMarketplaceExtensions: vi.fn(),
       installExtension: vi.fn(),
+      uninstallExtension: vi.fn(),
+      uploadExtensionToMarketplace: vi.fn(),
+      showOpenDialog: vi.fn(),
     };
   });
 
@@ -34,15 +37,17 @@ describe('ExtensionsView', () => {
     window.releaseManager.getInstalledUserExtensions.mockResolvedValue([]);
     const wrapper = mount(ExtensionsView, { global: { plugins: [createPinia()] } });
     await flushPromises();
-    expect(wrapper.text()).toMatch(/No extensions installed|Built-in extensions/);
+    expect(wrapper.text()).toMatch(/No extensions installed|Browse the marketplace/);
   });
 
-  it('loads marketplace URL from preference on mount', async () => {
+  it('loads marketplace URL from preference on mount and auto-fetches', async () => {
     window.releaseManager.getPreference.mockResolvedValue('https://market.example.com');
     window.releaseManager.getInstalledUserExtensions.mockResolvedValue([]);
+    window.releaseManager.getMarketplaceExtensions.mockResolvedValue({ ok: true, data: [] });
     mount(ExtensionsView, { global: { plugins: [createPinia()] } });
     await flushPromises();
     expect(window.releaseManager.getPreference).toHaveBeenCalledWith('extensionsMarketplaceBaseUrl');
+    expect(window.releaseManager.getMarketplaceExtensions).toHaveBeenCalledWith('https://market.example.com');
   });
 
   it('calls getInstalledUserExtensions on mount', async () => {

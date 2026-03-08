@@ -20,7 +20,7 @@ export function useAiGenerateAvailable() {
     }
   });
 
-  const aiGenerateAvailable = computed(() => license.hasLicense?.value === true && available.value);
+  const aiGenerateAvailable = computed(() => license.isLoggedIn?.value === true && available.value);
 
   return { aiGenerateAvailable };
 }

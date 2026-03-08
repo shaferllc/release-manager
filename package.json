@@ -13,17 +13,17 @@
     "test:vue": "cd renderer-vue && npm run test:run",
     "test:vue:coverage": "cd renderer-vue && npm run test:coverage",
     "test:e2e": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && node tests/e2e/smoke.js",
-    "start": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && electron .",
-    "cli": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && electron . --",
+    "start": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && cross-env NODE_OPTIONS=--use-system-ca electron .",
+    "cli": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && cross-env NODE_OPTIONS=--use-system-ca electron . --",
     "restart": "npm start",
-    "dev": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && NODE_ENV=development electron . --enable-logging",
+    "dev": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && cross-env NODE_ENV=development NODE_OPTIONS=--use-system-ca electron . --enable-logging",
     "ensure-icon": "node scripts/ensure-icon.js",
     "generate-icons": "node scripts/generate-icons.js",
     "build:renderer-vue": "node scripts/prepare-renderer-vue-public.js && cd renderer-vue && npm install && npm run build",
     "watch:renderer-vue": "cd renderer-vue && npm run build:watch",
-    "dev:vue": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && concurrently \"npm run watch:renderer-vue\" \"cross-env NODE_ENV=development electron .\"",
-    "start:vue": "npm run build:renderer-vue && USE_VUE_RENDERER=1 electron .",
-    "build": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && npx electron-builder",
+    "dev:vue": "node scripts/ensure-icon.js && node scripts/generate-icons.js && npm run build:renderer-vue && concurrently \"npm run watch:renderer-vue\" \"cross-env NODE_ENV=development NODE_OPTIONS=--use-system-ca electron .\"",
+    "start:vue": "npm run build:renderer-vue && cross-env NODE_OPTIONS=--use-system-ca USE_VUE_RENDERER=1 electron .",
+    "build": "node scripts/ensure-icon.js && node scripts/generate-icons.js && node scripts/generate-license-bundled.js && npm run build:renderer-vue && npx electron-builder",
     "build:mac": "npx electron-builder --mac",
     "build:win": "npx electron-builder --win",
     "build:linux": "npx electron-builder --linux",
@@ -58,7 +58,14 @@
       "scripts/**",
       "node_modules/**",
       "package.json",
-      "CHANGELOG.md"
+      "CHANGELOG.md",
+      "license-server.bundled.json"
+    ],
+    "protocols": [
+      {
+        "name": "Shipwell",
+        "schemes": ["shipwell"]
+      }
     ],
     "mac": {
       "category": "public.app-category.developer-tools",
@@ -105,8 +112,9 @@
   },
   "dependencies": {
     "basic-ftp": "^5.2.0",
-    "extract-zip": "^2.0.1",
+    "dotenv": "^17.3.1",
     "electron-store": "^8.1.0",
+    "extract-zip": "^2.0.1",
     "localtunnel": "^2.0.2",
     "mailparser": "^3.6.5",
     "marked": "^15.0.0",

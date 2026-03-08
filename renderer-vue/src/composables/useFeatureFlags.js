@@ -1,10 +1,11 @@
 import { ref, readonly, computed } from 'vue';
 import { useApi } from './useApi';
+import { getDetailTabExtensions } from '../extensions/registry';
 
 const FEATURE_FLAGS_PREF = 'featureFlags';
 
-/** Tab IDs that are gated by feature flags. Core tabs (dashboard, git, version) are never gated. */
-export const TAB_FLAG_IDS = [
+/** Built-in tab IDs gated by feature flags. Core tabs (dashboard, git, version) are never gated. */
+const BUILTIN_TAB_FLAG_IDS = [
   'pull-requests',
   'processes',
   'email',
@@ -17,11 +18,18 @@ export const TAB_FLAG_IDS = [
   'api',
   'kanban',
   'markdown',
+  'wiki',
 ];
+
+/** All tab flag IDs: built-in + every registered extension (so all extensions are toggleable). */
+export function getTabFlagIds() {
+  const extIds = getDetailTabExtensions().map((e) => e.id).filter(Boolean);
+  return [...new Set([...BUILTIN_TAB_FLAG_IDS, ...extIds])];
+}
 
 const defaultTabFlags = () => {
   const o = {};
-  TAB_FLAG_IDS.forEach((id) => { o[id] = true; });
+  getTabFlagIds().forEach((id) => { o[id] = true; });
   return o;
 };
 
@@ -41,7 +49,7 @@ export function useFeatureFlags() {
       const raw = await api.getPreference(FEATURE_FLAGS_PREF);
       const tabs = raw?.tabs && typeof raw.tabs === 'object' ? raw.tabs : {};
       const next = { ...defaultTabFlags(), ...tabs };
-      TAB_FLAG_IDS.forEach((id) => {
+      getTabFlagIds().forEach((id) => {
         if (next[id] !== true && next[id] !== false) next[id] = true;
       });
       tabFlags.value = next;
@@ -83,6 +91,7 @@ export function useFeatureFlags() {
     isModalOpen: computed(() => isModalOpen.value),
     openModal,
     closeModal,
-    TAB_FLAG_IDS,
+    /** All tab flag IDs (built-in + extensions) for the feature flags modal. */
+    getTabFlagIds,
   };
 }

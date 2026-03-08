@@ -4,7 +4,7 @@
       <div class="settings-nav-inner py-4 pr-2 pl-4">
         <h2 class="settings-nav-title text-xs font-semibold text-rm-muted uppercase tracking-wider px-3 mb-3">Settings</h2>
         <ul class="settings-nav-list list-none m-0 p-0 space-y-0.5">
-          <li v-for="s in sections" :key="s.id">
+          <li v-for="(s, idx) in sections" :key="s?.id ?? idx">
             <Button
               variant="text"
               size="small"
@@ -22,6 +22,54 @@
     </nav>
     <div class="settings-content flex-1 overflow-auto min-w-0">
       <div class="settings-content-inner py-8 px-8 max-w-2xl">
+        <!-- Account -->
+        <section v-show="activeSection === 'account'" class="settings-section">
+          <h3 class="settings-section-title">Account</h3>
+          <p class="settings-section-desc text-sm text-rm-muted mb-6">Same account as the web app (telemetry server).</p>
+          <div class="settings-card space-y-5">
+            <div class="settings-row flex items-center justify-between gap-4 flex-wrap">
+              <div>
+                <span class="settings-label block">Signed in</span>
+                <p class="settings-desc m-0 mt-1">
+                  <span v-if="license.isLoggedIn?.value" class="text-rm-success">
+                    {{ license.licenseEmail?.value || 'Signed in' }}
+                  </span>
+                  <span v-else class="text-rm-warning">Not signed in</span>
+                </p>
+              </div>
+              <Button
+                v-if="license.isLoggedIn?.value"
+                severity="secondary"
+                label="Sign out"
+                @click="signOut"
+              />
+            </div>
+            <div v-if="license.isLoggedIn?.value" class="settings-row flex items-center justify-between gap-4 flex-wrap pt-2 border-t border-rm-border">
+              <div>
+                <span class="settings-label block">Plan</span>
+                <p class="settings-desc m-0 mt-1">
+                  <span v-if="license.isPro?.value" class="text-rm-accent font-semibold">Pro</span>
+                  <span v-else-if="license.isPlus?.value" class="text-rm-accent/90 font-medium">Plus</span>
+                  <span v-else class="text-rm-muted">Free — some tabs and features are limited</span>
+                </p>
+              </div>
+            </div>
+            <div class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Environment</span>
+              <p class="settings-desc m-0 mt-1">Backend used for sign-in and password reset.</p>
+              <Select
+                v-model="licenseServerEnvironment"
+                :options="licenseServerEnvironments"
+                option-label="label"
+                option-value="id"
+                class="max-w-xs mt-2"
+                placeholder="Development"
+                @change="saveLicenseServerEnvironment"
+              />
+            </div>
+          </div>
+        </section>
+
         <!-- Application -->
         <section v-show="activeSection === 'application'" class="settings-section">
           <h3 class="settings-section-title">Application</h3>
@@ -177,7 +225,7 @@
           <h3 class="settings-section-title">AI</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">
             Used for commit messages, release notes, and test-fix suggestions.
-            <span v-if="!license.hasLicense?.value" class="text-rm-warning"> Requires a license.</span>
+            <span v-if="!license.isLoggedIn?.value" class="text-rm-warning"> Sign in required.</span>
           </p>
 
           <div class="settings-card space-y-5">
@@ -482,20 +530,10 @@
             <label class="settings-row settings-row-clickable settings-checkbox-row">
               <div class="min-w-0">
                 <span class="settings-label block text-rm-text">Telemetry / usage data</span>
-                <p class="settings-desc m-0 text-sm text-rm-muted">Send usage events (e.g. app opened, feature used). Requires an endpoint URL (POST /api/telemetry, no auth). Throttle: 120/min per IP.</p>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Send anonymous usage events (e.g. app opened, views and tabs used) to help improve the app.</p>
               </div>
               <Checkbox v-model="telemetry" binary @update:model-value="saveTelemetry" class="shrink-0" />
             </label>
-            <div v-if="telemetry" class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">Telemetry endpoint</span>
-              <p class="settings-desc">Full URL to the telemetry API (e.g. https://your-server.com/api/telemetry).</p>
-              <InputText v-model="telemetryEndpoint" type="url" class="mt-2" placeholder="https://your-server.com/api/telemetry" autocomplete="off" @blur="saveTelemetryEndpoint" />
-            </div>
-            <div v-if="telemetry" class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">User identifier (optional)</span>
-              <p class="settings-desc">Email or ID for context in events. Leave empty for anonymous.</p>
-              <InputText v-model="telemetryUserIdentifier" type="text" class="mt-2 max-w-md" placeholder="user@example.com" autocomplete="off" @blur="saveTelemetryUserIdentifier" />
-            </div>
             <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
               <div class="min-w-0">
                 <span class="settings-label block text-rm-text">Crash reports</span>
@@ -574,7 +612,7 @@
 
         <!-- Developer -->
         <section v-show="activeSection === 'developer'" class="settings-section">
-          <h3 class="settings-section-title">Developer</h3>
+          <h3 class="settings-section-title developer-title-select" @click="onDeveloperTitleClick">Developer</h3>
           <p class="settings-section-desc text-sm text-rm-muted mb-6">Options for debugging and troubleshooting.</p>
 
           <div class="settings-card">
@@ -585,6 +623,34 @@
               </div>
               <Checkbox v-model="debugLogging" binary @update:model-value="saveDebugLogging" class="shrink-0" />
             </label>
+            <div v-if="showHiddenExtensions" class="settings-row pt-4 mt-4 border-t border-rm-border">
+              <span class="settings-label block mb-2">Account tier override (dev)</span>
+              <p class="settings-desc mb-2 text-sm text-rm-muted">Pretend your account is Free, Plus, or Pro for testing. Pro has access to everything.</p>
+              <div class="flex flex-wrap items-center gap-2 mb-3">
+                <Select
+                  :model-value="devTierOverride"
+                  :options="devTierOptions"
+                  option-label="label"
+                  option-value="value"
+                  placeholder="Default (from account)"
+                  class="w-48"
+                  @update:model-value="saveDevTierOverride"
+                />
+                <Button label="Upgrade to Pro" severity="secondary" size="small" @click="saveDevTierOverride('pro')" />
+              </div>
+            </div>
+            <div v-if="showHiddenExtensions" class="settings-row pt-4 mt-4 border-t border-rm-border">
+              <span class="settings-label block mb-2">Hidden extensions (dev)</span>
+              <p class="settings-desc mb-3 text-sm text-rm-muted">Completely hide an extension from the app (tabs, settings nav, extensions list). For dev only.</p>
+              <ul class="list-none p-0 m-0 space-y-2">
+                <li v-for="ext in allExtensionsForHiddenMenu" :key="ext.id" class="flex items-center gap-2">
+                  <Checkbox :model-value="isExtensionHidden(ext.id)" binary @update:model-value="(v) => setExtensionHidden(ext.id, v)" />
+                  <span class="text-sm text-rm-text">{{ ext.label }}</span>
+                  <span class="text-xs text-rm-muted">({{ ext.id }})</span>
+                </li>
+              </ul>
+              <p v-if="allExtensionsForHiddenMenu.length === 0" class="text-sm text-rm-muted m-0 mt-2">No extensions registered.</p>
+            </div>
           </div>
         </section>
       </div>
@@ -599,13 +665,39 @@ import Divider from 'primevue/divider';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
 import Select from 'primevue/select';
+import { computed, ref, watch, onMounted } from 'vue';
 import { useSettings } from '../composables/useSettings';
+import { useApi } from '../composables/useApi';
+import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useModals } from '../composables/useModals';
+import { useHiddenExtensions } from '../composables/useHiddenExtensions';
+import { getDetailTabExtensions } from '../extensions/registry';
+import { getSettingsSections } from '../extensions/settingsRegistry';
 
 const modals = useModals();
-function openSetupWizard() {
-  modals.openModal('setupWizard');
+const api = useApi();
+const { openModal: openFeatureFlagsModal } = useFeatureFlags();
+const { isHidden: isExtensionHidden, setHidden: setExtensionHidden } = useHiddenExtensions();
+
+const showHiddenExtensions = ref(false);
+const developerClickCount = ref(0);
+let developerClickTimer = null;
+function onDeveloperTitleClick() {
+  developerClickCount.value += 1;
+  if (developerClickTimer) clearTimeout(developerClickTimer);
+  developerClickTimer = setTimeout(() => { developerClickCount.value = 0; }, 800);
+  if (developerClickCount.value >= 5) {
+    showHiddenExtensions.value = true;
+    developerClickCount.value = 0;
+  }
 }
+
+const allExtensionsForHiddenMenu = computed(() => {
+  const byId = new Map();
+  getDetailTabExtensions().forEach((e) => { if (e?.id) byId.set(e.id, { id: e.id, label: e.label || e.id }); });
+  getSettingsSections().forEach((s) => { if (s?.id && !byId.has(s.id)) byId.set(s.id, { id: s.id, label: s.label || s.id }); });
+  return [...byId.values()].sort((a, b) => (a.label || '').localeCompare(b.label || ''));
+});
 
 const {
   sections,
@@ -686,8 +778,6 @@ const {
   requestTimeoutSeconds,
   offlineMode,
   telemetry,
-  telemetryEndpoint,
-  telemetryUserIdentifier,
   crashReports,
   crashReportEndpoint,
   dataPrivacyMessage,
@@ -746,8 +836,6 @@ const {
   saveRequestTimeout,
   saveOfflineMode,
   saveTelemetry,
-  saveTelemetryEndpoint,
-  saveTelemetryUserIdentifier,
   saveCrashReports,
   saveCrashReportEndpoint,
   exportSettingsToFile,
@@ -760,7 +848,33 @@ const {
   saveScreenReaderSupport,
   saveDebugLogging,
   saveSignCommits,
+  licenseServerEnvironment,
+  licenseServerEnvironments,
+  saveLicenseServerEnvironment,
+  devTierOverride,
+  saveDevTierOverride,
+  devTierOptions,
 } = useSettings();
+
+// Refetch license when user opens Account so expired/invalid session immediately shows login screen
+watch(activeSection, (section) => {
+  if (section === 'account' && license.loadStatus) license.loadStatus();
+});
+
+onMounted(() => {
+  if (!license.isLoggedIn?.value) {
+    activeSection.value = 'account';
+  }
+});
+
+function openSetupWizard() {
+  modals.openModal('setupWizard');
+}
+
+async function signOut() {
+  await api.logoutFromLicenseServer?.();
+  await license.loadStatus();
+}
 </script>
 
 <style scoped>
@@ -829,7 +943,8 @@ const {
   grid-template-columns: auto 1fr;
   grid-template-areas: "control text";
   align-items: center;
-  gap: 0.75rem 0.25rem;
+  column-gap: 0.75rem;
+  row-gap: 0.25rem;
   padding-right: 1rem;
 }
 .settings-checkbox-row > .min-w-0 {
@@ -905,6 +1020,10 @@ const {
 .settings-nav-icon :deep(svg) {
   stroke: currentColor;
   color: inherit;
+}
+.developer-title-select {
+  cursor: pointer;
+  user-select: none;
 }
 .accent-swatch {
   cursor: pointer;

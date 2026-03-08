@@ -1,27 +1,43 @@
 <template>
   <TerminalPopoutView v-if="isTerminalPopout" />
   <div v-else class="flex flex-col h-full min-h-0 bg-rm-bg text-rm-text">
-    <NavBar @refresh="onRefresh" @add-project="addProject" />
-    <main class="flex-1 flex min-h-0 min-w-0 overflow-hidden">
-      <Sidebar />
-      <div class="main-content-area flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
-        <div class="main-content-inner flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden pb-4">
-          <LicenseUpgradeBanner v-if="store.viewMode !== 'settings'" />
-          <NoSelection v-if="store.viewMode === 'detail' && !store.selectedPath" />
-          <DetailView v-else-if="store.viewMode === 'detail' && store.selectedPath" @refresh="onModalRefresh" />
-          <DashboardView v-else-if="store.viewMode === 'dashboard'" />
-          <SettingsView v-else-if="store.viewMode === 'settings'" />
-          <ExtensionsView v-else-if="store.viewMode === 'extensions'" />
-          <DocsView v-else-if="store.viewMode === 'docs'" />
-          <ChangelogView v-else-if="store.viewMode === 'changelog'" />
-          <ApiView v-else-if="store.viewMode === 'api'" />
-          <NoSelection v-else />
-        </div>
+    <!-- Not loaded yet: only show checking state -->
+    <template v-if="!license.licenseStatusLoaded">
+      <div class="flex-1 flex flex-col min-h-0 items-center justify-center gap-4 p-8 text-rm-muted">
+        <span class="text-sm">Checking login…</span>
+        <i class="pi pi-spin pi-spinner" style="font-size: 1.5rem" aria-hidden="true" />
       </div>
-    </main>
-    <ModalHost @refresh="onModalRefresh" />
-    <CommandPalette v-if="!isTerminalPopout" />
-    <FeatureFlagsModal v-if="showFeatureFlagsModal" />
+    </template>
+    <!-- Logged in: full app with navbar, sidebar, and content (only when backend explicitly says hasLicense) -->
+    <template v-else-if="showFullApp">
+      <NavBar @refresh="onRefresh" @add-project="addProject" />
+      <main class="flex-1 flex min-h-0 min-w-0 overflow-hidden">
+        <Sidebar />
+        <div class="main-content-area flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
+          <div class="main-content-inner flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden pb-4">
+            <LicenseUpgradeBanner v-if="store.viewMode !== 'settings'" />
+            <NoSelection v-if="store.viewMode === 'detail' && !store.selectedPath" />
+            <DetailView v-else-if="store.viewMode === 'detail' && store.selectedPath" @refresh="onModalRefresh" />
+            <DashboardView v-else-if="store.viewMode === 'dashboard'" />
+            <SettingsView v-else-if="store.viewMode === 'settings'" />
+            <ExtensionsView v-else-if="store.viewMode === 'extensions'" />
+            <DocsView v-else-if="store.viewMode === 'docs'" />
+            <ChangelogView v-else-if="store.viewMode === 'changelog'" />
+            <ApiView v-else-if="store.viewMode === 'api'" />
+            <NoSelection v-else />
+          </div>
+        </div>
+      </main>
+    </template>
+    <!-- Not logged in: only login screen (no app chrome, no settings until signed in) -->
+    <template v-else>
+      <main class="flex-1 flex min-h-0 min-w-0 overflow-hidden">
+        <LoginRequiredView />
+      </main>
+    </template>
+    <ModalHost v-if="showFullApp" @refresh="onModalRefresh" />
+    <CommandPalette v-if="!isTerminalPopout && showFullApp" />
+    <FeatureFlagsModal v-if="showFullApp && showFeatureFlagsModal" />
     <AppToasts />
     <LoadingBar />
     <LoadingOverlay />
@@ -42,6 +58,7 @@ import ExtensionsView from './views/ExtensionsView.vue';
 import DocsView from './views/DocsView.vue';
 import ChangelogView from './views/ChangelogView.vue';
 import ApiView from './views/ApiView.vue';
+import LoginRequiredView from './views/LoginRequiredView.vue';
 import TerminalPopoutView from './views/TerminalPopoutView.vue';
 import ModalHost from './components/ModalHost.vue';
 import LicenseUpgradeBanner from './components/LicenseUpgradeBanner.vue';
@@ -66,9 +83,13 @@ const featureFlags = useFeatureFlags();
 const license = useLicense();
 const showFeatureFlagsModal = computed(() => !!featureFlags.isModalOpen?.value);
 const api = useApi();
+
+/** Only show navbar/sidebar/content after we have explicitly received hasLicense: true from the backend. */
+const showFullApp = computed(() => Boolean(license.licenseStatusLoaded?.value && license.isLoggedIn?.value));
 const isTerminalPopout = ref(typeof window !== 'undefined' && window.location.hash === '#terminal-popout');
 const { runWithOverlay } = useLongActionOverlay();
 
+let offLicenseStatusChanged = null;
 let loadProjectsRetryCount = 0;
 const LOAD_PROJECTS_MAX_RETRIES = 2;
 
@@ -132,7 +153,7 @@ async function loadProjects() {
     else if (store.projects.length > 0 && !store.selectedPath) store.setSelectedPath(store.projects[0].path);
     else store.setSelectedPath(null);
     if (savedView && ['detail', 'dashboard', 'settings', 'extensions', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
-    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'processes', 'email', 'tunnels', 'ftp', 'ssh', 'kanban', 'markdown'];
+    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'processes', 'email', 'tunnels', 'ftp', 'ssh', 'kanban', 'markdown', 'agent-crew', 'project-tracker', 'checklist', 'changelog-draft', 'env', 'dependencies', 'notes', 'runbooks', 'terminal', 'github-issues', 'wiki'];
     if (typeof savedDetailTab === 'string' && validDetailTabs.includes(savedDetailTab)) store.setDetailTab(savedDetailTab);
     if (store.selectedPath) {
       const current = store.projects.find((p) => p.path === store.selectedPath);
@@ -258,6 +279,15 @@ watch(() => store.selectedPath, (path) => {
 
 watch(() => store.detailTab, (tab) => {
   if (tab && api.setPreference) api.setPreference('state.detailTab', tab);
+  if (tab && store.viewMode === 'detail') api.sendTelemetry?.('detail_tab.viewed', { tab });
+}, { immediate: false });
+
+watch(() => store.viewMode, (view) => {
+  if (view) api.sendTelemetry?.('view.viewed', { view });
+}, { immediate: false });
+
+watch(showFullApp, (show) => {
+  if (show) loadProjects();
 }, { immediate: false });
 
 function isInputFocused() {
@@ -312,8 +342,12 @@ onMounted(async () => {
   } catch (_) {}
   if (!isTerminalPopout.value) {
     featureFlags.loadFlags();
-    license.loadStatus();
-    loadProjects();
+    await license.loadStatus();
+    if (showFullApp.value) {
+      loadProjects();
+    }
+    offLicenseStatusChanged = api.onLicenseStatusChanged?.(() => license.loadStatus()) ?? null;
+    window.addEventListener('focus', onWindowFocusForLicense);
     registerBuiltinCommands({
       store,
       onRefresh,
@@ -385,10 +419,20 @@ onMounted(async () => {
   };
 });
 
+async function onWindowFocusForLicense() {
+  if (isTerminalPopout.value) return;
+  await license.loadStatus();
+}
+
 onUnmounted(() => {
   window.removeEventListener('keydown', handleShortcut);
+  window.removeEventListener('focus', onWindowFocusForLicense);
   if (typeof window.__releaseManagerRemoveErrorHandlers === 'function') {
     window.__releaseManagerRemoveErrorHandlers();
+  }
+  if (typeof offLicenseStatusChanged === 'function') {
+    offLicenseStatusChanged();
+    offLicenseStatusChanged = null;
   }
 });
 </script>
