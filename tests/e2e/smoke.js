@@ -1,6 +1,6 @@
 /**
  * E2E smoke test: launches the app, checks main UI, then closes.
- * Run: npm run test:e2e (requires Playwright and built app: npm run build:css first).
+ * Run: npm run test:e2e (builds Vue renderer and requires Playwright).
  */
 const path = require('path');
 const { _electron: electron } = require('playwright');
@@ -29,8 +29,8 @@ async function main() {
 
     // Smoke: app loaded and shows main UI
     const content = await window.content();
-    if (!content.includes('Add project') && !content.includes('Release Manager') && !content.includes('Settings')) {
-      throw new Error('Expected main UI (Add project / Release Manager / Settings) not found');
+    if (!content.includes('Add project') && !content.includes('Shipwell') && !content.includes('Settings')) {
+      throw new Error('Expected main UI (Add project / Shipwell / Settings) not found');
     }
 
     // Optional: open Documentation via View dropdown

@@ -1,5 +1,3 @@
-const path = require('path');
-const fs = require('fs');
 const {
   DOC_SECTION_TITLES,
   DOC_FEATURE_KEYS,
@@ -90,28 +88,4 @@ describe('documentation', () => {
     });
   });
 
-  describe('in-app doc (index.html)', () => {
-    it('contains docs-view and docs-content', () => {
-      const indexPath = path.join(__dirname, '..', '..', '..', 'src-renderer', 'index.html');
-      const html = fs.readFileSync(indexPath, 'utf8');
-      expect(html).toContain('id="docs-view"');
-      expect(html).toContain('docs-content');
-    });
-
-    it('contains all required section titles in the docs view', () => {
-      const indexPath = path.join(__dirname, '..', '..', '..', 'src-renderer', 'index.html');
-      const html = fs.readFileSync(indexPath, 'utf8');
-      const result = docHasRequiredSections(html);
-      expect(result.missing).toEqual([]);
-      expect(result.ok).toBe(true);
-    });
-
-    it('contains all required feature keys in the docs view', () => {
-      const indexPath = path.join(__dirname, '..', '..', '..', 'src-renderer', 'index.html');
-      const html = fs.readFileSync(indexPath, 'utf8');
-      const result = docHasRequiredFeatures(html);
-      expect(result.missing).toEqual([]);
-      expect(result.ok).toBe(true);
-    });
-  });
 });

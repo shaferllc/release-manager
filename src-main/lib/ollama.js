@@ -182,12 +182,80 @@ Commits:
 ${list}`;
 }
 
+/**
+ * Build a prompt for generating a one-line tag message from commit subjects.
+ * @param {string[]} commits - list of commit subject lines
+ * @returns {string}
+ */
+function buildTagMessagePrompt(commits) {
+  const list = Array.isArray(commits) && commits.length ? commits.join('\n') : 'No commits';
+  return `Generate a single line tag message (for an annotated git tag) summarizing these commits. One line only, no title.
+
+Commits:
+${list}`;
+}
+
+/**
+ * Build a prompt for suggesting a fix when tests fail.
+ * @param {string} testScriptName - e.g. "test"
+ * @param {string} stdout - test command stdout
+ * @param {string} stderr - test command stderr
+ * @returns {string}
+ */
+function buildTestFixPrompt(testScriptName, stdout, stderr) {
+  const out = (stdout || '').trim().slice(0, 6000);
+  const err = (stderr || '').trim().slice(0, 4000);
+  const script = testScriptName || 'test';
+  return `The project's test script "${script}" failed. Based on the command output below, suggest a concrete fix.
+
+Rules:
+- Be concise: 1–3 short paragraphs or a numbered list of steps.
+- If the error points to a file and line, mention them and what to change.
+- Suggest exact code or config changes when possible; otherwise describe the change.
+- Do not repeat the full error log.
+
+Command output (stdout):
+${out || '(empty)'}
+
+Command output (stderr):
+${err || '(empty)'}
+
+Suggested fix:`;
+}
+
+/**
+ * Build a prompt for generating unit tests for a source file.
+ * @param {string} relativePath - e.g. "src/components/Foo.vue"
+ * @param {string} sourceContent - file content
+ * @returns {string}
+ */
+function buildGenerateTestsPrompt(relativePath, sourceContent) {
+  const content = (sourceContent || '').trim().slice(0, 12000);
+  return `Generate unit tests for this source file. Return only the test file content, no explanation.
+
+File path: ${relativePath || '(unknown)'}
+
+Source code:
+\`\`\`
+${content || '(empty)'}
+\`\`\`
+
+Rules:
+- Use the project's test framework (e.g. Vitest, Jest, PHPUnit, Pest for PHP).
+- Match the project's existing test style and location (e.g. tests/unit/, __tests__/, or next to source with .spec.js / .test.js).
+- Cover the main behavior; keep tests focused and readable.
+- Do not include markdown or extra commentary—only the test file content.`;
+}
+
 module.exports = {
   generate,
   listModels,
   modelSupportsGenerate,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTagMessagePrompt,
+  buildTestFixPrompt,
+  buildGenerateTestsPrompt,
   formatOllamaError,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,

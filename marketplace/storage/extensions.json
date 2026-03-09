@@ -1,0 +1,14 @@
+[
+  {
+    "id": "sample-notes",
+    "slug": "sample-notes",
+    "name": "Sample Notes",
+    "description": "Example marketplace extension. Install to see the format.",
+    "version": "1.0.0",
+    "download_url": "",
+    "icon": "",
+    "author": "Release Manager",
+    "homepage": "",
+    "updated_at": "2025-03-05T00:00:00Z"
+  }
+]

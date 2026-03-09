@@ -1,0 +1,873 @@
+/* Layer order so Tailwind utilities can override PrimeVue styled theme (see primevue.org/theming/styled and primevue.org/tailwind) */
+@layer tailwind-base, primevue, tailwind-utilities;
+
+@layer tailwind-base {
+  @tailwind base;
+}
+
+@layer tailwind-utilities {
+  @tailwind components;
+  @tailwind utilities;
+}
+
+:root,
+html[data-theme="dark"] {
+  --rm-bg: 22 23 25;
+  --rm-bg-elevated: 28 30 33;
+  --rm-surface: 36 38 42;
+  --rm-surface-hover: 45 48 53;
+  --rm-text: 232 234 238;
+  --rm-muted: 139 142 148;
+  --rm-accent: 34 197 94;
+  --rm-accent-hover: 74 222 128;
+  --rm-border: 48 51 56;
+  --rm-border-focus: 34 197 94;
+  --rm-success: 34 197 94;
+  --rm-warning: 234 179 8;
+  --rm-danger: 239 68 68;
+  --rm-info: 96 165 250;
+}
+
+html[data-theme="light"] {
+  --rm-bg: 245 245 247;
+  --rm-bg-elevated: 255 255 255;
+  --rm-surface: 228 230 235;
+  --rm-surface-hover: 212 215 220;
+  --rm-text: 24 26 30;
+  --rm-muted: 113 117 122;
+  --rm-accent: 22 163 74;
+  --rm-accent-hover: 34 197 94;
+  --rm-border: 212 215 220;
+  --rm-border-focus: 22 163 74;
+  --rm-success: 22 163 74;
+  --rm-warning: 202 138 4;
+  --rm-danger: 220 38 38;
+  --rm-info: 37 99 235;
+}
+
+/* Accent color variants */
+html[data-accent="blue"] { --rm-accent: 59 130 246; --rm-accent-hover: 96 165 250; --rm-border-focus: 59 130 246; --rm-success: 34 197 94; }
+html[data-theme="light"][data-accent="blue"] { --rm-accent: 37 99 235; --rm-accent-hover: 59 130 246; --rm-border-focus: 37 99 235; }
+html[data-accent="purple"] { --rm-accent: 168 85 247; --rm-accent-hover: 192 132 252; --rm-border-focus: 168 85 247; --rm-success: 34 197 94; }
+html[data-theme="light"][data-accent="purple"] { --rm-accent: 126 34 206; --rm-accent-hover: 168 85 247; --rm-border-focus: 126 34 206; }
+html[data-accent="amber"] { --rm-accent: 245 158 11; --rm-accent-hover: 251 191 36; --rm-border-focus: 245 158 11; --rm-success: 34 197 94; }
+html[data-theme="light"][data-accent="amber"] { --rm-accent: 217 119 6; --rm-accent-hover: 245 158 11; --rm-border-focus: 217 119 6; }
+html[data-accent="rose"] { --rm-accent: 244 63 94; --rm-accent-hover: 251 113 133; --rm-border-focus: 244 63 94; --rm-success: 34 197 94; }
+html[data-theme="light"][data-accent="rose"] { --rm-accent: 225 29 72; --rm-accent-hover: 244 63 94; --rm-border-focus: 225 29 72; }
+
+/* Corner radius: one variable for components (Settings > Appearance > Corner style) */
+html[data-radius="sharp"],
+html:not([data-radius]) { --rm-radius: 0; }
+html[data-radius="rounded"] { --rm-radius: 6px; }
+html[data-radius="pill"] { --rm-radius: 9999px; }
+
+/* Font size / density */
+html[data-font-size="tighter"] { font-size: 12px; }
+html[data-font-size="compact"] { font-size: 13px; }
+html[data-font-size="comfortable"] { font-size: 14px; }
+html[data-font-size="spacious"] { font-size: 15px; }
+html[data-font-size="relaxed"] { font-size: 16px; }
+
+/* Border radius: sharp (0), rounded (6px), or pill (9999px) per Settings > Corner style. Missing = sharp. */
+html[data-radius="sharp"] .rounded-rm,
+html[data-radius="sharp"] .rounded-rm-lg,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .rounded-rm,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .rounded-rm-lg { border-radius: 0 !important; }
+html[data-radius="rounded"] .rounded-rm,
+html[data-radius="rounded"] .rounded-rm-lg { border-radius: 6px !important; }
+html[data-radius="pill"] .rounded-rm { border-radius: 9999px !important; }
+
+/* Buttons and inputs: sharp = 0 (including when attribute missing) */
+html[data-radius="sharp"] textarea,
+html[data-radius="sharp"] input[type="text"],
+html[data-radius="sharp"] input[type="email"],
+html[data-radius="sharp"] input[type="password"],
+html[data-radius="sharp"] input[type="url"],
+html[data-radius="sharp"] input[type="number"],
+html[data-radius="sharp"] select.rounded-rm,
+html[data-radius="sharp"] .detail-git-toolbar-select { border-radius: 0 !important; }
+html:not([data-radius="rounded"]):not([data-radius="pill"]) textarea,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="text"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="email"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="password"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="url"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) input[type="number"],
+html:not([data-radius="rounded"]):not([data-radius="pill"]) select.rounded-rm,
+html:not([data-radius="rounded"]):not([data-radius="pill"]) .detail-git-toolbar-select { border-radius: 0 !important; }
+
+/* Buttons and inputs: rounded = 6px */
+html[data-radius="rounded"] textarea,
+html[data-radius="rounded"] input[type="text"],
+html[data-radius="rounded"] input[type="email"],
+html[data-radius="rounded"] input[type="password"],
+html[data-radius="rounded"] input[type="url"],
+html[data-radius="rounded"] input[type="number"],
+html[data-radius="rounded"] select.rounded-rm,
+html[data-radius="rounded"] .detail-git-toolbar-select { border-radius: 6px !important; }
+
+/* Buttons and inputs: pill = full rounded */
+html[data-radius="pill"] textarea { border-radius: 9999px !important; }
+html[data-radius="pill"] .detail-git-toolbar-select,
+html[data-radius="pill"] .detail-git-section-select-btn,
+html[data-radius="pill"] .detail-git-right-panel input,
+html[data-radius="pill"] .detail-git-right-panel select,
+html[data-radius="pill"] .detail-git-section-dropdown-menu,
+html[data-radius="pill"] .detail-git-toolbar-dropdown-menu { border-radius: 9999px !important; }
+
+/* Terminal panels */
+.terminal-shape { border-radius: 6px; }
+html[data-radius="sharp"] .terminal-shape { border-radius: 2px; }
+
+/* Non-input buttons and UI: sharp = 0, rounded = 6px, pill = 9999px */
+html[data-radius="sharp"] button,
+html[data-radius="sharp"] [role="button"],
+html[data-radius="sharp"] .icon-btn,
+html[data-radius="sharp"] .icon-btn-sm,
+html[data-radius="sharp"] .settings-nav-btn,
+html[data-radius="sharp"] .detail-tab-btn,
+html[data-radius="sharp"] .detail-git-toolbar-btn,
+html[data-radius="sharp"] .doc-trigger,
+html[data-radius="sharp"] .appearance-option-btn,
+html[data-radius="sharp"] .project-list-item,
+html[data-radius="sharp"] .btn-ghost,
+html[data-radius="sharp"] .detail-git-section-dropdown-menu,
+html[data-radius="sharp"] .detail-git-toolbar-dropdown-menu,
+html[data-radius="sharp"] .detail-git-section-select-btn,
+html[data-radius="sharp"] .git-branch-context-menu,
+html[data-radius="sharp"] .view-dropdown-btn,
+html[data-radius="sharp"] .view-dropdown-menu {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] button,
+html[data-radius="rounded"] [role="button"],
+html[data-radius="rounded"] .icon-btn,
+html[data-radius="rounded"] .icon-btn-sm,
+html[data-radius="rounded"] .settings-nav-btn,
+html[data-radius="rounded"] .detail-tab-btn,
+html[data-radius="rounded"] .detail-git-toolbar-btn,
+html[data-radius="rounded"] .doc-trigger,
+html[data-radius="rounded"] .appearance-option-btn,
+html[data-radius="rounded"] .project-list-item,
+html[data-radius="rounded"] .btn-ghost,
+html[data-radius="rounded"] .detail-git-section-dropdown-menu,
+html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu,
+html[data-radius="rounded"] .detail-git-section-select-btn,
+html[data-radius="rounded"] .git-branch-context-menu,
+html[data-radius="rounded"] .view-dropdown-btn,
+html[data-radius="rounded"] .view-dropdown-menu {
+  border-radius: 6px !important;
+}
+
+code.rounded,
+code[class*="rounded"] {
+  border-radius: 0 !important;
+}
+html[data-radius="sharp"] button[class*="rounded-rm"].border-transparent,
+html[data-radius="sharp"] button[class*="rounded-rm"].border-rm-accent,
+html[data-radius="sharp"] .detail-git-view-toggle {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-view-toggle {
+  border-radius: 6px !important;
+}
+
+/* Reduced motion */
+html[data-reduced-motion="true"] *,
+html[data-reduced-motion="true"] *::before,
+html[data-reduced-motion="true"] *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; }
+
+/* Reduce transparency (Electron / accessibility) */
+html[data-reduce-transparency="true"] .bg-rm-bg\/50,
+html[data-reduce-transparency="true"] .bg-rm-surface\/30,
+html[data-reduce-transparency="true"] [class*="bg-rm-"][class*="/"] { --tw-bg-opacity: 1 !important; background-color: rgb(var(--rm-bg)) !important; }
+html[data-reduce-transparency="true"] .settings-nav { background: rgb(var(--rm-bg)) !important; }
+html[data-reduce-transparency="true"] .license-upgrade-banner { background: rgb(var(--rm-accent) / 0.15) !important; }
+
+/* High contrast (Electron / accessibility) */
+html[data-high-contrast="true"] { --rm-border: 80 84 92; }
+html[data-theme="light"][data-high-contrast="true"] { --rm-border: 160 165 175; }
+html[data-high-contrast="true"] .border-rm-border { border-color: rgb(var(--rm-border)) !important; }
+html[data-high-contrast="true"] .text-rm-muted { color: rgb(var(--rm-text) / 0.85) !important; }
+
+/* Focus outline (accessibility): always show a visible focus ring on keyboard navigation */
+html:not([data-focus-outline-visible="true"]) *:focus { outline: none; }
+html[data-focus-outline-visible="true"] *:focus-visible {
+  outline: 2px solid rgb(var(--rm-accent));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(var(--rm-accent) / 0.2);
+}
+html[data-focus-outline-visible="true"] button:focus-visible,
+html[data-focus-outline-visible="true"] [role="button"]:focus-visible,
+html[data-focus-outline-visible="true"] a:focus-visible,
+html[data-focus-outline-visible="true"] select:focus-visible {
+  outline: 2px solid rgb(var(--rm-accent));
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgb(var(--rm-accent) / 0.2);
+}
+
+/* Large cursor in inputs (accessibility): thick bright caret, larger text, highlighted active field */
+html[data-large-cursor="true"] input,
+html[data-large-cursor="true"] textarea,
+html[data-large-cursor="true"] [contenteditable="true"] {
+  caret-color: rgb(var(--rm-accent));
+  caret-shape: bar;
+}
+html[data-large-cursor="true"] input:focus,
+html[data-large-cursor="true"] textarea:focus,
+html[data-large-cursor="true"] [contenteditable="true"]:focus {
+  border-color: rgb(var(--rm-accent)) !important;
+  box-shadow: inset 0 0 0 1px rgb(var(--rm-accent) / 0.5), 0 0 0 3px rgb(var(--rm-accent) / 0.15);
+}
+html[data-large-cursor="true"] input,
+html[data-large-cursor="true"] textarea {
+  font-size: 1.075em;
+  line-height: 1.6;
+  padding-top: 0.5em;
+  padding-bottom: 0.5em;
+}
+@keyframes a11y-caret-blink {
+  0%, 100% { border-left-color: rgb(var(--rm-accent)); }
+  50% { border-left-color: transparent; }
+}
+html[data-large-cursor="true"] input:focus,
+html[data-large-cursor="true"] textarea:focus {
+  animation: a11y-caret-blink 1s step-end infinite;
+  border-left-width: 3px !important;
+  border-left-color: rgb(var(--rm-accent)) !important;
+}
+
+@layer base {
+  * {
+    @apply box-border;
+  }
+  html {
+    @apply h-full overflow-hidden;
+  }
+  body {
+    @apply m-0 h-full flex flex-col bg-rm-bg text-rm-text text-[14px] antialiased overflow-hidden;
+  }
+  #app {
+    @apply h-full min-h-0 flex flex-col;
+  }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
+
+/* Main content area: match card background so no grey canvas between cards */
+.main-content-inner {
+  background: rgb(var(--rm-bg-elevated));
+}
+
+/* PrimeVue Card as detail-tab-panel: keep Aura theme styling; only fix layout */
+.detail-tab-panel.p-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.detail-tab-panel.p-card .p-card-body,
+.detail-tab-panel.p-card .p-card-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}
+
+/* Extensions: PrimeVue Toolbar for intro + actions (matches Terminal pattern) */
+.extension-toolbar.p-toolbar {
+  border: 1px solid rgb(var(--rm-border));
+  border-radius: var(--rm-radius, 6px);
+  background: rgb(var(--rm-surface) / 0.5);
+  padding: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.extension-toolbar.p-toolbar .p-toolbar-start { flex: 1; min-width: 0; max-width: 36rem; }
+.extension-toolbar.p-toolbar .p-toolbar-center { flex: none; }
+.extension-toolbar.p-toolbar .p-toolbar-end { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+.extension-toolbar-compact.p-toolbar { padding: 0.5rem 1rem; margin-bottom: 0.75rem; }
+
+.nav-bar {
+  -webkit-app-region: drag;
+  @apply border-b border-rm-border bg-rm-bg;
+}
+.app-logo {
+  @apply object-contain block;
+}
+.nav-bar button,
+.nav-bar .no-drag {
+  -webkit-app-region: no-drag;
+}
+
+/* Working tree & commit: modern, minimal layout */
+.detail-git-working-tree-bar {
+  @apply bg-rm-bg border-b border-rm-border;
+}
+.detail-git-view-row {
+  @apply bg-transparent border-b border-rm-border;
+}
+.detail-git-files-panel {
+  @apply bg-transparent;
+}
+.detail-git-sidebar-group.detail-git-section-modern {
+  @apply bg-transparent border-b-0 border-t border-rm-border;
+}
+.detail-git-sidebar-group.detail-git-section-modern:first-child {
+  @apply border-t-0;
+}
+.detail-git-sidebar-group-header-modern {
+  @apply text-[11px] font-medium tracking-wide text-rm-muted;
+}
+.detail-git-right-panel {
+  @apply bg-rm-bg/50 overflow-visible; /* allow section dropdown menu to show below the button */
+}
+
+/* Commit card: bordered block with heading, clear hierarchy */
+.detail-git-commit-card {
+  @apply border border-rm-border bg-rm-surface/50;
+}
+.detail-git-commit-card-head {
+  @apply text-[10px] font-semibold tracking-widest uppercase text-rm-muted py-1.5 px-2 border-b border-rm-border;
+}
+.detail-git-commit-card-body {
+  @apply p-2;
+}
+.detail-git-commit-row {
+  @apply mb-2;
+}
+.detail-git-commit-row:last-of-type {
+  @apply mb-0;
+}
+
+/* Git commit table: crisp grid with uniform borders */
+.detail-git-commit-table {
+  @apply border-t border-b border-rm-border;
+}
+.detail-git-commit-table thead {
+  @apply sticky top-0 bg-rm-surface/95 z-10;
+}
+.detail-git-commit-table thead th,
+.detail-git-commit-table tbody td {
+  @apply border-r border-rm-border;
+}
+.detail-git-commit-table thead th:last-child,
+.detail-git-commit-table tbody td:last-child {
+  @apply border-r-0;
+}
+.detail-git-commit-label {
+  @apply flex items-center justify-between text-[11px] font-semibold text-rm-text mb-1;
+}
+.detail-git-commit-count {
+  @apply font-normal text-rm-muted;
+}
+.detail-git-commit-summary-wrap {
+  @apply flex gap-2 items-start;
+}
+/* Summary/desc use PrimeVue Textarea – theme controls border/radius; keep layout via component class */
+.detail-git-commit-summary-input,
+.detail-git-commit-desc-input {
+  @apply flex-1 min-w-0 text-[13px];
+}
+.detail-git-commit-ai-btn {
+  @apply shrink-0 p-1.5 border border-rm-border bg-transparent text-rm-muted cursor-pointer;
+}
+.detail-git-commit-ai-btn:hover {
+  @apply text-rm-accent bg-rm-accent/10 border-rm-accent/40;
+}
+.detail-git-commit-options {
+  @apply flex gap-3 mt-2 mb-2 pt-2 border-t border-rm-border;
+}
+.detail-git-commit-option {
+  @apply inline-flex items-center gap-1.5 text-xs text-rm-text cursor-pointer;
+}
+.detail-git-commit-actions {
+  @apply flex gap-2 items-center;
+}
+.detail-git-commit-submit {
+  @apply flex-1 min-w-0 py-2 px-2.5 text-[13px] font-semibold;
+}
+.detail-git-commit-status {
+  @apply mt-2 text-[11px] text-rm-muted;
+}
+
+/* Working tree toolbar and view bar */
+.detail-git-toolbar-bar {
+  @apply flex items-center justify-between gap-2.5 py-1.5 shrink-0 border;
+}
+.detail-git-view-bar {
+  @apply flex flex-wrap items-center gap-1.5 py-1.5 shrink-0 border;
+}
+
+/* File groups: Unstaged vs Staged with distinct look */
+/* Unstaged and Staged: same layout so content aligns */
+.detail-git-file-group {
+  @apply border-0 border-b border-rm-border m-0 bg-transparent pl-0;
+}
+.detail-git-file-group:last-of-type {
+  @apply border-b-0;
+}
+.detail-git-file-group-unstaged,
+.detail-git-file-group-staged {
+  @apply border-l-[3px] border-l-rm-border;
+}
+.detail-git-file-group-staged {
+  @apply border-l-rm-accent bg-rm-accent/5;
+}
+.detail-git-file-group-header {
+  @apply w-full flex items-center justify-between gap-1 py-1 px-1.5 text-left border-0 bg-transparent cursor-pointer font-[inherit] text-[inherit];
+}
+.detail-git-file-group-header:hover {
+  @apply bg-rm-surface-hover/30;
+}
+.detail-git-file-group-label {
+  @apply inline-flex items-baseline gap-1 min-w-0;
+}
+.detail-git-file-group-title {
+  @apply text-[11px] font-semibold tracking-wide uppercase text-rm-text;
+}
+.detail-git-file-group-staged .detail-git-file-group-title {
+  @apply text-rm-accent;
+}
+.detail-git-file-group-count {
+  @apply text-[11px] font-normal text-rm-muted shrink-0;
+}
+.detail-git-file-group-content {
+  @apply py-0.5 px-1.5 pb-1 max-h-40 overflow-y-auto;
+}
+
+/* Force sharp corners in right panel (exclude PrimeVue Textarea so theme can style) */
+.detail-git-right-panel,
+.detail-git-right-panel .detail-git-files-panel,
+.detail-git-right-panel .detail-git-commit-card,
+.detail-git-right-panel .detail-git-section-select-btn,
+.detail-git-right-panel input,
+.detail-git-right-panel button,
+.detail-git-commit-card .detail-git-commit-card-head,
+.detail-git-commit-card .detail-git-commit-card-body,
+.detail-git-commit-card .detail-git-commit-summary-wrap,
+.detail-git-commit-card .detail-git-commit-options,
+.detail-git-commit-card .detail-git-commit-option,
+.detail-git-commit-card .detail-git-commit-actions,
+.detail-git-commit-card .detail-git-commit-ai-btn,
+.detail-git-commit-card input {
+  border-radius: 0 !important;
+}
+.detail-git-right-panel code {
+  border-radius: 0 !important;
+}
+
+/* Commit card: sharp = 0, rounded = 6px (Textareas use theme; ai-btn and checkboxes follow radius) */
+html[data-radius="sharp"] .detail-git-commit-card .detail-git-commit-ai-btn,
+html[data-radius="sharp"] .detail-git-commit-card input {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-commit-card .detail-git-commit-ai-btn,
+html[data-radius="rounded"] .detail-git-commit-card input {
+  border-radius: 6px !important;
+}
+
+/* Uniform borders: same color everywhere (no opacity variants) */
+.border-rm-border,
+[class*="border-rm-border/"] {
+  border-color: rgb(var(--rm-border)) !important;
+}
+
+/* Git UI: same 1px solid border; radius follows Settings > Appearance (PrimeVue inputs/textareas/buttons use theme) */
+.detail-git-toolbar select,
+.detail-git-sidebar-panel select,
+.detail-git-right-panel input,
+.detail-git-right-panel select,
+.detail-git-toolbar-select,
+.detail-git-section-select-btn,
+.detail-git-commit-card input {
+  border: 1px solid rgb(var(--rm-border)) !important;
+}
+html[data-radius="sharp"] .detail-git-toolbar select,
+html[data-radius="sharp"] .detail-git-sidebar-panel select,
+html[data-radius="sharp"] .detail-git-right-panel input,
+html[data-radius="sharp"] .detail-git-right-panel select,
+html[data-radius="sharp"] .detail-git-toolbar-select,
+html[data-radius="sharp"] .detail-git-section-select-btn,
+html[data-radius="sharp"] .detail-git-commit-card input {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-toolbar select,
+html[data-radius="rounded"] .detail-git-sidebar-panel select,
+html[data-radius="rounded"] .detail-git-right-panel input,
+html[data-radius="rounded"] .detail-git-right-panel select,
+html[data-radius="rounded"] .detail-git-toolbar-select,
+html[data-radius="rounded"] .detail-git-section-select-btn,
+html[data-radius="rounded"] .detail-git-commit-card input {
+  border-radius: 6px !important;
+}
+.detail-git-right-panel .detail-git-section-dropdown-menu,
+.detail-git-toolbar-dropdown-menu {
+  border: 1px solid rgb(var(--rm-border)) !important;
+}
+html[data-radius="sharp"] .detail-git-right-panel .detail-git-section-dropdown-menu,
+html[data-radius="sharp"] .detail-git-toolbar-dropdown-menu {
+  border-radius: 0 !important;
+}
+html[data-radius="rounded"] .detail-git-right-panel .detail-git-section-dropdown-menu,
+html[data-radius="rounded"] .detail-git-toolbar-dropdown-menu {
+  border-radius: 6px !important;
+}
+
+@keyframes refresh-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.refresh-btn .refresh-btn-icon {
+  @apply inline-block;
+}
+.refresh-btn.refreshing .refresh-btn-icon {
+  animation: refresh-spin 0.7s linear infinite;
+}
+
+.view-dropdown-wrap {
+  @apply relative;
+}
+.view-dropdown-btn {
+  @apply min-w-[8rem] cursor-pointer inline-flex items-center justify-between gap-2 py-1.5 px-2.5 border border-rm-border bg-rm-bg transition-[border-color,background] duration-150;
+  font: inherit;
+  color: inherit;
+}
+.view-dropdown-btn:hover {
+  @apply bg-rm-surface-hover border-rm-border;
+}
+.view-dropdown-btn[aria-expanded="true"] {
+  @apply border-rm-accent bg-rm-accent/10 shadow-[0_0_0_1px_rgb(var(--rm-accent)/0.3)];
+}
+.view-dropdown-btn:focus {
+  @apply outline-none border-rm-border-focus shadow-[0_0_0_2px_rgb(var(--rm-border-focus)/0.2)];
+}
+.view-dropdown-btn[aria-expanded="true"]:focus {
+  @apply border-rm-accent shadow-[0_0_0_2px_rgb(var(--rm-accent)/0.25)];
+}
+.view-dropdown-btn-icon {
+  @apply shrink-0 opacity-80;
+}
+.view-dropdown-label {
+  @apply whitespace-nowrap;
+}
+.view-dropdown-chevron {
+  @apply shrink-0 opacity-70 transition-transform duration-200 ease-out;
+}
+.view-dropdown-btn[aria-expanded="true"] .view-dropdown-chevron {
+  @apply rotate-180;
+}
+.view-dropdown-menu {
+  @apply absolute top-full left-0 mt-1 min-w-[11rem] list-none m-0 py-1.5 bg-rm-surface border border-rm-border shadow-rm-lg z-50;
+}
+.view-dropdown-option {
+  @apply flex items-center gap-2.5 py-[7px] px-3 cursor-pointer whitespace-nowrap text-rm-text text-[13px] transition-colors duration-100;
+}
+.view-dropdown-option:hover {
+  @apply bg-rm-surface-hover;
+}
+.view-dropdown-option[aria-selected="true"] {
+  @apply bg-rm-accent/10 text-rm-accent;
+}
+.view-dropdown-option-sep {
+  @apply border-t border-rm-border mt-1 pt-[7px];
+}
+.view-dropdown-option-icon {
+  @apply w-5 shrink-0 flex items-center justify-center text-rm-text opacity-90;
+}
+.view-dropdown-option-icon svg {
+  @apply w-4 h-4 block shrink-0 stroke-current fill-none;
+}
+.detail-tab-btn .detail-tab-icon {
+  @apply inline-flex items-center justify-center text-current;
+}
+.detail-tab-btn .detail-tab-icon-svg {
+  @apply w-[11px] h-[11px] shrink-0 stroke-current fill-none;
+}
+.detail-git-jump-icon {
+  @apply inline-flex items-center justify-center text-current;
+}
+.detail-git-jump-icon .git-section-icon-svg {
+  @apply w-3 h-3 shrink-0 stroke-current fill-none;
+}
+.view-dropdown-option-text {
+  @apply flex-1;
+}
+.view-dropdown-menu.hidden {
+  display: none;
+}
+
+.prose-changelog {
+  @apply text-rm-muted font-sans;
+}
+.prose-changelog h1 { @apply text-lg font-semibold text-rm-text mt-6 mb-2 first:mt-0; }
+.prose-changelog h2 { @apply text-base font-semibold text-rm-text mt-6 mb-2; }
+.prose-changelog h3 { @apply text-sm font-semibold text-rm-text mt-4 mb-1.5; }
+.prose-changelog p { @apply my-2 leading-relaxed; }
+.prose-changelog ul { @apply my-2 pl-5 list-disc space-y-1; }
+.prose-changelog li { @apply leading-relaxed; }
+.prose-changelog a { @apply text-rm-accent hover:underline cursor-pointer; }
+.prose-changelog code { @apply bg-rm-surface px-1 rounded text-xs font-mono; }
+.prose-changelog strong { @apply font-semibold text-rm-text; }
+
+/* In-app docs (markdown-rendered) */
+.prose-docs { @apply text-rm-text font-sans; }
+.prose-docs h1 { @apply text-lg font-semibold text-rm-text mt-6 mb-2 first:mt-0; }
+.prose-docs h2 { @apply text-sm font-semibold text-rm-text mt-5 mb-1.5; }
+.prose-docs h3 { @apply text-sm font-semibold text-rm-text mt-4 mb-1; }
+.prose-docs h4 { @apply text-sm font-semibold text-rm-text mt-4 mb-1; }
+.prose-docs p { @apply my-2 leading-relaxed text-sm; }
+.prose-docs ul { @apply my-2 pl-5 list-disc space-y-1 text-sm; }
+.prose-docs li { @apply leading-relaxed; }
+.prose-docs a { @apply text-rm-accent hover:underline cursor-pointer; }
+.prose-docs code { @apply bg-rm-surface px-1 py-0.5 rounded text-xs font-mono text-rm-text; }
+.prose-docs strong { @apply font-semibold text-rm-text; }
+
+@layer components {
+  .theme-btn {
+    @apply text-rm-muted hover:text-rm-text hover:bg-rm-surface-hover border-0 cursor-pointer bg-transparent inline-flex items-center justify-center;
+  }
+  .theme-btn.is-active {
+    @apply text-rm-accent bg-rm-accent/15;
+  }
+  .theme-btn svg {
+    @apply block;
+  }
+  .collapsible-card-header-row {
+    @apply flex items-center w-full border-b-0;
+  }
+  .collapsible-card-header-row .collapsible-card-header {
+    @apply border-b-0;
+  }
+  .collapsible-card .collapsible-card-header {
+    @apply flex items-center justify-between gap-2 flex-1 cursor-pointer px-4 py-3.5 text-left bg-transparent hover:bg-rm-surface-hover/50 transition-colors border-0 border-b-0;
+  font: inherit;
+  color: inherit;
+  }
+  .collapsible-card-header-row .collapsible-card-header {
+    @apply border-b-0 rounded-none;
+  }
+  .collapsible-card .collapsible-card-header:focus {
+    @apply outline-none ring-2 ring-rm-accent/50 ring-inset;
+  }
+  .collapsible-card .collapsible-card-title {
+    @apply text-xs font-medium text-rm-text m-0 tracking-tight;
+  }
+  .collapsible-card .collapsible-card-chevron {
+    @apply shrink-0 text-rm-muted transition-transform duration-200;
+  }
+  .collapsible-card.is-collapsed .collapsible-card-chevron {
+    @apply -rotate-90;
+  }
+  .collapsible-card .collapsible-card-body {
+    @apply pt-0 border-t border-rm-border;
+  }
+  .collapsible-card.is-collapsed .collapsible-card-body {
+    display: none;
+  }
+  .collapsible-card .collapsible-card-body > .card-section.pt-0 {
+    @apply pt-5;
+  }
+  .card-sm {
+    @apply p-4;
+  }
+  .card-section {
+    @apply p-4;
+  }
+  .card-section-muted {
+    @apply bg-rm-bg/40;
+  }
+  .card-label {
+    @apply block text-xs font-semibold text-rm-text uppercase tracking-wider mb-3;
+  }
+  .card-label-meta {
+    @apply font-normal normal-case ml-1.5;
+  }
+  .status-dot {
+    @apply shrink-0 w-3 h-3 rounded-full border-2 border-rm-bg;
+  }
+  .status-dot-running {
+    background: rgb(var(--rm-accent));
+    box-shadow: 0 0 0 2px rgb(var(--rm-accent) / 0.35);
+  }
+  .status-dot-error {
+    background: rgb(var(--rm-danger));
+  }
+  .status-dot-stopped {
+    background: rgb(var(--rm-muted) / 0.5);
+  }
+  .empty-state {
+    @apply flex flex-col items-center justify-center py-14 px-6 text-center;
+  }
+  .empty-state-icon {
+    @apply mb-4 rounded-full bg-rm-surface border border-rm-border flex items-center justify-center text-rm-muted w-[72px] h-[72px] shrink-0;
+  }
+  .empty-state-title {
+    @apply text-base font-semibold text-rm-text m-0 mb-1.5;
+  }
+  .empty-state-body {
+    @apply text-sm text-rm-muted m-0 max-w-sm;
+  }
+  .empty-state-actions {
+    @apply flex flex-wrap items-center justify-center gap-2 mt-6;
+  }
+  .icon-btn {
+    @apply p-2 border border-rm-border bg-rm-surface text-rm-muted hover:bg-rm-surface-hover hover:text-rm-text transition-colors inline-flex items-center justify-center shrink-0 min-w-9 min-h-9;
+  }
+  .icon-btn-sm {
+    @apply p-1.5 shrink-0 min-w-8 min-h-8;
+  }
+  .icon-btn svg,
+  .icon-btn-sm svg {
+    @apply block shrink-0 w-[1em] h-[1em] min-w-[14px] min-h-[14px] align-middle text-rm-muted stroke-current;
+    stroke-width: 2;
+  }
+  .icon-btn:hover svg,
+  .icon-btn-sm:hover svg {
+    @apply text-rm-text;
+  }
+  .icon-btn svg[fill="none"],
+  .icon-btn-sm svg[fill="none"] {
+    @apply fill-none;
+  }
+  .icon-btn-sm svg {
+    @apply min-w-3 min-h-3;
+  }
+  .btn-ghost {
+    @apply border-none bg-transparent cursor-pointer font-medium py-1.5 px-2 hover:bg-rm-surface-hover transition-colors;
+  }
+  .copy-feedback {
+    @apply text-xs font-medium text-rm-accent;
+  }
+  .checkbox-label {
+    @apply flex items-center gap-2 cursor-pointer text-rm-text;
+  }
+  .checkbox-input {
+    @apply rounded border-rm-border text-rm-accent focus:ring-rm-accent;
+  }
+  .settings-checkbox-inline {
+    @apply grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1;
+  }
+  .settings-checkbox-inline > .checkbox-input {
+    @apply col-start-1 row-start-1 self-center;
+  }
+  .settings-checkbox-inline > div {
+    @apply contents;
+  }
+  .settings-checkbox-inline .settings-label {
+    @apply col-start-2 row-start-1;
+  }
+  .settings-checkbox-inline .settings-desc {
+    @apply col-start-2 row-start-2 m-0;
+  }
+  .btn-prerelease {
+    @apply border-rm-muted/50 text-rm-muted;
+  }
+  .btn-compact {
+    @apply text-xs py-1.5 px-2.5;
+  }
+  .aside-panel {
+    @apply w-64 shrink-0 flex flex-col overflow-hidden bg-rm-bg border-r border-rm-border;
+  }
+  .aside-header {
+    @apply px-3 py-3 border-b border-rm-border flex items-center gap-2 flex-shrink-0;
+  }
+  .aside-title {
+    @apply text-[11px] font-medium text-rm-muted uppercase tracking-wider;
+  }
+  .sidebar-resizer {
+    @apply min-w-1 w-1;
+  }
+  .detail-sidebar-resizer {
+    @apply min-w-1 w-1 cursor-col-resize;
+  }
+  .batch-bar {
+    @apply px-4 py-4 border-b border-l-[3px] border-rm-border border-l-rm-accent/50 flex-shrink-0 bg-rm-accent/10;
+  }
+  .batch-bar-label {
+    @apply m-0 text-xs font-semibold text-rm-text;
+  }
+  .batch-bar-hint {
+    @apply m-0 mt-1.5 text-xs text-rm-muted;
+  }
+  .batch-bar-buttons {
+    @apply flex flex-wrap gap-3 mt-3;
+  }
+  .project-list {
+    @apply flex-1 overflow-y-auto p-3;
+  }
+  .dashboard-view {
+    @apply flex-1 flex flex-col min-h-0 overflow-hidden;
+  }
+  .dashboard-toolbar {
+    @apply px-5 py-4 border-b border-rm-border bg-rm-surface/30 flex-shrink-0;
+  }
+  .dashboard-controls {
+    @apply flex flex-wrap items-center gap-4;
+  }
+  .dashboard-label {
+    @apply flex items-center gap-2;
+  }
+  .dashboard-label-text {
+    @apply text-xs font-medium text-rm-muted;
+  }
+  .dashboard-scroll {
+    @apply flex-1 overflow-auto p-4;
+  }
+  .dashboard-table {
+    @apply w-full text-sm border-collapse;
+  }
+  .dashboard-table thead th {
+    @apply text-left text-rm-muted font-medium pb-3.5 pr-5 border-b border-rm-border;
+  }
+  .dashboard-table tbody tr {
+    @apply cursor-pointer border-b border-rm-border transition-colors;
+  }
+  .dashboard-table tbody tr:hover {
+    @apply bg-rm-surface/50;
+  }
+  .dashboard-table tbody td {
+    @apply py-3 pr-5;
+  }
+  .detail-tabs-bar .detail-tab-btn.is-active {
+    @apply text-rm-accent bg-rm-accent/10;
+  }
+  .detail-tab-panels.detail-tabs-mode .detail-tab-panel {
+    display: none;
+  }
+  .detail-tab-panels.detail-tabs-mode .detail-tab-panel.detail-tab-panel-visible {
+    display: block;
+  }
+  /* Markdown split view: resizable editor/preview */
+  .markdown-split.p-splitter {
+    @apply min-h-0;
+  }
+  .markdown-split .p-splitter-gutter {
+    @apply bg-rm-border/80 cursor-col-resize;
+  }
+  .markdown-split .p-splitter-gutter:hover {
+    @apply bg-rm-accent/30;
+  }
+}
+
+/* Final overrides: sharp only (rounded/pill set in Border radius section above) */
+html[data-radius="sharp"] input[type="text"],
+html[data-radius="sharp"] input[type="email"],
+html[data-radius="sharp"] input[type="password"],
+html[data-radius="sharp"] input[type="url"],
+html[data-radius="sharp"] input[type="number"],
+html[data-radius="sharp"] textarea,
+html[data-radius="sharp"] select.rounded-rm,
+html[data-radius="sharp"] .detail-git-toolbar-select {
+  border-radius: 0 !important;
+}

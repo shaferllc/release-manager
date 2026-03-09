@@ -46,6 +46,14 @@ describe('shortcuts', () => {
       expect(getShortcutAction('detail', '/path', 'd', true, false, false)).toBe('download-latest');
     });
 
+    it('returns codeseer-clear for Cmd+K when on codeseer tab', () => {
+      expect(getShortcutAction('detail', '/path', 'k', true, false, false, 'codeseer')).toBe('codeseer-clear');
+      expect(getShortcutAction('detail', '/path', 'k', false, true, false, 'codeseer')).toBe('codeseer-clear');
+    });
+    it('returns null for Cmd+K when not on codeseer tab', () => {
+      expect(getShortcutAction('detail', '/path', 'k', true, false, false, 'git')).toBeNull();
+      expect(getShortcutAction('detail', '/path', 'k', true, false, false)).toBeNull();
+    });
     it('returns null for other keys', () => {
       expect(getShortcutAction('detail', '/path', 'x', true, false, false)).toBeNull();
       expect(getShortcutAction('detail', '/path', 'Enter', true, false, false)).toBeNull();

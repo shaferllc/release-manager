@@ -1,5 +1,33 @@
 node_modules/
 dist/
+dist-renderer/
 coverage/
 *.log
 .DS_Store
+.env
+.vscode/
+__pycache__/
+
+
+# --- General (logs, env, tmp) ---
+# Env & secrets
+.env
+.env.*
+!.env.example
+# Bundled license config (generated in CI from secrets; do not commit)
+license-server.bundled.json
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp

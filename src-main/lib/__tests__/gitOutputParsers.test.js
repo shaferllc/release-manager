@@ -2,12 +2,13 @@ const {
   parseStashList,
   parseRemoteBranches,
   parseCommitLog,
+  parseCommitLogWithBody,
   parseRemotes,
   parseLocalBranches,
 } = require('../gitOutputParsers');
 
 /**
- * Tests for Git output parsers used by Release Manager.
+ * Tests for Git output parsers used by Shipwell.
  * These parsers turn raw `git stash list`, `git branch -r`, `git log`, etc.
  * output into structured data for the UI. Each parser must handle null/empty
  * input and malformed lines without throwing.
@@ -47,6 +48,13 @@ describe('gitOutputParsers', () => {
       expect(result[0].message).toBe('WIP on main');
       expect(result[1].index).toBe('stash@{1}');
       expect(result[1].message).toBe('On feature');
+    });
+
+    it('uses match[2] when line matches stash format (message can be empty)', () => {
+      const result = parseStashList('stash@{0} ');
+      expect(result).toHaveLength(1);
+      expect(result[0].index).toBe('stash@{0}');
+      expect(result[0].message).toBe('');
     });
   });
 
@@ -88,7 +96,7 @@ describe('gitOutputParsers', () => {
 
     it('parses NUL-separated log format', () => {
       const nul = '\0';
-      const out = `abc1234${nul}fix: bug${nul}Jane Doe${nul}2024-01-15`;
+      const out = `abc1234${nul}fix: bug${nul}Jane Doe${nul}2024-01-15${nul}jane@example.com`;
       const result = parseCommitLog(out);
       expect(result).toHaveLength(1);
       expect(result[0]).toEqual({
@@ -96,12 +104,13 @@ describe('gitOutputParsers', () => {
         subject: 'fix: bug',
         author: 'Jane Doe',
         date: '2024-01-15',
+        authorEmail: 'jane@example.com',
       });
     });
 
     it('handles multiple commits', () => {
       const nul = '\0';
-      const out = `a1${nul}first${nul}A${nul}1\nb2${nul}second${nul}B${nul}2`;
+      const out = `a1${nul}first${nul}A${nul}1${nul}a@x\nb2${nul}second${nul}B${nul}2${nul}b@x`;
       const result = parseCommitLog(out);
       expect(result).toHaveLength(2);
       expect(result[0].sha).toBe('a1');
@@ -113,14 +122,52 @@ describe('gitOutputParsers', () => {
     it('uses empty string for missing parts', () => {
       const result = parseCommitLog('onlysha');
       expect(result).toHaveLength(1);
-      expect(result[0]).toEqual({ sha: 'onlysha', subject: '', author: '', date: '' });
+      expect(result[0]).toEqual({ sha: 'onlysha', subject: '', author: '', date: '', authorEmail: '' });
+    });
+
+    it('uses empty string for empty subject (parts[1] is "")', () => {
+      const nul = '\0';
+      const result = parseCommitLog(`abc${nul}${nul}Author${nul}Date${nul}`);
+      expect(result).toHaveLength(1);
+      expect(result[0].subject).toBe('');
+      expect(result[0].author).toBe('Author');
     });
 
     it('handles subject with colons and special characters', () => {
       const nul = '\0';
-      const out = `abc${nul}feat(scope): add thing${nul}Dev${nul}2024-02-01`;
+      const out = `abc${nul}feat(scope): add thing${nul}Dev${nul}2024-02-01${nul}dev@x`;
       const result = parseCommitLog(out);
       expect(result[0].subject).toBe('feat(scope): add thing');
+    });
+  });
+
+  describe('parseCommitLogWithBody', () => {
+    const rs = '\x1e';
+    const nul = '\0';
+
+    it('returns empty array for null or non-string', () => {
+      expect(parseCommitLogWithBody(null)).toEqual([]);
+      expect(parseCommitLogWithBody('')).toEqual([]);
+    });
+
+    it('parses record-separated log with body', () => {
+      const out = `abc1234${nul}fix: bug${nul}Jane Doe${nul}2024-01-15${nul}jane@example.com${nul}Detailed fix description${rs}`;
+      const result = parseCommitLogWithBody(out);
+      expect(result).toHaveLength(1);
+      expect(result[0]).toMatchObject({
+        sha: 'abc1234',
+        subject: 'fix: bug',
+        author: 'Jane Doe',
+        date: '2024-01-15',
+        authorEmail: 'jane@example.com',
+        body: 'Detailed fix description',
+      });
+    });
+
+    it('normalizes newlines in body to space', () => {
+      const out = `a1${nul}sub${nul}Au${nul}1${nul}e@x${nul}line1\nline2${rs}`;
+      const result = parseCommitLogWithBody(out);
+      expect(result[0].body).toBe('line1 line2');
     });
   });
 
@@ -156,6 +203,14 @@ describe('gitOutputParsers', () => {
       const result = parseRemotes(out);
       expect(result).toHaveLength(1);
       expect(result[0].url).toBe('https://only-push');
+    });
+
+    it('returns empty url when role is neither fetch nor push', () => {
+      const out = 'origin  https://example.com (unknown)';
+      const result = parseRemotes(out);
+      expect(result).toHaveLength(1);
+      expect(result[0].name).toBe('origin');
+      expect(result[0].url).toBe('');
     });
   });
 

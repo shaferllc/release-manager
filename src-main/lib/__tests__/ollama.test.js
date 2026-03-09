@@ -4,6 +4,8 @@ const {
   modelSupportsGenerate,
   buildCommitMessagePrompt,
   buildReleaseNotesPrompt,
+  buildTagMessagePrompt,
+  buildTestFixPrompt,
   formatOllamaError,
   DEFAULT_BASE_URL,
   DEFAULT_MODEL,
@@ -23,6 +25,23 @@ describe('ollama', () => {
     });
   });
 
+  describe('buildTestFixPrompt', () => {
+    it('includes script name and stdout/stderr in prompt', () => {
+      const out = buildTestFixPrompt('test', 'stdout here', 'stderr here');
+      expect(out).toContain('test script "test" failed');
+      expect(out).toContain('stdout here');
+      expect(out).toContain('stderr here');
+    });
+    it('uses "test" when testScriptName is empty', () => {
+      const out = buildTestFixPrompt('', 'out', 'err');
+      expect(out).toContain('"test" failed');
+    });
+    it('handles empty stdout and stderr', () => {
+      const out = buildTestFixPrompt('test', '', '');
+      expect(out).toContain('(empty)');
+    });
+  });
+
   describe('buildReleaseNotesPrompt', () => {
     it('joins commits with newlines', () => {
       const out = buildReleaseNotesPrompt(['feat: one', 'fix: two']);
@@ -36,6 +55,19 @@ describe('ollama', () => {
     it('handles single commit', () => {
       const out = buildReleaseNotesPrompt(['fix: bug']);
       expect(out).toContain('fix: bug');
+    });
+  });
+
+  describe('buildTagMessagePrompt', () => {
+    it('joins commits and asks for one line', () => {
+      const out = buildTagMessagePrompt(['feat: one', 'fix: two']);
+      expect(out).toContain('feat: one');
+      expect(out).toContain('fix: two');
+      expect(out).toContain('One line');
+    });
+    it('handles empty or non-array', () => {
+      expect(buildTagMessagePrompt([])).toContain('No commits');
+      expect(buildTagMessagePrompt(null)).toContain('No commits');
     });
   });
 
