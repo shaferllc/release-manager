@@ -249,6 +249,17 @@ html[data-large-cursor="true"] textarea:focus {
   #app {
     @apply h-full min-h-0 flex flex-col;
   }
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
 }
 
 /* Main content area: match card background so no grey canvas between cards */

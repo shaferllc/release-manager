@@ -14,6 +14,8 @@ const recentIds = ref([]);
 export function useCommandPalette() {
   function open() {
     isOpen.value = true;
+    const api = typeof window !== 'undefined' && window.releaseManager;
+    api?.sendTelemetry?.('command_palette.opened', {});
   }
 
   function close() {
@@ -50,6 +52,8 @@ export function useCommandPalette() {
     const commands = getCommands();
     const cmd = commands.find((c) => c.id === id);
     if (cmd) {
+      const api = typeof window !== 'undefined' && window.releaseManager;
+      api?.sendTelemetry?.('command_palette.run', { command: id });
       recentIds.value = [id, ...recentIds.value.filter((x) => x !== id)].slice(0, RECENT_MAX);
       saveRecents();
       close();

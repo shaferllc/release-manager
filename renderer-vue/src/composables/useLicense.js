@@ -13,7 +13,7 @@ const DEFAULT_TABS_WHEN_NO_PERMISSIONS = [
 ];
 
 const actualHasLicense = ref(false);
-const licenseSource = ref(null); // 'remote' | null
+const licenseSource = ref(null); // 'remote' | 'offline-cache' | null
 const licenseEmail = ref(null); // when source === 'remote'
 const licenseTier = ref(TIER_FREE); // from API, for display
 /** Allowed tab IDs from Laravel (GET /api/user permissions.tabs). Applied as-is. */
@@ -22,8 +22,19 @@ const serverAllowedTabs = ref(null); // string[] | null
 const serverPlanLabel = ref(null); // string | null
 /** Features from Laravel (e.g. { ai_commit_message: true }). */
 const serverFeatures = ref(null); // object | null
+/** Plan limits from Laravel (max_projects, max_extensions). -1 = unlimited. */
+const serverLimits = ref(null); // object | null
+/** Team info from Laravel (id, name, slug, is_owner, is_admin, member_count). */
+const serverTeam = ref(null); // object | null
+/** User profile from Laravel (name, avatar_url, github_linked, created_at). */
+const serverProfile = ref(null); // object | null
+/** Backend server URL (for marketplace, etc.). */
+const serverUrl = ref(null); // string | null
 /** False until loadStatus() has completed; prevents showing app before we know login state. */
 const licenseStatusLoaded = ref(false);
+/** Offline grace info when running from cache. */
+const offlineGrace = ref(null); // { daysRemaining, graceDays, lastVerifiedAt } | null
+const offlineGraceExpired = ref(false);
 
 function normalizeTier(t) {
   const v = (t || TIER_FREE).toString().toLowerCase();
@@ -45,13 +56,7 @@ export function useLicense() {
     try {
       if (typeof api.getLicenseStatus !== 'function') {
         if (isDev) console.log('[useLicense] loadStatus: no getLicenseStatus, assuming unlicensed');
-        actualHasLicense.value = false;
-        licenseSource.value = null;
-        licenseEmail.value = null;
-        licenseTier.value = TIER_FREE;
-        serverAllowedTabs.value = null;
-        serverPlanLabel.value = null;
-        serverFeatures.value = null;
+        resetState();
       } else {
         if (isDev) console.log('[useLicense] loadStatus: calling getLicenseStatus()');
         const status = await api.getLicenseStatus();
@@ -64,19 +69,35 @@ export function useLicense() {
         serverAllowedTabs.value = ok && Array.isArray(status.permissions?.tabs) ? status.permissions.tabs : null;
         serverPlanLabel.value = ok && typeof status.plan_label === 'string' ? status.plan_label : null;
         serverFeatures.value = ok && status.features && typeof status.features === 'object' ? status.features : null;
+        serverLimits.value = ok && status.limits && typeof status.limits === 'object' ? status.limits : null;
+        serverTeam.value = ok && status.team && typeof status.team === 'object' ? status.team : null;
+        serverProfile.value = ok && status.profile && typeof status.profile === 'object' ? status.profile : null;
+        serverUrl.value = ok && status.serverUrl ? status.serverUrl.replace(/\/+$/, '') : null;
+        offlineGrace.value = status.offlineGrace ?? null;
+        offlineGraceExpired.value = !ok && !!status.offlineGraceExpired;
       }
     } catch (e) {
       if (isDev) console.warn('[useLicense] loadStatus failed', e?.message ?? e);
-      actualHasLicense.value = false;
-      licenseSource.value = null;
-      licenseEmail.value = null;
-      licenseTier.value = TIER_FREE;
-      serverAllowedTabs.value = null;
-      serverPlanLabel.value = null;
-      serverFeatures.value = null;
+      resetState();
     } finally {
       licenseStatusLoaded.value = true;
     }
+  }
+
+  function resetState() {
+    actualHasLicense.value = false;
+    licenseSource.value = null;
+    licenseEmail.value = null;
+    licenseTier.value = TIER_FREE;
+    serverAllowedTabs.value = null;
+    serverPlanLabel.value = null;
+    serverFeatures.value = null;
+    serverLimits.value = null;
+    serverTeam.value = null;
+    serverProfile.value = null;
+    serverUrl.value = null;
+    offlineGrace.value = null;
+    offlineGraceExpired.value = false;
   }
 
   /** Tab access: use only the permissions returned by the web app. No local role logic. */
@@ -94,6 +115,8 @@ export function useLicense() {
     return false;
   }
 
+  const DEFAULT_LIMITS = { max_projects: 5, max_extensions: 5 };
+
   return {
     licenseStatusLoaded: computed(() => licenseStatusLoaded.value),
     /** Logged in to the app; plan and permissions come from the remote. */
@@ -110,8 +133,30 @@ export function useLicense() {
     /** Feature flags from Laravel. */
     features: computed(() => serverFeatures.value || {}),
     hasFeature,
+    /** Plan limits (-1 = unlimited). */
+    limits: computed(() => serverLimits.value || DEFAULT_LIMITS),
+    maxProjects: computed(() => {
+      const v = (serverLimits.value || DEFAULT_LIMITS).max_projects;
+      return typeof v === 'number' ? v : 5;
+    }),
+    maxExtensions: computed(() => {
+      const v = (serverLimits.value || DEFAULT_LIMITS).max_extensions;
+      return typeof v === 'number' ? v : 5;
+    }),
     isPro: computed(() => licenseTier.value === TIER_PRO),
     isPlus: computed(() => licenseTier.value === TIER_PLUS),
+    /** User profile from backend (name, avatar_url, github_linked, created_at). */
+    profile: computed(() => serverProfile.value),
+    /** Team info from backend (null if no team). */
+    team: computed(() => serverTeam.value),
+    hasTeam: computed(() => !!serverTeam.value),
+    isTeamOwner: computed(() => !!serverTeam.value?.is_owner),
+    isTeamAdmin: computed(() => !!serverTeam.value?.is_admin),
+    /** Backend server URL (for marketplace, etc.). */
+    serverUrl: computed(() => serverUrl.value),
+    isOfflineCache: computed(() => licenseSource.value === 'offline-cache'),
+    offlineGrace: computed(() => offlineGrace.value),
+    offlineGraceExpired: computed(() => offlineGraceExpired.value),
     loadStatus,
     isTabAllowed,
   };

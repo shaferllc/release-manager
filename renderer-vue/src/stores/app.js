@@ -8,7 +8,7 @@ export const useAppStore = defineStore('app', () => {
   const filterByType = ref('');
   const filterByTag = ref('');
   const currentInfo = ref(null);
-  const viewMode = ref('detail'); // 'detail' | 'dashboard' | 'settings' | 'docs' | 'changelog' | 'api'
+  const viewMode = ref('dashboard'); // 'dashboard' | 'detail' | 'settings' | 'docs' | 'changelog' | 'api'
   const dashboardData = ref([]);
   const selectedPaths = ref(new Set());
   const currentGitSubtab = ref('main');
@@ -20,6 +20,7 @@ export const useAppStore = defineStore('app', () => {
   const useDetailTabs = ref(true);
   const loadingOverlayVisible = ref(false);
   const loadingBarVisible = ref(false);
+  const sidebarVisible = ref(true);
 
   const selectedProject = computed(() => {
     const path = selectedPath.value;
@@ -123,6 +124,14 @@ export const useAppStore = defineStore('app', () => {
     }
   }
 
+  function toggleSidebar() {
+    sidebarVisible.value = !sidebarVisible.value;
+  }
+
+  function setSidebarVisible(val) {
+    sidebarVisible.value = val;
+  }
+
   function removeProject(path) {
     const next = projects.value.filter((p) => p.path !== path);
     projects.value = next;
@@ -149,6 +158,7 @@ export const useAppStore = defineStore('app', () => {
     theme,
     loadingOverlayVisible,
     loadingBarVisible,
+    sidebarVisible,
     selectedProject,
     filteredProjects,
     allTags,
@@ -168,6 +178,8 @@ export const useAppStore = defineStore('app', () => {
     clearProjectSelection,
     toggleStar,
     removeProject,
+    toggleSidebar,
+    setSidebarVisible,
     detailTab,
     pendingTerminalCommand,
     useDetailTabs,

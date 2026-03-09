@@ -1,0 +1,8 @@
+{
+  "id": "codeseer",
+  "name": "CodeSeer",
+  "version": "1.0.0",
+  "description": "PHP debugging: receive dumps, traces, and logs from your PHP app via TCP. Laradumps/Ray-style.",
+  "author": "CodeSeer",
+  "homepage": "https://github.com/tomshafer/codeseer"
+}

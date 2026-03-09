@@ -1,18 +1,27 @@
 <template>
   <TerminalPopoutView v-if="isTerminalPopout" />
   <div v-else class="flex flex-col h-full min-h-0 bg-rm-bg text-rm-text">
-    <!-- Not loaded yet: only show checking state -->
-    <template v-if="!license.licenseStatusLoaded">
-      <div class="flex-1 flex flex-col min-h-0 items-center justify-center gap-4 p-8 text-rm-muted">
-        <span class="text-sm">Checking login…</span>
-        <i class="pi pi-spin pi-spinner" style="font-size: 1.5rem" aria-hidden="true" />
+    <!-- Splash / loading screen shown until license check completes + minimum duration -->
+    <template v-if="showSplash">
+      <div class="app-splash flex-1 flex flex-col min-h-0 items-center justify-center gap-5 p-8">
+        <img src="/icon-128.png" alt="Shipwell" class="app-splash-logo" width="64" height="64" />
+        <div class="app-splash-spinner">
+          <svg class="app-splash-ring" width="28" height="28" viewBox="0 0 28 28" fill="none">
+            <circle cx="14" cy="14" r="12" stroke="currentColor" stroke-width="2.5" opacity="0.15" />
+            <path d="M14 2a12 12 0 0 1 12 12" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" />
+          </svg>
+        </div>
       </div>
     </template>
     <!-- Logged in: full app with navbar, sidebar, and content (only when backend explicitly says hasLicense) -->
     <template v-else-if="showFullApp">
-      <NavBar @refresh="onRefresh" @add-project="addProject" />
+      <div v-if="license.isOfflineCache?.value && license.offlineGrace?.value" class="offline-banner">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span>Offline mode — {{ license.offlineGrace.value.daysRemaining }} day{{ license.offlineGrace.value.daysRemaining === 1 ? '' : 's' }} remaining before sign-in required</span>
+      </div>
+      <NavBar ref="navBarRef" @refresh="onRefresh" @sync-all="syncAllProjects" @add-project="addProject" @add-from-shipwell="addFromShipwell" @bulk-import="bulkImport" />
       <main class="flex-1 flex min-h-0 min-w-0 overflow-hidden">
-        <Sidebar />
+        <Sidebar v-show="store.sidebarVisible" />
         <div class="main-content-area flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden">
           <div class="main-content-inner flex-1 flex flex-col min-h-0 overflow-y-auto overflow-x-hidden pb-4">
             <LicenseUpgradeBanner v-if="store.viewMode !== 'settings'" />
@@ -20,7 +29,6 @@
             <DetailView v-else-if="store.viewMode === 'detail' && store.selectedPath" @refresh="onModalRefresh" />
             <DashboardView v-else-if="store.viewMode === 'dashboard'" />
             <SettingsView v-else-if="store.viewMode === 'settings'" />
-            <ExtensionsView v-else-if="store.viewMode === 'extensions'" />
             <DocsView v-else-if="store.viewMode === 'docs'" />
             <ChangelogView v-else-if="store.viewMode === 'changelog'" />
             <ApiView v-else-if="store.viewMode === 'api'" />
@@ -37,8 +45,89 @@
     </template>
     <ModalHost v-if="showFullApp" @refresh="onModalRefresh" />
     <CommandPalette v-if="!isTerminalPopout && showFullApp" />
-    <FeatureFlagsModal v-if="showFullApp && showFeatureFlagsModal" />
+    <Dialog v-model:visible="shipwellProjectsVisible" header="Add from Shipwell" modal :style="{ width: '540px' }">
+      <div v-if="shipwellProjectsLoading" class="flex items-center justify-center py-8">
+        <svg class="animate-spin w-5 h-5 text-rm-accent" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.2"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        <span class="ml-2 text-sm text-rm-muted">Loading projects...</span>
+      </div>
+      <div v-else-if="shipwellProjectsError" class="py-4 text-sm text-red-500">{{ shipwellProjectsError }}</div>
+      <div v-else-if="shipwellProjectsList.length === 0" class="py-4 text-sm text-rm-muted">No projects found. Add projects in the Shipwell web app first.</div>
+      <div v-else class="flex flex-col gap-1 max-h-[400px] overflow-y-auto -mx-2">
+        <div
+          v-for="proj in shipwellProjectsList"
+          :key="proj.github_repo"
+          class="flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors hover:bg-rm-surface-hover"
+          :class="{ 'opacity-50 pointer-events-none': isProjectAlreadyAdded(proj) }"
+          @click="cloneAndAddProject(proj)"
+        >
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-medium text-rm-text truncate">{{ proj.name }}</span>
+              <span v-if="proj.language" class="text-[10px] px-1.5 py-0.5 rounded bg-rm-surface text-rm-muted">{{ proj.language }}</span>
+            </div>
+            <div class="text-xs text-rm-muted truncate mt-0.5">{{ proj.github_repo }}</div>
+            <div v-if="proj.description" class="text-xs text-rm-muted truncate mt-0.5">{{ proj.description }}</div>
+          </div>
+          <span v-if="isProjectAlreadyAdded(proj)" class="text-xs text-rm-muted whitespace-nowrap">Already added</span>
+          <span v-else-if="shipwellCloningRepo === proj.github_repo" class="text-xs text-rm-accent whitespace-nowrap flex items-center gap-1">
+            <svg class="animate-spin w-3 h-3" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.2"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+            Cloning...
+          </span>
+          <svg v-else xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-rm-muted"><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+        </div>
+      </div>
+    </Dialog>
+
+    <Dialog v-model:visible="bulkImportVisible" header="Bulk Import Projects" modal :style="{ width: '560px' }">
+      <div v-if="bulkImportScanning" class="flex items-center justify-center py-8">
+        <svg class="animate-spin w-5 h-5 text-rm-accent" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.2"/><path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>
+        <span class="ml-2 text-sm text-rm-muted">Scanning for projects...</span>
+      </div>
+      <template v-else-if="bulkImportResults">
+        <div v-if="bulkImportResults.projects.length === 0" class="py-4 text-sm text-rm-muted">
+          No new projects found in <code class="bg-rm-surface px-1 rounded text-xs">{{ bulkImportResults.parentDir }}</code>.
+          <span v-if="bulkImportResults.alreadyAdded > 0" class="block mt-1">{{ bulkImportResults.alreadyAdded }} project{{ bulkImportResults.alreadyAdded === 1 ? '' : 's' }} already in your list.</span>
+        </div>
+        <template v-else>
+          <p class="text-sm text-rm-muted mb-3">
+            Found {{ bulkImportResults.projects.length }} new project{{ bulkImportResults.projects.length === 1 ? '' : 's' }}
+            <span v-if="bulkImportResults.alreadyAdded > 0">({{ bulkImportResults.alreadyAdded }} already added)</span>
+          </p>
+          <div class="flex flex-col gap-0.5 max-h-[320px] overflow-y-auto -mx-2 mb-4">
+            <label
+              v-for="(proj, i) in bulkImportResults.projects"
+              :key="proj.path"
+              class="flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors hover:bg-rm-surface-hover"
+            >
+              <Checkbox v-model="bulkImportSelected[i]" binary class="shrink-0" />
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <span class="text-sm font-medium text-rm-text truncate">{{ proj.name }}</span>
+                  <span v-if="proj.projectType" class="text-[10px] px-1.5 py-0.5 rounded bg-rm-surface text-rm-muted">{{ proj.projectType }}</span>
+                </div>
+                <div class="text-xs text-rm-muted truncate mt-0.5">{{ proj.path }}</div>
+              </div>
+            </label>
+          </div>
+          <div class="flex items-center justify-between">
+            <div class="flex gap-2">
+              <Button label="Select all" variant="text" size="small" class="text-xs p-0 min-w-0" @click="bulkImportSelectAll(true)" />
+              <Button label="Select none" variant="text" size="small" class="text-xs p-0 min-w-0" @click="bulkImportSelectAll(false)" />
+            </div>
+            <Button
+              :label="`Import ${bulkImportSelectedCount} project${bulkImportSelectedCount === 1 ? '' : 's'}`"
+              severity="primary"
+              size="small"
+              :disabled="bulkImportSelectedCount === 0"
+              @click="confirmBulkImport"
+            />
+          </div>
+        </template>
+      </template>
+    </Dialog>
+
     <AppToasts />
+    <ScreenReaderAnnouncer />
     <LoadingBar />
     <LoadingOverlay />
   </div>
@@ -54,7 +143,7 @@ import NoSelection from './views/NoSelection.vue';
 import DetailView from './views/DetailView.vue';
 import DashboardView from './views/DashboardView.vue';
 import SettingsView from './views/SettingsView.vue';
-import ExtensionsView from './views/ExtensionsView.vue';
+
 import DocsView from './views/DocsView.vue';
 import ChangelogView from './views/ChangelogView.vue';
 import ApiView from './views/ApiView.vue';
@@ -65,213 +154,82 @@ import LicenseUpgradeBanner from './components/LicenseUpgradeBanner.vue';
 import LoadingOverlay from './components/LoadingOverlay.vue';
 import LoadingBar from './components/LoadingBar.vue';
 import { useLongActionOverlay } from './composables/useLongActionOverlay';
-import { useFeatureFlags } from './composables/useFeatureFlags';
 import { useLicense } from './composables/useLicense';
+import { useExtensionPrefs } from './composables/useExtensionPrefs';
+import { useProjectLoader } from './composables/useProjectLoader';
+import { useAddProject } from './composables/useAddProject';
+import { useShipwellProjects } from './composables/useShipwellProjects';
+import { useBulkImport } from './composables/useBulkImport';
 import * as debug from './utils/debug';
-import { toPlainProjects } from './utils/plainProjects';
-import FeatureFlagsModal from './components/modals/FeatureFlagsModal.vue';
 import AppToasts from './components/AppToasts.vue';
+import ScreenReaderAnnouncer from './components/ScreenReaderAnnouncer.vue';
 import CommandPalette from './components/CommandPalette.vue';
 import { useCommandPalette } from './commandPalette/useCommandPalette';
 import { registerBuiltinCommands } from './commandPalette/builtin';
 import { useModals } from './composables/useModals';
+import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
+import Dialog from 'primevue/dialog';
 
 const store = useAppStore();
+const navBarRef = ref(null);
 const commandPalette = useCommandPalette();
 const modals = useModals();
-const featureFlags = useFeatureFlags();
 const license = useLicense();
-const showFeatureFlagsModal = computed(() => !!featureFlags.isModalOpen?.value);
+const extPrefs = useExtensionPrefs();
 const api = useApi();
+const { runWithOverlay } = useLongActionOverlay();
+
+const {
+  loadProjects,
+  onModalRefresh,
+  onRefresh,
+  syncAllProjects: syncAllProjectsFn,
+  syncExtensions,
+} = useProjectLoader({ runWithOverlay });
+
+const { addProject } = useAddProject(loadProjects);
+const {
+  shipwellProjectsVisible,
+  shipwellProjectsLoading,
+  shipwellProjectsError,
+  shipwellProjectsList,
+  shipwellCloningRepo,
+  isProjectAlreadyAdded,
+  addFromShipwell,
+  cloneAndAddProject,
+} = useShipwellProjects(loadProjects);
+
+const {
+  bulkImportVisible,
+  bulkImportScanning,
+  bulkImportResults,
+  bulkImportSelected,
+  bulkImportSelectedCount,
+  bulkImportSelectAll,
+  bulkImport,
+  confirmBulkImport,
+} = useBulkImport(loadProjects);
+
+provide('onAddProject', addProject);
+
+async function syncAllProjects() {
+  await syncAllProjectsFn(navBarRef);
+}
+
+/** Minimum time (ms) to show the splash screen so it doesn't flash. */
+const SPLASH_MIN_MS = 600;
+const splashMinElapsed = ref(false);
+setTimeout(() => { splashMinElapsed.value = true; }, SPLASH_MIN_MS);
+
+const showSplash = computed(() => !license.licenseStatusLoaded?.value || !splashMinElapsed.value);
 
 /** Only show navbar/sidebar/content after we have explicitly received hasLicense: true from the backend. */
 const showFullApp = computed(() => Boolean(license.licenseStatusLoaded?.value && license.isLoggedIn?.value));
 const isTerminalPopout = ref(typeof window !== 'undefined' && window.location.hash === '#terminal-popout');
-const { runWithOverlay } = useLongActionOverlay();
 
 let offLicenseStatusChanged = null;
-let loadProjectsRetryCount = 0;
-const LOAD_PROJECTS_MAX_RETRIES = 2;
-
-async function loadProjects() {
-  debug.log('project', 'loadProjects start');
-  try {
-    if (typeof api.getProjects !== 'function') {
-      debug.warn('project', 'loadProjects api.getProjects not ready, retry', loadProjectsRetryCount + 1);
-      if (loadProjectsRetryCount < LOAD_PROJECTS_MAX_RETRIES) {
-        loadProjectsRetryCount += 1;
-        setTimeout(() => loadProjects(), 150);
-      }
-      return;
-    }
-    loadProjectsRetryCount = 0;
-
-    debug.log('project', 'loadProjects calling api.getProjects()');
-    const list = await api.getProjects();
-    const projects = Array.isArray(list) ? list : [];
-    debug.log('project', 'loadProjects getProjects result', { count: projects.length, isArray: Array.isArray(list) });
-    // Never replace a non-empty list with empty (main may not have synced yet or returned stale data)
-    const willUpdate = projects.length > 0 || store.projects.length === 0;
-    debug.log('project', 'loadProjects store.setProjects?', { willUpdate, currentLength: store.projects.length });
-    if (willUpdate) {
-      store.setProjects(projects);
-      debug.log('project', 'loadProjects store.setProjects done', store.projects.length);
-    }
-
-    if (projects.length > 0 && api.getAllProjectsInfo) {
-      try {
-        debug.log('project', 'loadProjects calling getAllProjectsInfo');
-        const allInfo = await api.getAllProjectsInfo();
-        debug.log('project', 'loadProjects getAllProjectsInfo result', { count: allInfo?.length ?? 0 });
-        if (Array.isArray(allInfo) && allInfo.length > 0) {
-          const merged = projects.map((p) => {
-            const info = allInfo.find((r) => r && r.path === p.path);
-            if (!info) return p;
-            return {
-              ...p,
-              ...info,
-              tags: p.tags,
-              starred: p.starred,
-              phpPath: p.phpPath,
-              githubToken: p.githubToken,
-            };
-          });
-          store.setProjects(merged);
-          debug.log('project', 'loadProjects merged setProjects', merged.length);
-        }
-      } catch (e) {
-        debug.warn('project', 'loadProjects getAllProjectsInfo failed', e?.message ?? e);
-      }
-    }
-
-    const savedPath = await api.getPreference?.('selectedProjectPath').catch(() => null);
-    const savedView = await api.getPreference?.('state.viewMode').catch(() => null);
-    const savedDetailTab = await api.getPreference?.('state.detailTab').catch(() => null);
-    const normPath = (p) => (p && typeof p === 'string' ? p.trim().replace(/[/\\]+$/, '') : '');
-    const pathStillInList = typeof savedPath === 'string' && savedPath && store.projects.some((p) => normPath(p.path) === normPath(savedPath));
-    if (pathStillInList) store.setSelectedPath(savedPath);
-    else if (store.projects.length > 0 && !store.selectedPath) store.setSelectedPath(store.projects[0].path);
-    else store.setSelectedPath(null);
-    if (savedView && ['detail', 'dashboard', 'settings', 'extensions', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
-    const validDetailTabs = ['dashboard', 'git', 'version', 'sync', 'composer', 'tests', 'coverage', 'api', 'pull-requests', 'processes', 'email', 'tunnels', 'ftp', 'ssh', 'kanban', 'markdown', 'agent-crew', 'project-tracker', 'checklist', 'changelog-draft', 'env', 'dependencies', 'notes', 'runbooks', 'terminal', 'github-issues', 'wiki'];
-    if (typeof savedDetailTab === 'string' && validDetailTabs.includes(savedDetailTab)) store.setDetailTab(savedDetailTab);
-    if (store.selectedPath) {
-      const current = store.projects.find((p) => p.path === store.selectedPath);
-      if (current) store.setCurrentInfo(current);
-    }
-    debug.log('project', 'loadProjects done', { projectsLength: store.projects.length, selectedPath: store.selectedPath });
-  } catch (e) {
-    debug.warn('project', 'loadProjects FAILED', e?.message ?? e, e);
-    if (loadProjectsRetryCount < LOAD_PROJECTS_MAX_RETRIES) {
-      loadProjectsRetryCount += 1;
-      setTimeout(() => loadProjects(), 300);
-    }
-  }
-}
-
-async function onModalRefresh() {
-  await runWithOverlay(
-    (async () => {
-      await loadProjects();
-      if (store.selectedPath) {
-        const current = store.projects.find((p) => p.path === store.selectedPath);
-        if (current) store.setCurrentInfo(current);
-        else if (api.getProjectInfo) {
-          try {
-            const info = await api.getProjectInfo(store.selectedPath);
-            store.setCurrentInfo(info);
-          } catch (_) {}
-        }
-      }
-    })()
-  );
-}
-
-function onRefresh() {
-  debug.log('nav', 'onRefresh triggered');
-  loadProjectsRetryCount = 0;
-  runWithOverlay(loadProjects());
-}
-
-async function syncAllProjects() {
-  const list = store.projects || [];
-  if (!list.length) return;
-  try {
-    for (const p of list) {
-      if (!p?.path) continue;
-      try {
-        if (api.syncFromRemote) await api.syncFromRemote(p.path);
-        else if (api.gitFetch) await api.gitFetch(p.path);
-      } catch (e) {
-        debug.warn('git', 'syncAll.projectFailed', p.path, e?.message ?? e);
-      }
-    }
-    await onModalRefresh();
-  } catch (e) {
-    debug.warn('git', 'syncAll.failed', e?.message ?? e);
-  }
-}
-
-function addProject() {
-  debug.log('project', 'addProject clicked', { hasShowDialog: typeof api.showDirectoryDialog === 'function', hasSetProjects: typeof api.setProjects === 'function' });
-  if (typeof api.showDirectoryDialog !== 'function') {
-    debug.warn('project', 'addProject showDirectoryDialog not available – check preload/IPC');
-    return;
-  }
-  const dialogPromise = api.showDirectoryDialog();
-  if (!dialogPromise || typeof dialogPromise.then !== 'function') {
-    debug.warn('project', 'addProject showDirectoryDialog did not return a promise');
-    return;
-  }
-  dialogPromise
-    .then(async (result) => {
-      const selectedPath =
-        typeof result === 'string'
-          ? result
-          : Array.isArray(result?.filePaths) && result.filePaths.length > 0
-            ? result.filePaths[0]
-            : null;
-      debug.log('project', 'addProject dialog result', {
-        shape: typeof result,
-        canceled: typeof result === 'object' ? result?.canceled : undefined,
-        raw: result,
-        selectedPath,
-      });
-      if (!selectedPath) return;
-      const path = selectedPath;
-      const current = store.projects.map((p) => p.path);
-      if (current.includes(path)) {
-        debug.log('project', 'addProject path already in list, skip');
-        return;
-      }
-      const newEntry = { path, name: path.split(/[/\\]/).pop(), tags: [], starred: false };
-      const next = [...store.projects, newEntry];
-      debug.log('project', 'addProject optimistic update', { nextLength: next.length, path });
-      store.setProjects(next);
-      store.setSelectedPath(path);
-      if (typeof api.setProjects === 'function') {
-        debug.log('project', 'addProject calling api.setProjects', next.length);
-        try {
-          const result = await api.setProjects(toPlainProjects(next));
-          const persisted = result && result.ok !== false && result.saved != null;
-          if (persisted) debug.log('project', 'addProject setProjects persisted', result.saved, 'projects');
-          if (typeof api.setPreference === 'function') {
-            await api.setPreference('selectedProjectPath', path).catch(() => {});
-          }
-          await loadProjects();
-        } catch (e) {
-          debug.warn('project', 'addProject setProjects failed', e?.message ?? e);
-        }
-      } else {
-        debug.warn('project', 'addProject api.setProjects not available');
-      }
-    })
-    .catch((e) => {
-      debug.warn('project', 'addProject dialog or flow failed', e?.message ?? e, e);
-    });
-}
-
-provide('onAddProject', addProject);
+let offInstallExtensionDeeplink = null;
 
 watch(() => store.selectedPath, (path) => {
   if (path && api.setPreference) api.setPreference('selectedProjectPath', path);
@@ -287,7 +245,11 @@ watch(() => store.viewMode, (view) => {
 }, { immediate: false });
 
 watch(showFullApp, (show) => {
-  if (show) loadProjects();
+  if (show) {
+    loadProjects();
+    api.syncProjectsToShipwell?.().then(() => api.syncReleasesToShipwell?.().catch(() => {})).catch(() => {});
+    syncExtensions();
+  }
 }, { immediate: false });
 
 function isInputFocused() {
@@ -304,13 +266,19 @@ async function handleShortcut(e) {
     commandPalette.toggle();
     return;
   }
+  if ((e.key === 'b' || e.key === 'B') && (e.metaKey || e.ctrlKey) && !e.shiftKey) {
+    e.preventDefault();
+    store.toggleSidebar();
+    return;
+  }
   const action = await api.getShortcutAction?.(
     store.viewMode,
     store.selectedPath,
     e.key,
     e.metaKey,
     e.ctrlKey,
-    isInputFocused()
+    isInputFocused(),
+    store.detailTab
   );
   if (!action) return;
   e.preventDefault();
@@ -322,13 +290,17 @@ async function handleShortcut(e) {
   } else if (action === 'release-major' && path) {
     try { await runWithOverlay(api.release?.(path, 'major', false, {})); await onModalRefresh(); } catch (_) {}
   } else if (action === 'sync' && path) {
-    try { await runWithOverlay(api.syncFromRemote?.(path)); await onModalRefresh(); } catch (_) {}
+    try { await runWithOverlay(api.syncFromRemote?.(path)); await onModalRefresh(); api.syncProjectsToShipwell?.().then(() => api.syncReleasesToShipwell?.().catch(() => {})).catch(() => {}); } catch (_) {}
   } else if (action === 'download-latest' && path) {
     try { await runWithOverlay(api.downloadLatestRelease?.(store.currentInfo?.gitRemote || path)); } catch (_) {}
   } else if (action === 'focus-git-filter') {
     try {
       const el = document.querySelector('.detail-git-filter-input');
       if (el && typeof el.focus === 'function') el.focus();
+    } catch (_) {}
+  } else if (action === 'codeseer-clear') {
+    try {
+      await api.codeseerClear?.();
     } catch (_) {}
   }
 }
@@ -341,19 +313,42 @@ onMounted(async () => {
     debug.log('app', 'mounted', { debug: debugPref !== false, apiReady: !!(window.releaseManager?.showDirectoryDialog) });
   } catch (_) {}
   if (!isTerminalPopout.value) {
-    featureFlags.loadFlags();
-    await license.loadStatus();
+    await Promise.all([license.loadStatus(), extPrefs.load()]);
     if (showFullApp.value) {
       loadProjects();
+      api.syncProjectsToShipwell?.().then(() => api.syncReleasesToShipwell?.().catch(() => {})).catch(() => {});
+      syncExtensions();
     }
-    offLicenseStatusChanged = api.onLicenseStatusChanged?.(() => license.loadStatus()) ?? null;
+    offLicenseStatusChanged = api.onLicenseStatusChanged?.(async () => {
+      await license.loadStatus();
+      if (showFullApp.value) {
+        loadProjects();
+        api.syncProjectsToShipwell?.().then(() => api.syncReleasesToShipwell?.().catch(() => {})).catch(() => {});
+        syncExtensions();
+      }
+    }) ?? null;
+    offInstallExtensionDeeplink = api.onInstallExtensionFromDeeplink?.(async ({ repo }) => {
+      if (!repo) return;
+      store.setViewMode('extensions');
+      try {
+        const result = await api.installExtensionFromGitHub?.({ repo, github_repo: repo });
+        if (result?.ok) {
+          notifications.add({ title: 'Extension installed', message: `${repo} was installed successfully.`, type: 'success' });
+        } else if (result?.limitExceeded) {
+          notifications.add({ title: 'Extension limit reached', message: `Your plan allows up to ${result.max} extensions. Upgrade to install more.`, type: 'warn' });
+        } else {
+          notifications.add({ title: 'Install failed', message: result?.error || 'Could not install extension.', type: 'error' });
+        }
+      } catch (e) {
+        notifications.add({ title: 'Install failed', message: e?.message || 'Could not install extension.', type: 'error' });
+      }
+    }) ?? null;
     window.addEventListener('focus', onWindowFocusForLicense);
     registerBuiltinCommands({
       store,
       onRefresh,
       onAddProject: addProject,
       onSyncAll: syncAllProjects,
-      openFeatureFlagsModal: featureFlags.openModal,
       openSetupWizard: () => modals.openModal('setupWizard'),
     });
   }
@@ -434,6 +429,40 @@ onUnmounted(() => {
     offLicenseStatusChanged();
     offLicenseStatusChanged = null;
   }
+  if (typeof offInstallExtensionDeeplink === 'function') {
+    offInstallExtensionDeeplink();
+    offInstallExtensionDeeplink = null;
+  }
 });
 </script>
 
+<style scoped>
+.app-splash {
+  user-select: none;
+  -webkit-app-region: drag;
+}
+
+.app-splash-ring {
+  animation: splash-spin 0.8s linear infinite;
+  color: var(--rm-text, #aaa);
+  opacity: 0.6;
+}
+
+@keyframes splash-spin {
+  to { transform: rotate(360deg); }
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.35rem 1rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: rgb(var(--rm-warning));
+  background: rgb(var(--rm-warning) / 0.1);
+  border-bottom: 1px solid rgb(var(--rm-warning) / 0.2);
+  flex-shrink: 0;
+  -webkit-app-region: drag;
+}
+</style>

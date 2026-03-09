@@ -1,116 +1,97 @@
 <template>
-  <nav class="nav-bar flex items-center justify-between gap-4 px-4 pt-3 pb-4 bg-rm-surface border-b border-rm-border select-none">
-    <div class="flex items-center gap-4 no-drag min-w-0">
-      <h1
-        class="m-0 text-base font-semibold text-rm-text tracking-tight flex items-center gap-2 shrink-0 cursor-default select-none"
-        @click="onAppNameClick"
-      >
-        <img :src="logoUrl" alt="" class="app-logo w-12 h-12 rounded-rm shrink-0 pointer-events-none" @error="showLogoFallback" />
-        <span ref="logoFallback" class="w-12 h-12 rounded-rm bg-rm-accent/20 flex items-center justify-center text-rm-accent text-sm font-bold shrink-0 hidden pointer-events-none" aria-hidden="true">R</span>
-        <span class="pointer-events-none">Shipwell</span>
+  <nav class="nav-bar select-none">
+    <div class="nav-left no-drag">
+      <h1 class="nav-brand">
+        <img :src="logoUrl" alt="" class="nav-logo" @error="showLogoFallback" />
+        <span ref="logoFallback" class="nav-logo-fallback hidden" aria-hidden="true">S</span>
       </h1>
-      <Button
-        variant="text"
-        size="small"
-        class="tooltip-btn p-2 min-w-0"
-        title="Command palette (⌘⇧P)"
-        aria-label="Open command palette"
-        @click="openCommandPalette"
-      >
-        <i class="pi pi-search" aria-hidden="true" />
-        <span class="tooltip-bubble">Command palette (⌘⇧P)</span>
-      </Button>
-      <div class="flex items-center gap-2 shrink-0 view-dropdown-wrap">
-        <span class="text-xs font-medium text-rm-muted whitespace-nowrap">View</span>
+
+      <button v-tooltip.bottom="'Toggle sidebar (⌘B)'" class="nav-icon-btn" :class="{ 'is-active': store.sidebarVisible }" aria-label="Toggle sidebar" @click="store.toggleSidebar()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+      </button>
+
+      <div class="nav-view-group">
         <Select
           :model-value="store.viewMode"
           :options="viewOptionsForSelect"
           option-label="label"
           option-value="value"
           placeholder="View"
-          class="view-dropdown-select min-w-[8rem] text-sm"
+          class="nav-view-select"
           @update:model-value="selectView"
         />
       </div>
     </div>
-    <div class="flex items-center gap-3 no-drag shrink-0">
-      <div class="theme-toggle flex items-center rounded-rm border border-rm-border bg-rm-surface overflow-hidden">
-        <Button variant="text" size="small" class="theme-btn p-2 min-w-0" :class="{ 'is-active': store.theme === 'dark' }" title="Dark" aria-label="Dark theme" @click="setTheme('dark')">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-        </Button>
-        <Button variant="text" size="small" class="theme-btn p-2 min-w-0" :class="{ 'is-active': store.theme === 'light' }" title="Light" aria-label="Light theme" @click="setTheme('light')">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-        </Button>
+
+    <div class="nav-right no-drag">
+      <div class="nav-icon-group">
+        <button v-tooltip.bottom="'Dark theme'" class="nav-icon-btn" :class="{ 'is-active': store.theme === 'dark' }" aria-label="Dark theme" @click="setTheme('dark')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <button v-tooltip.bottom="'Light theme'" class="nav-icon-btn" :class="{ 'is-active': store.theme === 'light' }" aria-label="Light theme" @click="setTheme('light')">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+        </button>
       </div>
-      <Button variant="text" size="small" class="refresh-btn tooltip-btn p-2 min-w-0" :class="{ refreshing: isRefreshing }" aria-label="Refresh current project" @click="onRefresh">
-        <svg class="refresh-btn-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 8" />
-          <path d="M21 3v5h-5" />
-          <path d="M21 12a9 9 0 0 1-9 9A9 9 0 0 1 3 15" />
+
+      <div class="nav-separator" />
+
+      <button v-tooltip.bottom="'Refresh (⌘R)'" class="nav-icon-btn" aria-label="Refresh" :class="{ refreshing: isRefreshing }" @click="onRefresh">
+        <svg class="refresh-icon" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 6.36 2.64L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9A9 9 0 0 1 3 15" />
         </svg>
-        <span class="tooltip-bubble">Refresh current project</span>
-      </Button>
-      <Button variant="text" size="small" class="tooltip-btn p-2 min-w-0" :disabled="syncingAll || !store.projects.length" aria-label="Sync all projects from Git remotes" @click="onSyncAll">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M8 3v8" />
-          <path d="M5 6l3-3 3 3" />
-          <path d="M16 21v-8" />
-          <path d="M13 18l3 3 3-3" />
-          <rect x="3" y="10" width="18" height="4" rx="1" />
+      </button>
+
+      <button v-tooltip.bottom="'Sync all projects'" class="nav-icon-btn" aria-label="Sync all" :disabled="syncingAll || !store.projects.length" @click="onSyncAll">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M8 3v8"/><path d="M5 6l3-3 3 3"/><path d="M16 21v-8"/><path d="M13 18l3 3 3-3"/><rect x="3" y="10" width="18" height="4" rx="1"/>
         </svg>
-        <span class="tooltip-bubble">Sync all projects from Git</span>
-      </Button>
-      <Button
-        severity="primary"
-        class="rm-btn flex items-center gap-2"
-        title="Add a new project folder"
-        aria-label="Add project"
-        @click="onAddProject"
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+
+      <button v-tooltip.bottom="'Command palette (⌘⇧P)'" class="nav-icon-btn" aria-label="Command palette" @click="openCommandPalette">
+        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+
+      <div class="nav-separator" />
+
+      <Button v-tooltip.bottom="'Add a project'" severity="primary" size="small" class="nav-add-btn" @click="toggleAddMenu">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add project
+        <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="ml-0.5 opacity-60"><polyline points="6 9 12 15 18 9"/></svg>
       </Button>
-      <Button
-        variant="text"
-        size="small"
-        class="tooltip-btn p-2 min-w-0 text-rm-muted hover:text-rm-text"
-        title="Sign out and return to login screen"
-        aria-label="Sign out"
-        @click="onSignOut"
-      >
-        <span class="text-xs font-medium">Sign out</span>
-      </Button>
-      <span v-if="navStatus" class="text-[11px] text-rm-muted whitespace-nowrap">{{ navStatus }}</span>
+      <Menu ref="addMenuRef" :model="addMenuItems" :popup="true" />
+
+      <button v-tooltip.bottom="'Sign out of your account'" class="nav-signout" aria-label="Sign out" @click="onSignOut">Sign out</button>
     </div>
+
+    <span v-if="navStatus" class="nav-status">{{ navStatus }}</span>
   </nav>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import Button from 'primevue/button';
+import Menu from 'primevue/menu';
 import Select from 'primevue/select';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
 import { useLicense } from '../composables/useLicense';
 import { useCommandPalette } from '../commandPalette/useCommandPalette';
+import { useAnnouncer } from '../composables/useAnnouncer';
+import { useNotifications } from '../composables/useNotifications';
 import * as debug from '../utils/debug';
 
-const emit = defineEmits(['refresh', 'add-project']);
+const emit = defineEmits(['refresh', 'sync-all', 'add-project', 'add-from-shipwell', 'bulk-import']);
 
 const store = useAppStore();
 const api = useApi();
-const { openModal: openFeatureFlagsModal } = useFeatureFlags();
 const license = useLicense();
 const commandPalette = useCommandPalette();
+const notifications = useNotifications();
+const { announcePolite } = useAnnouncer();
 
 function openCommandPalette() {
   commandPalette.toggle();
 }
-const appNameClickCount = ref(0);
-let appNameClickResetTimer = null;
-const APP_NAME_CLICKS_NEEDED = 5;
-const APP_NAME_CLICK_WINDOW_MS = 1500;
 const logoFallback = ref(null);
 const isRefreshing = ref(false);
 const syncingAll = ref(false);
@@ -119,20 +100,6 @@ const logoUrl = 'icon-128.png';
 function showLogoFallback(e) {
   e.target.style.display = 'none';
   logoFallback.value?.classList.remove('hidden');
-}
-
-function onAppNameClick() {
-  if (appNameClickResetTimer) clearTimeout(appNameClickResetTimer);
-  appNameClickCount.value += 1;
-  if (appNameClickCount.value >= APP_NAME_CLICKS_NEEDED) {
-    appNameClickCount.value = 0;
-    openFeatureFlagsModal();
-  } else {
-    appNameClickResetTimer = setTimeout(() => {
-      appNameClickCount.value = 0;
-      appNameClickResetTimer = null;
-    }, APP_NAME_CLICK_WINDOW_MS);
-  }
 }
 
 const VIEW_LABELS = {
@@ -146,28 +113,30 @@ const VIEW_LABELS = {
 };
 
 const viewOptions = [
-  { value: 'detail', label: VIEW_LABELS.detail, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>', sep: false },
-  { value: 'dashboard', label: VIEW_LABELS.dashboard, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>', sep: false },
-  { value: 'settings', label: VIEW_LABELS.settings, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>', sep: false },
-  { value: 'extensions', label: VIEW_LABELS.extensions, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="6" height="6"/><rect x="15" y="3" width="6" height="6"/><rect x="15" y="15" width="6" height="6"/><rect x="3" y="15" width="6" height="6"/></svg>', sep: false },
-  { value: 'docs', label: VIEW_LABELS.docs, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M8 7h8"/><path d="M8 11h8"/></svg>', sep: false },
-  { value: 'changelog', label: VIEW_LABELS.changelog, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>', sep: false },
-  { value: 'api', label: VIEW_LABELS.api, icon: '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>', sep: false },
+  { value: 'dashboard', label: VIEW_LABELS.dashboard },
+  { value: 'settings', label: VIEW_LABELS.settings },
+  { value: 'docs', label: VIEW_LABELS.docs },
+  { value: 'changelog', label: VIEW_LABELS.changelog },
+  { value: 'api', label: VIEW_LABELS.api },
 ];
 
-const viewOptionsFiltered = computed(() => viewOptions.filter((o) => !o.sep));
 const viewOptionsForSelect = computed(() => {
-  const list = Array.isArray(viewOptionsFiltered.value) ? viewOptionsFiltered.value : [];
   if (!license.isLoggedIn?.value) {
-    return list.filter((o) => o.value === 'settings').map((o) => ({ ...o, label: 'Log in' }));
+    return viewOptions.filter((o) => o.value === 'settings').map((o) => ({ ...o, label: 'Log in' }));
   }
-  return list;
+  const extras = [];
+  if (store.viewMode === 'detail') {
+    extras.push({ value: 'detail', label: VIEW_LABELS.detail });
+  }
+  return [...extras, ...viewOptions];
 });
 
 function selectView(value) {
   debug.log('nav', 'viewMode', value);
   store.setViewMode(value);
   if (api.setPreference) api.setPreference('state.viewMode', value);
+  const labels = { dashboard: 'Dashboard', detail: 'Project', settings: 'Settings', extensions: 'Extensions' };
+  announcePolite(`Navigated to ${labels[value] || value}`);
 }
 
 function setTheme(theme) {
@@ -180,49 +149,41 @@ function setTheme(theme) {
 function onRefresh() {
   if (isRefreshing.value) return;
   isRefreshing.value = true;
-  navStatus.value = 'Refreshing project…';
+  navStatus.value = 'Refreshing…';
   emit('refresh');
   setTimeout(() => {
     isRefreshing.value = false;
-    if (navStatus.value === 'Refreshing project…') navStatus.value = '';
+    if (navStatus.value === 'Refreshing…') navStatus.value = '';
   }, 800);
 }
 
-async function onSyncAll() {
+function onSyncAll() {
   if (syncingAll.value) return;
-  const list = store.projects || [];
-  if (!list.length) return;
+  if (!store.projects?.length) return;
   syncingAll.value = true;
-  navStatus.value = 'Syncing all projects…';
-  debug.log('git', 'syncAll.start', { count: list.length });
-  try {
-    for (const p of list) {
-      if (!p?.path) continue;
-      try {
-        if (api.syncFromRemote) {
-          await api.syncFromRemote(p.path);
-        } else if (api.gitFetch) {
-          await api.gitFetch(p.path);
-        }
-      } catch (e) {
-        debug.warn('git', 'syncAll.projectFailed', p.path, e?.message ?? e);
-      }
-    }
-    debug.log('git', 'syncAll.done');
-    emit('refresh');
-  } finally {
-    syncingAll.value = false;
-    setTimeout(() => {
-      if (navStatus.value === 'Syncing all projects…') navStatus.value = 'Sync complete';
-      setTimeout(() => {
-        if (navStatus.value === 'Sync complete') navStatus.value = '';
-      }, 1200);
-    }, 200);
-  }
+  navStatus.value = 'Syncing…';
+  emit('sync-all');
 }
 
-function onAddProject() {
-  emit('add-project');
+function finishSync() {
+  syncingAll.value = false;
+  navStatus.value = 'Done';
+  setTimeout(() => {
+    if (navStatus.value === 'Done') navStatus.value = '';
+  }, 1200);
+}
+
+defineExpose({ finishSync });
+
+const addMenuRef = ref(null);
+const addMenuItems = ref([
+  { label: 'Add local folder', icon: 'pi pi-folder', command: () => emit('add-project') },
+  { label: 'Bulk import from folder', icon: 'pi pi-folder-open', command: () => emit('bulk-import') },
+  { label: 'Add from Shipwell', icon: 'pi pi-cloud-download', command: () => emit('add-from-shipwell') },
+]);
+
+function toggleAddMenu(event) {
+  addMenuRef.value?.toggle(event);
 }
 
 async function onSignOut() {
@@ -248,31 +209,156 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.refresh-btn .refresh-btn-icon { display: inline-block; }
-.refresh-btn.refreshing .refresh-btn-icon { animation: refresh-spin 0.7s linear infinite; }
-@keyframes refresh-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-.theme-btn { @apply text-rm-muted hover:text-rm-text hover:bg-rm-surface-hover border-none cursor-pointer bg-transparent inline-flex items-center justify-center; }
-.theme-btn.is-active { @apply text-rm-accent bg-rm-accent/15; }
-.tooltip-btn { position: relative; }
-.tooltip-bubble {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 3px 6px;
+.nav-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.375rem 0.75rem;
+  background: rgb(var(--rm-surface));
+  border-bottom: 1px solid rgb(var(--rm-border));
+  flex-shrink: 0;
+  height: 2.75rem;
+  position: relative;
+}
+
+.nav-left,
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  cursor: default;
+  margin: 0;
+  padding: 0 0.25rem;
+}
+.nav-logo {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 6px;
+  pointer-events: none;
+}
+.nav-logo-fallback {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 6px;
+  background: rgb(var(--rm-accent) / 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(var(--rm-accent));
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.nav-view-group {
+  display: flex;
+  align-items: center;
+}
+.nav-view-select {
+  min-width: 7rem;
+  font-size: 0.8125rem;
+}
+
+.nav-icon-group {
+  display: flex;
+  align-items: center;
+  background: rgb(var(--rm-surface));
+  border: 1px solid rgb(var(--rm-border));
+  border-radius: 6px;
+  overflow: hidden;
+}
+.nav-icon-group .nav-icon-btn {
+  border-radius: 0;
+  border: none;
+}
+.nav-icon-group .nav-icon-btn + .nav-icon-btn {
+  border-left: 1px solid rgb(var(--rm-border));
+}
+
+.nav-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: rgb(var(--rm-muted));
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+  padding: 0;
+  flex-shrink: 0;
+}
+.nav-icon-btn:hover {
+  color: rgb(var(--rm-text));
+  background: rgb(var(--rm-surface-hover) / 0.5);
+}
+.nav-icon-btn.is-active {
+  color: rgb(var(--rm-accent));
+  background: rgb(var(--rm-accent) / 0.12);
+}
+.nav-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.nav-icon-btn.refreshing .refresh-icon {
+  animation: nav-spin 0.7s linear infinite;
+}
+
+.nav-separator {
+  width: 1px;
+  height: 1.25rem;
+  background: rgb(var(--rm-border));
+  flex-shrink: 0;
+  margin: 0 0.125rem;
+}
+
+.nav-add-btn {
+  font-size: 0.75rem;
+  padding: 0.3rem 0.625rem;
+  gap: 0.3rem;
+  font-weight: 600;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+.nav-signout {
+  background: none;
+  border: none;
+  color: rgb(var(--rm-muted));
+  font-size: 0.6875rem;
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0.25rem 0.375rem;
   border-radius: 4px;
-  background: rgba(15, 23, 42, 0.95);
-  color: #e5e7eb;
-  font-size: 10px;
+  transition: color 0.12s, background 0.12s;
+  white-space: nowrap;
+}
+.nav-signout:hover {
+  color: rgb(var(--rm-text));
+  background: rgb(var(--rm-surface-hover) / 0.5);
+}
+
+.nav-status {
+  position: absolute;
+  bottom: -1.25rem;
+  right: 0.75rem;
+  font-size: 0.625rem;
+  color: rgb(var(--rm-muted));
   white-space: nowrap;
   pointer-events: none;
-  opacity: 0;
-  transform-origin: top center;
-  transition: opacity 0.12s ease, transform 0.12s ease;
-  z-index: 60;
+  z-index: 10;
 }
-.tooltip-btn:hover .tooltip-bubble {
-  opacity: 1;
-  transform: translateX(-50%) translateY(2px);
+
+@keyframes nav-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 </style>

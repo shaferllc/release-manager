@@ -1,28 +1,9 @@
 /**
- * Detail-tab extension loader.
+ * Extension loader.
  *
- * Extensions are no longer bundled by default. Users install them from the
- * online marketplace via View → Extensions. Installed (user) extensions are
- * loaded at runtime from the userData/extensions directory.
+ * User extensions live in their own GitHub repos and are installed from the
+ * marketplace to userData/extensions/. They are built and loaded at runtime.
  *
- * To re-enable a built-in extension for development, uncomment its import below.
+ * Built-in extensions are imported here.
  */
-// import './kanban';
-// import './markdown';
-// import './ssh';
-// import './ftp';
-// import './email';
-// import './processes';
-// import './tunnels';
-// import './bookmarks';
-// import './checklist';
-// import './dependencies';
-// import './notes';
-// import './terminal';
-// import './runbooks';
-// import './changelog-draft';
-// import './env';
-// import './github-issues';
-// import './project-tracker';
-// import './agent-crew';
-// import './wiki';
+import './codeseer';

@@ -1,6 +1,9 @@
 <template>
-  <div v-if="license.isLoggedIn?.value && !license.isPro?.value" class="license-upgrade-banner">
+  <div v-if="visible" class="license-upgrade-banner">
     <div class="license-upgrade-banner-inner">
+      <button class="license-upgrade-dismiss" aria-label="Dismiss" @click="dismiss">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
       <h2 class="license-upgrade-headline">Upgrade to Pro</h2>
       <p class="license-upgrade-subhead">
         <span v-if="license.isPlus?.value">You're on Plus. Upgrade to Pro for every feature.</span>
@@ -20,14 +23,38 @@
           <span class="license-upgrade-benefit-desc">Bump and release multiple projects at once</span>
         </div>
       </div>
+      <Button severity="primary" class="license-upgrade-cta" label="View plans" @click="openPricing" />
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, computed, onMounted } from 'vue';
+import Button from 'primevue/button';
 import { useLicense } from '../composables/useLicense';
+import { useApi } from '../composables/useApi';
 
 const license = useLicense();
+const api = useApi();
+const dismissed = ref(false);
+
+const visible = computed(() => license.isLoggedIn?.value && !license.isPro?.value && !dismissed.value);
+
+onMounted(async () => {
+  const saved = await api.getPreference?.('upgradeBannerDismissed').catch(() => false);
+  if (saved) dismissed.value = true;
+});
+
+function dismiss() {
+  dismissed.value = true;
+  api.setPreference?.('upgradeBannerDismissed', true);
+}
+
+async function openPricing() {
+  const config = await api.getLicenseServerConfig?.().catch(() => ({}));
+  const base = (config?.url || '').replace(/\/+$/, '');
+  if (base) api.openUrl?.(`${base}/pricing`);
+}
 </script>
 
 <style scoped>
@@ -36,10 +63,30 @@ const license = useLicense();
   background: linear-gradient(135deg, rgb(var(--rm-accent) / 0.12) 0%, rgb(var(--rm-accent) / 0.04) 100%);
   border-bottom: 1px solid rgb(var(--rm-border));
   padding: 2rem 2.5rem;
+  position: relative;
 }
 .license-upgrade-banner-inner {
   max-width: 56rem;
   margin: 0 auto;
+}
+.license-upgrade-dismiss {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  background: none;
+  border: none;
+  color: rgb(var(--rm-muted));
+  cursor: pointer;
+  padding: 0.375rem;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.license-upgrade-dismiss:hover {
+  color: rgb(var(--rm-text));
+  background: rgb(var(--rm-surface-hover) / 0.6);
 }
 .license-upgrade-headline {
   font-size: 1.75rem;

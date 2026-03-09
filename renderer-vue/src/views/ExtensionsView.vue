@@ -1,193 +1,175 @@
 <template>
   <Card class="extensions-view detail-tab-panel flex-1 flex flex-col min-h-0">
     <template #content>
-    <div class="extensions-view-inner py-6 px-6 max-w-3xl space-y-6">
+    <div class="extensions-view-inner py-6 px-6 space-y-6">
 
-      <!-- Marketplace -->
+      <!-- Analytics summary -->
+      <div v-if="license.isLoggedIn?.value && analytics.overview.value" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div class="analytics-stat rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-3">
+          <span class="text-[10px] uppercase tracking-wider text-rm-muted block">Available</span>
+          <span class="text-lg font-bold text-rm-text">{{ analytics.totalExtensions.value ?? '—' }}</span>
+        </div>
+        <div class="analytics-stat rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-3">
+          <span class="text-[10px] uppercase tracking-wider text-rm-muted block">Your installs</span>
+          <span class="text-lg font-bold text-rm-text">{{ analytics.totalInstalls.value ?? '—' }}</span>
+        </div>
+        <div class="analytics-stat rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-3">
+          <span class="text-[10px] uppercase tracking-wider text-rm-muted block">Most popular</span>
+          <span class="text-sm font-semibold text-rm-text truncate block" :title="analytics.mostPopular.value?.name">{{ analytics.mostPopular.value?.name || '—' }}</span>
+        </div>
+        <div class="analytics-stat rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-3">
+          <span class="text-[10px] uppercase tracking-wider text-rm-muted block">Zero installs</span>
+          <span class="text-lg font-bold text-rm-text">{{ analytics.zeroInstalls.value ?? '—' }}</span>
+        </div>
+      </div>
+
       <Panel>
         <template #header>
           <div class="flex items-center justify-between gap-3 w-full">
-            <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Marketplace</h3>
+            <div class="flex items-center gap-3">
+              <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Extensions</h3>
+              <SelectButton
+                v-model="filterMode"
+                :options="filterOptions"
+                optionLabel="label"
+                optionValue="value"
+                :allowEmpty="false"
+                class="ext-filter-btn"
+              />
+            </div>
             <div class="flex items-center gap-2">
-              <Button
-                label="Upload"
-                icon="pi pi-upload"
-                size="small"
-                severity="secondary"
-                @click="uploadToMarketplace"
-                :loading="uploading"
+              <InputText
+                v-model="searchQuery"
+                placeholder="Search extensions..."
+                class="w-48 text-sm"
               />
               <Button
                 label="Refresh"
                 icon="pi pi-refresh"
-                :loading="marketplaceLoading"
+                :loading="syncing"
                 size="small"
                 severity="secondary"
-                @click="fetchMarketplace"
+                @click="refresh"
               />
             </div>
           </div>
         </template>
+
         <div class="space-y-4">
-          <div class="flex flex-wrap items-end gap-2">
-            <label class="flex flex-col gap-1 min-w-[200px] flex-1">
-              <span class="text-xs text-rm-muted">Marketplace URL</span>
-              <InputText
-                v-model="marketplaceBaseUrl"
-                placeholder="https://marketplace.example.com"
-                class="w-full text-sm"
-                @blur="saveMarketplaceUrl"
-                @keydown.enter="fetchMarketplace"
-              />
-            </label>
-            <label class="flex flex-col gap-1 min-w-[160px] flex-1">
-              <span class="text-xs text-rm-muted">Search</span>
-              <InputText
-                v-model="searchQuery"
-                placeholder="Filter extensions..."
-                class="w-full text-sm"
-              />
-            </label>
+          <p v-if="registryError" class="text-sm text-red-500 m-0">{{ registryError }}</p>
+
+          <div v-if="syncing && !registryFetched" class="py-8 text-center text-rm-muted text-sm">
+            <i class="pi pi-spin pi-spinner mr-1"></i>
+            Loading extensions...
           </div>
 
-          <p v-if="marketplaceError" class="text-sm text-red-500 m-0">{{ marketplaceError }}</p>
-
-          <div v-if="filteredMarketplaceList.length === 0 && !marketplaceLoading && marketplaceFetched" class="py-6 text-center text-rm-muted text-sm">
+          <div v-else-if="filteredRegistry.length === 0 && registryFetched" class="py-6 text-center text-rm-muted text-sm">
             <template v-if="searchQuery">No extensions match "<strong>{{ searchQuery }}</strong>".</template>
-            <template v-else>No extensions available on this marketplace.</template>
+            <template v-else-if="filterMode === 'installed'">No extensions installed yet. Install extensions from the "All" or "Not installed" view.</template>
+            <template v-else-if="filterMode === 'not_installed'">All available extensions are installed.</template>
+            <template v-else>No extensions available yet.</template>
           </div>
 
-          <div v-else-if="!marketplaceFetched && !marketplaceLoading" class="py-6 text-center text-rm-muted text-sm">
-            <i class="pi pi-cloud-download mr-1"></i>
-            Loading marketplace...
-          </div>
-
-          <div v-else class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             <div
-              v-for="item in filteredMarketplaceList"
+              v-for="item in filteredRegistry"
               :key="item.id"
-              class="rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-3 flex flex-col gap-2"
+              class="ext-card rounded-rm border px-4 py-3 flex flex-col gap-2"
+              :class="item.accessible === false ? 'border-rm-border/50 opacity-70 bg-rm-surface/10' : isInstalled(item.slug || item.id) ? 'border-rm-accent/30 bg-rm-accent/[0.04]' : 'border-rm-border bg-rm-surface/30'"
             >
               <div class="min-w-0 flex-1">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="font-semibold text-rm-text text-sm">{{ item.name || item.id }}</span>
-                  <Tag v-if="item.version" severity="secondary" class="text-[10px] px-1.5 py-0">{{ item.version }}</Tag>
-                  <Tag v-if="isInstalled(item.id)" severity="success" class="text-[10px] px-1.5 py-0">Installed</Tag>
+                  <Tag v-if="item.version" severity="secondary" class="text-[10px] px-1.5 py-0">v{{ item.version }}</Tag>
+                  <Tag v-if="item.required_plan && item.required_plan !== 'free'" :severity="item.accessible === false ? 'warn' : 'info'" class="text-[10px] px-1.5 py-0">
+                    <svg v-if="item.accessible === false" xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="mr-0.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    {{ item.required_plan.charAt(0).toUpperCase() + item.required_plan.slice(1) }}
+                  </Tag>
+                  <span v-if="getInstallCount(item) != null" class="install-count text-[10px] text-rm-muted inline-flex items-center gap-0.5" :title="getInstallCount(item) + ' installs'">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                    {{ formatInstallCount(getInstallCount(item)) }}
+                  </span>
                 </div>
                 <p v-if="item.description" class="text-xs text-rm-muted m-0 mt-1 line-clamp-2">{{ item.description }}</p>
+                <span v-if="item.author" class="text-[10px] text-rm-muted mt-0.5 block">by {{ item.author }}</span>
               </div>
-              <div class="flex items-center gap-2 mt-auto">
+              <div class="flex items-center gap-2 mt-auto pt-1 flex-wrap">
+                <!-- Installed but plan no longer allows it -->
+                <template v-if="isInstalled(item.slug || item.id) && item.accessible === false">
+                  <Tag severity="warn" class="text-[10px] px-1.5 py-0">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="mr-0.5 inline"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Locked
+                  </Tag>
+                  <Button
+                    label="Upgrade"
+                    icon="pi pi-lock"
+                    size="small"
+                    severity="warn"
+                    text
+                    @click="openUpgrade"
+                  />
+                  <Button
+                    label="Uninstall"
+                    size="small"
+                    severity="danger"
+                    text
+                    :loading="uninstallingId === (item.slug || item.id)"
+                    :disabled="uninstallingId != null"
+                    @click="uninstallById(item.slug || item.id)"
+                  />
+                </template>
+                <!-- Not installed and plan doesn't allow -->
+                <template v-else-if="item.accessible === false">
+                  <Button
+                    :label="'Upgrade to ' + (item.required_plan === 'team' ? 'Team' : 'Pro')"
+                    icon="pi pi-lock"
+                    size="small"
+                    severity="warn"
+                    @click="openUpgrade"
+                  />
+                </template>
+                <!-- Installed and plan allows -->
+                <template v-else-if="isInstalled(item.slug || item.id)">
+                  <label class="flex items-center gap-1.5 cursor-pointer">
+                    <InputSwitch
+                      :modelValue="extPrefs.isEnabled(item.slug || item.id)"
+                      @update:modelValue="(v) => extPrefs.setEnabled(item.slug || item.id, v)"
+                      class="ext-switch"
+                    />
+                    <span class="text-xs" :class="extPrefs.isEnabled(item.slug || item.id) ? 'text-green-500' : 'text-rm-muted'">
+                      {{ extPrefs.isEnabled(item.slug || item.id) ? 'Enabled' : 'Disabled' }}
+                    </span>
+                  </label>
+                  <Button
+                    v-if="item.version && installedVersion(item.slug || item.id) && item.version !== installedVersion(item.slug || item.id)"
+                    label="Update"
+                    icon="pi pi-sync"
+                    size="small"
+                    severity="secondary"
+                    :loading="installingId === (item.slug || item.id)"
+                    :disabled="installingId != null"
+                    @click="installFromRegistry(item)"
+                  />
+                  <Button
+                    label="Uninstall"
+                    size="small"
+                    severity="danger"
+                    text
+                    :loading="uninstallingId === (item.slug || item.id)"
+                    :disabled="uninstallingId != null"
+                    @click="uninstallById(item.slug || item.id)"
+                  />
+                </template>
+                <!-- Not installed, plan allows -->
                 <Button
-                  :label="isInstalled(item.id) ? 'Update' : 'Install'"
-                  :icon="isInstalled(item.id) ? 'pi pi-sync' : 'pi pi-download'"
+                  v-else
+                  label="Install"
+                  icon="pi pi-download"
                   size="small"
-                  :severity="isInstalled(item.id) ? 'secondary' : undefined"
-                  :loading="installingId === item.id"
-                  :disabled="installingId != null && installingId !== item.id"
-                  @click="installMarketplaceExtension(item)"
+                  :loading="installingId === (item.slug || item.id)"
+                  :disabled="installingId != null"
+                  @click="installFromRegistry(item)"
                 />
-              </div>
-            </div>
-          </div>
-        </div>
-      </Panel>
-
-      <!-- Installed -->
-      <Panel>
-        <template #header>
-          <div class="flex items-center justify-between gap-3 w-full">
-            <h3 class="text-sm font-semibold text-rm-text m-0 tracking-tight">Installed</h3>
-            <span v-if="allInstalledCount > 0" class="text-xs text-rm-muted">
-              {{ allInstalledCount }} extension{{ allInstalledCount === 1 ? '' : 's' }}
-            </span>
-          </div>
-        </template>
-
-        <div v-if="allInstalledCount === 0" class="py-8 px-6 text-center text-rm-muted text-sm">
-          No extensions installed yet. Browse the marketplace above to get started.
-        </div>
-
-        <div v-else class="space-y-6">
-          <!-- Built-in extensions (if any are enabled in index.js) -->
-          <template v-for="group in extensionsByCategory" :key="group.categoryId">
-            <div class="space-y-3">
-              <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider m-0">{{ group.label }}</h4>
-              <div class="space-y-4">
-                <div
-                  v-for="ext in group.extensions"
-                  :key="'builtin-' + ext.id"
-                  class="extension-card rounded-rm border border-rm-border bg-rm-surface/30 overflow-hidden"
-                >
-                  <div class="extension-card-inner px-4 py-4 flex flex-col sm:flex-row sm:items-start gap-4">
-                    <div class="extension-icon shrink-0 w-10 h-10 rounded-rm border border-rm-border bg-rm-bg flex items-center justify-center [&>svg]:w-5 [&>svg]:h-5 text-rm-muted" v-html="ext.icon" aria-hidden="true"></div>
-                    <div class="extension-body min-w-0 flex-1">
-                      <div class="flex flex-wrap items-center gap-2 mb-1">
-                        <h3 class="text-base font-semibold text-rm-text m-0">{{ ext.label }}</h3>
-                        <Tag v-if="ext.version" severity="secondary" class="text-[10px] px-1.5 py-0">{{ ext.version }}</Tag>
-                        <Tag severity="info" class="text-[10px] px-1.5 py-0">Built-in</Tag>
-                      </div>
-                      <p v-if="ext.description" class="text-sm text-rm-muted m-0 mb-3">{{ ext.description }}</p>
-                      <div class="flex flex-wrap items-center gap-4">
-                        <label class="flex items-center gap-2 cursor-pointer">
-                          <Checkbox
-                            :model-value="isEnabled(ext)"
-                            :binary="true"
-                            :input-id="'ext-enable-' + ext.id"
-                            @update:model-value="(v) => setEnabled(ext, v)"
-                          />
-                          <span class="text-sm text-rm-text">{{ isEnabled(ext) ? 'Enabled' : 'Disabled' }}</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </template>
-
-          <!-- User-installed -->
-          <div v-if="installedUserVisible.length" class="space-y-3">
-            <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider m-0">From marketplace</h4>
-            <div class="space-y-4">
-              <div
-                v-for="u in installedUserVisible"
-                :key="'user-' + u.id"
-                class="extension-card rounded-rm border border-rm-border bg-rm-surface/30 overflow-hidden"
-              >
-                <div class="extension-card-inner px-4 py-4 flex flex-col sm:flex-row sm:items-start gap-4">
-                  <div class="extension-icon shrink-0 w-10 h-10 rounded-rm border border-rm-border bg-rm-bg flex items-center justify-center text-rm-muted">
-                    <i class="pi pi-puzzle-piece" aria-hidden="true"></i>
-                  </div>
-                  <div class="extension-body min-w-0 flex-1">
-                    <div class="flex flex-wrap items-center gap-2 mb-1">
-                      <h3 class="text-base font-semibold text-rm-text m-0">{{ u.name || u.id }}</h3>
-                      <Tag v-if="u.version" severity="secondary" class="text-[10px] px-1.5 py-0">{{ u.version }}</Tag>
-                    </div>
-                    <p v-if="u.description" class="text-sm text-rm-muted m-0 mb-3">{{ u.description }}</p>
-                    <div class="flex flex-wrap items-center gap-4">
-                      <label class="flex items-center gap-2 cursor-pointer">
-                        <Checkbox
-                          :model-value="isEnabledById(u.id)"
-                          :binary="true"
-                          :input-id="'ext-user-enable-' + u.id"
-                          @update:model-value="(v) => setEnabledById(u.id, v)"
-                        />
-                        <span class="text-sm text-rm-text">{{ isEnabledById(u.id) ? 'Enabled' : 'Disabled' }}</span>
-                      </label>
-                      <Button
-                        label="Uninstall"
-                        icon="pi pi-trash"
-                        size="small"
-                        severity="danger"
-                        text
-                        :loading="uninstallingId === u.id"
-                        :disabled="uninstallingId != null && uninstallingId !== u.id"
-                        @click="uninstallExtension(u)"
-                      />
-                      <span class="text-xs text-rm-muted">Restart app to load changes</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
@@ -200,162 +182,213 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue';
+import { computed, ref, onMounted, watch } from 'vue';
 import Card from 'primevue/card';
-import Checkbox from 'primevue/checkbox';
 import Panel from 'primevue/panel';
 import Tag from 'primevue/tag';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
-import { getDetailTabExtensions } from '../extensions/registry';
-import { groupExtensionsByCategory } from '../extensions/tabCategories';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
-import { useHiddenExtensions } from '../composables/useHiddenExtensions';
+import InputSwitch from 'primevue/inputswitch';
+import SelectButton from 'primevue/selectbutton';
+import { useLicense } from '../composables/useLicense';
+import { useExtensionPrefs } from '../composables/useExtensionPrefs';
+import { useNotifications } from '../composables/useNotifications';
+import { useExtensionAnalytics } from '../composables/useExtensionAnalytics';
 
-const { isHidden: isExtensionHidden } = useHiddenExtensions();
-const extensions = computed(() => getDetailTabExtensions().filter((e) => e && !isExtensionHidden(e.id)));
-const extensionsByCategory = computed(() => groupExtensionsByCategory(extensions.value));
+const license = useLicense();
+const extPrefs = useExtensionPrefs();
+const extNotifications = useNotifications();
+const analytics = useExtensionAnalytics();
 
-const marketplaceBaseUrl = ref('');
-const marketplaceList = ref([]);
-const marketplaceLoading = ref(false);
-const marketplaceFetched = ref(false);
-const marketplaceError = ref('');
 const searchQuery = ref('');
+const filterMode = ref('all');
+const filterOptions = [
+  { label: 'All', value: 'all' },
+  { label: 'Installed', value: 'installed' },
+  { label: 'Not installed', value: 'not_installed' },
+];
 const installingId = ref(null);
 const uninstallingId = ref(null);
-const uploading = ref(false);
 const installedUser = ref([]);
-const installedUserVisible = computed(() => installedUser.value.filter((u) => u && !isExtensionHidden(u.id)));
+const syncing = ref(false);
 
-const allInstalledCount = computed(() => extensions.value.length + installedUserVisible.value.length);
+const registryList = ref([]);
+const registryFetched = ref(false);
+const registryError = ref('');
 
-const filteredMarketplaceList = computed(() => {
-  if (!searchQuery.value.trim()) return marketplaceList.value;
-  const q = searchQuery.value.toLowerCase();
-  return marketplaceList.value.filter(
-    (item) =>
-      (item.name || '').toLowerCase().includes(q) ||
-      (item.id || '').toLowerCase().includes(q) ||
-      (item.description || '').toLowerCase().includes(q)
-  );
+const filteredRegistry = computed(() => {
+  let list = registryList.value;
+
+  if (filterMode.value === 'installed') {
+    list = list.filter((item) => isInstalled(item.slug || item.id));
+  } else if (filterMode.value === 'not_installed') {
+    list = list.filter((item) => !isInstalled(item.slug || item.id));
+  }
+
+  if (searchQuery.value.trim()) {
+    const q = searchQuery.value.toLowerCase();
+    list = list.filter(
+      (item) =>
+        (item.name || '').toLowerCase().includes(q) ||
+        (item.id || '').toLowerCase().includes(q) ||
+        (item.description || '').toLowerCase().includes(q) ||
+        (item.slug || '').toLowerCase().includes(q)
+    );
+  }
+
+  return list;
 });
 
-const MARKETPLACE_PREF = 'extensionsMarketplaceBaseUrl';
+function getInstallCount(item) {
+  const id = item.slug || item.id;
+  if (item.install_count != null) return item.install_count;
+  const counts = analytics.installCounts.value;
+  if (counts[id] != null) return counts[id];
+  return null;
+}
+
+function formatInstallCount(n) {
+  if (n == null) return '';
+  if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}k`;
+  return String(n);
+}
+
+let previousTier = null;
 
 onMounted(async () => {
-  marketplaceBaseUrl.value = (await window.releaseManager.getPreference(MARKETPLACE_PREF)) || '';
-  installedUser.value = await window.releaseManager.getInstalledUserExtensions();
-  if (marketplaceBaseUrl.value) {
-    fetchMarketplace();
-  }
+  previousTier = license.tier?.value || 'free';
+  await refresh();
+  if (license.isLoggedIn?.value) analytics.fetchOverview();
+  window.releaseManager?.sendTelemetry?.('view.extensions_opened', {});
 });
 
-function saveMarketplaceUrl() {
-  window.releaseManager.setPreference(MARKETPLACE_PREF, marketplaceBaseUrl.value || '');
+watch(() => license.tier?.value, async (newTier) => {
+  if (!newTier || newTier === previousTier) return;
+  previousTier = newTier;
+  await refresh();
+});
+
+async function refresh() {
+  syncing.value = true;
+  registryError.value = '';
+  try {
+    await window.releaseManager.syncPlanExtensions?.();
+  } catch (_) {}
+  installedUser.value = await window.releaseManager.getInstalledUserExtensions();
+  try {
+    const result = await window.releaseManager.getGitHubExtensionRegistry();
+    registryFetched.value = true;
+    if (!result.ok) {
+      registryError.value = result.error || 'Failed to load extensions';
+      registryList.value = [];
+    } else {
+      registryList.value = result.data || [];
+    }
+  } catch (e) {
+    registryError.value = e.message || 'Failed to load extensions';
+  } finally {
+    syncing.value = false;
+  }
+  if (license.isLoggedIn?.value) analytics.fetchOverview();
 }
 
-async function fetchMarketplace() {
-  const base = marketplaceBaseUrl.value?.trim();
-  if (!base) {
-    marketplaceError.value = 'Enter a marketplace URL first.';
+function openUpgrade() {
+  const base = license.serverUrl?.value;
+  if (base) window.releaseManager?.openUrl?.(base.replace(/\/+$/, '') + '/pricing');
+}
+
+function isInstalled(idOrSlug) {
+  return installedUser.value.some((u) => u.id === idOrSlug || u.id === String(idOrSlug));
+}
+
+function installedVersion(idOrSlug) {
+  const u = installedUser.value.find((u) => u.id === idOrSlug || u.id === String(idOrSlug));
+  return u?.version || null;
+}
+
+async function installFromRegistry(item) {
+  if (item.accessible === false) {
+    openUpgrade();
     return;
   }
-  marketplaceError.value = '';
-  marketplaceLoading.value = true;
-  try {
-    saveMarketplaceUrl();
-    const result = await window.releaseManager.getMarketplaceExtensions(base);
-    marketplaceFetched.value = true;
-    if (!result.ok) {
-      marketplaceError.value = result.error || 'Failed to load marketplace';
-      marketplaceList.value = [];
-    } else {
-      marketplaceList.value = result.data || [];
-    }
-  } finally {
-    marketplaceLoading.value = false;
+  const extId = item.slug || item.id;
+  const maxExt = license.maxExtensions?.value ?? 5;
+  const alreadyInstalled = isInstalled(extId);
+  if (!alreadyInstalled && maxExt > 0 && installedUser.value.length >= maxExt) {
+    extNotifications.add({ title: 'Extension limit reached', message: `Your plan allows up to ${maxExt} extensions. Upgrade to install more.`, type: 'warn' });
+    return;
   }
-}
-
-function isInstalled(id) {
-  return installedUser.value.some((u) => u.id === id);
-}
-
-async function installMarketplaceExtension(item) {
-  installingId.value = item.id;
+  installingId.value = extId;
+  registryError.value = '';
   try {
-    const base = marketplaceBaseUrl.value?.trim() || '';
-    const result = await window.releaseManager.installExtension(item.id, { ...item, baseUrl: base }, base);
+    let result;
+    if (item.github_repo) {
+      result = await window.releaseManager.installExtensionFromGitHub(item);
+    } else if (item.download_url) {
+      result = await window.releaseManager.installExtension(extId, item, item.download_url);
+    } else {
+      registryError.value = 'No download source available for this extension';
+      return;
+    }
     if (result.ok) {
       installedUser.value = await window.releaseManager.getInstalledUserExtensions();
-      marketplaceError.value = '';
+    } else if (result.required_plan) {
+      extNotifications.add({ title: 'Plan required', message: result.error || `This extension requires a ${result.required_plan} plan.`, type: 'warn' });
+    } else if (result.limitExceeded) {
+      extNotifications.add({ title: 'Extension limit reached', message: result.error || `Your plan allows up to ${result.max} extensions. Upgrade to install more.`, type: 'warn' });
     } else {
-      marketplaceError.value = result.error || 'Install failed';
+      registryError.value = result.error || 'Install failed';
     }
   } finally {
     installingId.value = null;
   }
 }
 
-async function uninstallExtension(ext) {
-  uninstallingId.value = ext.id;
+async function uninstallById(extId) {
+  uninstallingId.value = extId;
   try {
-    const result = await window.releaseManager.uninstallExtension(ext.id);
+    const result = await window.releaseManager.uninstallExtension(extId);
     if (result.ok) {
       installedUser.value = await window.releaseManager.getInstalledUserExtensions();
     } else {
-      marketplaceError.value = result.error || 'Uninstall failed';
+      registryError.value = result.error || 'Uninstall failed';
     }
   } finally {
     uninstallingId.value = null;
   }
 }
 
-async function uploadToMarketplace() {
-  const base = marketplaceBaseUrl.value?.trim();
-  if (!base) {
-    marketplaceError.value = 'Enter a marketplace URL before uploading.';
-    return;
-  }
-  uploading.value = true;
-  marketplaceError.value = '';
-  try {
-    const dialogResult = await window.releaseManager.showOpenDialog({
-      title: 'Select extension .zip to upload',
-      filters: [{ name: 'ZIP files', extensions: ['zip'] }],
-      properties: ['openFile'],
-    });
-    if (dialogResult.canceled || !dialogResult.filePaths?.length) return;
-    const filePath = dialogResult.filePaths[0];
-    const result = await window.releaseManager.uploadExtensionToMarketplace(base, filePath);
-    if (result.ok) {
-      await fetchMarketplace();
-    } else {
-      marketplaceError.value = result.error || 'Upload failed';
-    }
-  } finally {
-    uploading.value = false;
-  }
-}
-
-const { tabFlags, setTabFlag } = useFeatureFlags();
-
-function isEnabled(ext) {
-  const flagId = ext.featureFlagId ?? ext.id;
-  return tabFlags.value[flagId] !== false;
-}
-
-async function setEnabled(ext, enabled) {
-  const flagId = ext.featureFlagId ?? ext.id;
-  await setTabFlag(flagId, enabled);
-}
-
-function isEnabledById(extId) {
-  return tabFlags.value[extId] !== false;
-}
-
-async function setEnabledById(extId, enabled) {
-  await setTabFlag(extId, enabled);
-}
 </script>
+
+<style scoped>
+.analytics-stat {
+  transition: border-color 0.15s ease;
+}
+.analytics-stat:hover {
+  border-color: var(--rm-accent, var(--p-primary-400));
+}
+.install-count {
+  opacity: 0.7;
+}
+.ext-card {
+  transition: border-color 0.15s ease;
+}
+.ext-card:hover {
+  border-color: var(--rm-accent, var(--p-primary-400));
+}
+.ext-filter-btn :deep(.p-selectbutton) {
+  gap: 0;
+}
+.ext-filter-btn :deep(.p-togglebutton) {
+  font-size: 0.7rem;
+  padding: 0.25rem 0.5rem;
+}
+.ext-switch :deep(.p-inputswitch) {
+  width: 2rem;
+  height: 1rem;
+}
+.ext-switch :deep(.p-inputswitch-slider:before) {
+  width: 0.75rem;
+  height: 0.75rem;
+}
+</style>

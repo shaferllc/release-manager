@@ -177,12 +177,23 @@ function ensureTray() {
     tray.on('click', () => {
       const w = mainWindowRef || BrowserWindow.getAllWindows()[0];
       if (w && !w.isDestroyed()) {
+        if (w.isMinimized()) w.restore();
         w.show();
         w.focus();
       }
     });
     const ctxMenu = require('electron').Menu.buildFromTemplate([
-      { label: 'Show', click: () => { const w = mainWindowRef || BrowserWindow.getAllWindows()[0]; if (w) w.show(); } },
+      {
+        label: 'Show',
+        click: () => {
+          const w = mainWindowRef || BrowserWindow.getAllWindows()[0];
+          if (w && !w.isDestroyed()) {
+            if (w.isMinimized()) w.restore();
+            w.show();
+            w.focus();
+          }
+        },
+      },
       { type: 'separator' },
       { label: 'Quit', click: () => app.quit() },
     ]);

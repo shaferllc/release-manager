@@ -1,15 +1,37 @@
 <template>
   <div class="sidebar-wrapper flex shrink-0 h-full">
   <aside class="aside-panel" :style="sidebarStyle">
+    <button
+      class="sidebar-dashboard-btn"
+      :class="{ 'is-active': store.viewMode === 'dashboard' }"
+      @click="store.setViewMode('dashboard')"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+      Dashboard
+    </button>
     <div class="aside-header">
       <span class="aside-title">Projects</span>
+      <button
+        v-if="store.projects.length > 0"
+        class="filter-toggle-btn"
+        :class="{ 'has-filters': hasActiveFilters }"
+        title="Filter projects"
+        aria-label="Filter projects"
+        @click="toggleFilterPopover"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+      </button>
     </div>
-    <div v-show="store.projects.length > 0" class="project-filters px-3 pt-3 pb-2 border-b border-rm-border">
-      <label class="block text-[11px] font-medium text-rm-muted uppercase tracking-wider mb-1">Type</label>
-      <Select v-model="filterType" :options="filterTypeOptions" optionLabel="label" optionValue="value" class="w-full mb-2" />
-      <label class="block text-[11px] font-medium text-rm-muted uppercase tracking-wider mb-1">Tag</label>
-      <Select v-model="filterTag" :options="filterTagOptions" optionLabel="label" optionValue="value" class="w-full" />
-    </div>
+    <Popover ref="filterPopoverRef">
+      <div class="filter-popover-content">
+        <span class="filter-popover-title">Filter projects</span>
+        <label class="block text-[11px] font-medium text-rm-muted uppercase tracking-wider mb-1">Type</label>
+        <Select v-model="filterType" :options="filterTypeOptions" optionLabel="label" optionValue="value" class="w-full mb-3" />
+        <label class="block text-[11px] font-medium text-rm-muted uppercase tracking-wider mb-1">Tag</label>
+        <Select v-model="filterTag" :options="filterTagOptions" optionLabel="label" optionValue="value" class="w-full mb-3" />
+        <Button v-if="hasActiveFilters" variant="text" size="small" class="text-xs font-medium p-0 min-w-0 text-rm-accent hover:underline" @click="clearFilters">Clear filters</Button>
+      </div>
+    </Popover>
     <div v-if="license.isLoggedIn?.value && batchCount >= 2" class="batch-bar px-4 py-4 border-b border-rm-border flex-shrink-0" style="background: rgb(var(--rm-accent) / 0.06); border-left: 3px solid rgb(var(--rm-accent) / 0.5);">
       <p class="batch-bar-label m-0 text-xs font-semibold text-rm-text">{{ batchCount }} selected</p>
       <p class="batch-bar-hint m-0 mt-1.5 text-xs text-rm-muted">Release:</p>
@@ -83,20 +105,22 @@
       </ul>
     </div>
   </aside>
-  <Button variant="text" size="small" class="sidebar-resizer w-1 shrink-0 min-w-0 p-0 rounded-none cursor-col-resize bg-transparent hover:bg-rm-accent/20 active:bg-rm-accent/30 transition-colors self-stretch border-0" aria-label="Resize sidebar" @pointerdown="onResizerPointerDown" />
+  <div class="sidebar-resizer" aria-label="Resize sidebar" @pointerdown="onResizerPointerDown" />
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import Select from 'primevue/select';
+import Popover from 'primevue/popover';
 import { useAppStore } from '../stores/app';
 import { useApi } from '../composables/useApi';
 import { useLicense } from '../composables/useLicense';
 import { useResizableSidebar } from '../composables/useResizableSidebar';
 import { useNotifications } from '../composables/useNotifications';
+import { useAnnouncer } from '../composables/useAnnouncer';
 import { useAgentCrewSlots } from '../composables/useAgentCrewSlots';
 import * as debug from '../utils/debug';
 import { toPlainProjects } from '../utils/plainProjects';
@@ -106,6 +130,7 @@ onMounted(() => { loadSlots(); });
 const api = useApi();
 const license = useLicense();
 const notifications = useNotifications();
+const { announcePolite } = useAnnouncer();
 
 const filterTypeOptions = computed(() => [
   { value: '', label: 'All types' },
@@ -115,6 +140,12 @@ const filterTagOptions = computed(() => [
   { value: '', label: 'All tags' },
   ...store.allTags.map((tag) => ({ value: tag, label: tag })),
 ]);
+
+const filterPopoverRef = ref();
+function toggleFilterPopover(e) {
+  filterPopoverRef.value?.toggle(e);
+}
+const hasActiveFilters = computed(() => Boolean(store.filterByType || store.filterByTag));
 
 const { sidebarStyle, onResizerPointerDown } = useResizableSidebar({
   preferenceKey: 'mainSidebarWidth',
@@ -134,6 +165,7 @@ function batchRelease(bump) {
   const paths = [...(store.selectedPaths || [])];
   if (paths.length < 2) return;
   if (!window.confirm(`Release ${paths.length} projects with ${bump} bump? This will run in sequence.`)) return;
+  api.sendTelemetry?.('release.batch', { count: paths.length, bump });
   paths.forEach((p) => {
     const proj = store.projects.find((x) => x.path === p);
     if ((proj?.type || '').toLowerCase() === 'npm') api.release?.(p, bump, false, {});
@@ -181,6 +213,10 @@ function selectProject(path) {
   debug.log('store', 'selectedPath', path);
   store.setViewMode('detail');
   store.setSelectedPath(path);
+  const proj = store.projects.find((p) => p.path === path);
+  const name = proj?.name || path?.split(/[/\\]/).pop() || 'project';
+  api.sendTelemetry?.('project.selected', { type: proj?.type || '' });
+  announcePolite(`Opened project ${name}`);
 }
 
 async function toggleStar(p) {
@@ -198,3 +234,91 @@ async function removeProject(p) {
   notifications.add({ title: 'Project removed', message: `"${name}" removed from the list.`, type: 'info' });
 }
 </script>
+
+<style scoped>
+.sidebar-dashboard-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: none;
+  border-bottom: 1px solid rgb(var(--rm-border));
+  background: transparent;
+  color: rgb(var(--rm-muted));
+  font-size: 0.8125rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.1s, background 0.1s;
+}
+.sidebar-dashboard-btn:hover {
+  color: rgb(var(--rm-text));
+  background: rgb(var(--rm-surface-hover));
+}
+.sidebar-dashboard-btn.is-active {
+  color: rgb(var(--rm-accent));
+  background: rgb(var(--rm-accent) / 0.08);
+}
+.aside-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-right: 0.5rem;
+}
+
+.filter-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: rgb(var(--rm-muted));
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+  padding: 0;
+  flex-shrink: 0;
+}
+.filter-toggle-btn:hover {
+  color: rgb(var(--rm-text));
+  background: rgb(var(--rm-surface-hover) / 0.5);
+}
+.filter-toggle-btn.has-filters {
+  color: rgb(var(--rm-accent));
+  background: rgb(var(--rm-accent) / 0.12);
+}
+
+.sidebar-resizer {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: transparent;
+  align-self: stretch;
+  transition: background 0.12s;
+  position: relative;
+}
+.sidebar-resizer::after {
+  content: '';
+  position: absolute;
+  inset: 0 -2px;
+}
+.sidebar-resizer:hover {
+  background: rgb(var(--rm-accent) / 0.25);
+}
+.sidebar-resizer:active {
+  background: rgb(var(--rm-accent) / 0.4);
+}
+
+.filter-popover-content {
+  width: 14rem;
+}
+.filter-popover-title {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: rgb(var(--rm-text));
+  margin-bottom: 0.75rem;
+}
+</style>

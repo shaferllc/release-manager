@@ -11,13 +11,17 @@ const fs = require('fs');
 const BATCH_MAX = 100;
 const FLUSH_INTERVAL_MS = 60000; // 1 minute
 
-/** Internal endpoint for usage data (not user-configurable). Override with TELEMETRY_URL for testing. */
-const TELEMETRY_ENDPOINT_DEFAULT = 'https://shipwell-web.test/api/telemetry';
+let _baseUrlProvider = null;
+
+/** Set a function that returns the current backend base URL (e.g. from the license server config). */
+function setBaseUrlProvider(fn) { _baseUrlProvider = typeof fn === 'function' ? fn : null; }
+
 function getTelemetryEndpoint() {
   if (typeof process !== 'undefined' && process.env && process.env.TELEMETRY_URL) {
     return process.env.TELEMETRY_URL;
   }
-  return TELEMETRY_ENDPOINT_DEFAULT;
+  const base = _baseUrlProvider ? _baseUrlProvider() : '';
+  return base ? base.replace(/\/+$/, '') + '/api/telemetry' : '';
 }
 
 let queue = [];
@@ -183,6 +187,7 @@ function stopFlushTimer() {
 }
 
 module.exports = {
+  setBaseUrlProvider,
   sendSingleEvent,
   sendBatch,
   track,

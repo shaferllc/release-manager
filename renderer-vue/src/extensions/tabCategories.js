@@ -35,6 +35,7 @@ export const TAB_ID_TO_CATEGORY = {
   terminal: 'development',
   runbooks: 'development',
   'changelog-draft': 'development',
+  codeseer: 'development',
   // Infrastructure
   processes: 'infrastructure',
   tunnels: 'infrastructure',

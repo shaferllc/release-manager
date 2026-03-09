@@ -2,6 +2,7 @@ import { ref, computed, onMounted, watch } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from './useApi';
 import { formatAheadBehind } from '../utils';
+import { useAnnouncer } from './useAnnouncer';
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'All' },
@@ -27,6 +28,7 @@ function needsRelease(row) {
 export function useDashboard() {
   const store = useAppStore();
   const api = useApi();
+  const { announcePolite } = useAnnouncer();
 
   const filter = ref('all');
   const sort = ref('name');
@@ -66,6 +68,8 @@ export function useDashboard() {
   function selectProject(path) {
     store.setViewMode('detail');
     store.setSelectedPath(path);
+    const project = data.value.find((r) => r.path === path);
+    if (project?.name) announcePolite(`Opened project ${project.name}`);
   }
 
   async function load() {

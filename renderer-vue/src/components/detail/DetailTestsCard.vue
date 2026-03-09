@@ -54,14 +54,12 @@ import { useModals } from '../../composables/useModals';
 import { useLongActionOverlay } from '../../composables/useLongActionOverlay';
 import { useTests } from '../../composables/useTests';
 import { getDetailTabExtensions } from '../../extensions/registry';
-import { useFeatureFlags } from '../../composables/useFeatureFlags';
 import { computed } from 'vue';
 
 const props = defineProps({ info: { type: Object, default: null } });
 
 const store = useAppStore();
 const modals = useModals();
-const { isTabEnabled } = useFeatureFlags();
 const { runWithOverlay } = useLongActionOverlay();
 
 const {
@@ -76,7 +74,7 @@ const {
 } = useTests(store, () => props.info, modals, runWithOverlay);
 
 const terminalTabAvailable = computed(() =>
-  getDetailTabExtensions().some((e) => e.id === 'terminal' && isTabEnabled(e.featureFlagId ?? e.id))
+  getDetailTabExtensions().some((e) => e.id === 'terminal')
 );
 
 function openTerminalForCursor() {

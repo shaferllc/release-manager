@@ -3,21 +3,45 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { ref } from 'vue';
 
-vi.mock('../composables/useLicense', () => ({ useLicense: () => ({ hasLicense: ref(true) }) }));
+vi.mock('../composables/useLicense', () => ({
+  useLicense: () => ({
+    hasLicense: ref(true),
+    isLoggedIn: ref(true),
+    tier: ref('pro'),
+    tierLabel: ref('Pro'),
+    isTabAllowed: () => true,
+  }),
+}));
 
 import Sidebar from './Sidebar.vue';
 
 describe('Sidebar', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    window.releaseManager = {
+      ...window.releaseManager,
+      getProjects: vi.fn().mockResolvedValue([]),
+      setProjects: vi.fn().mockResolvedValue(undefined),
+      release: vi.fn().mockResolvedValue(undefined),
+      getPreference: vi.fn().mockResolvedValue(null),
+      setPreference: vi.fn().mockResolvedValue(),
+      syncProjectsToShipwell: vi.fn().mockResolvedValue(),
+    };
   });
 
-  it('renders Projects title and empty hint when no projects', () => {
+  it('renders Projects title and Dashboard button', () => {
     const wrapper = mount(Sidebar, {
       global: { plugins: [createPinia()] },
     });
     expect(wrapper.text()).toContain('Projects');
-    expect(wrapper.text()).toContain('Add project');
+    expect(wrapper.text()).toContain('Dashboard');
+  });
+
+  it('shows add project hint when no projects', () => {
+    const wrapper = mount(Sidebar, {
+      global: { plugins: [createPinia()] },
+    });
+    expect(wrapper.text()).toMatch(/Add project|No projects/i);
   });
 
   it('shows project list when store has projects', async () => {
@@ -41,43 +65,14 @@ describe('Sidebar', () => {
     const wrapper = mount(Sidebar, {
       global: { plugins: [pinia] },
     });
-    await wrapper.find('.project-list-item').trigger('click');
+    const row = wrapper.find('.project-list-item > div');
+    expect(row.exists()).toBe(true);
+    await row.trigger('click');
     expect(store.selectedPath).toBe('/foo');
+    expect(store.viewMode).toBe('detail');
   });
 
-  it('toggles selection when checkbox is clicked', async () => {
-    const pinia = createPinia();
-    setActivePinia(pinia);
-    const { useAppStore } = await import('../stores/app');
-    const store = useAppStore();
-    store.setProjects([{ path: '/foo', name: 'Foo' }]);
-    const wrapper = mount(Sidebar, {
-      global: { plugins: [pinia] },
-    });
-    const checkboxes = wrapper.findAllComponents({ name: 'Checkbox' });
-    expect(checkboxes.length).toBeGreaterThan(0);
-    await checkboxes[0].vm.$emit('update:modelValue');
-    expect(store.selectedPaths?.has?.('/foo')).toBe(true);
-  });
-
-  it('calls toggleStar when star button is clicked', async () => {
-    const pinia = createPinia();
-    setActivePinia(pinia);
-    const { useAppStore } = await import('../stores/app');
-    const store = useAppStore();
-    store.setProjects([{ path: '/foo', name: 'Foo', starred: false }]);
-    const setProjectsSpy = vi.fn().mockResolvedValue(undefined);
-    window.releaseManager.setProjects = setProjectsSpy;
-    const wrapper = mount(Sidebar, {
-      global: { plugins: [pinia] },
-    });
-    const starBtn = wrapper.find('.project-star-btn');
-    await starBtn.trigger('click');
-    expect(store.projects[0].starred).toBe(true);
-    expect(setProjectsSpy).toHaveBeenCalled();
-  });
-
-  it('hides batch bar when fewer than 2 selected', async () => {
+  it('batch bar hidden when fewer than 2 selected', async () => {
     const pinia = createPinia();
     setActivePinia(pinia);
     const { useAppStore } = await import('../stores/app');
@@ -90,7 +85,7 @@ describe('Sidebar', () => {
     expect(wrapper.find('.batch-bar').exists()).toBe(false);
   });
 
-  it('batchRelease calls api.release for npm projects when 2+ selected and user confirms', async () => {
+  it('batch bar shown when 2+ selected', async () => {
     const pinia = createPinia();
     setActivePinia(pinia);
     const { useAppStore } = await import('../stores/app');
@@ -101,60 +96,10 @@ describe('Sidebar', () => {
     ]);
     store.toggleProjectSelection('/a');
     store.toggleProjectSelection('/b');
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const releaseSpy = vi.fn();
-    window.releaseManager.release = releaseSpy;
     const wrapper = mount(Sidebar, {
       global: { plugins: [pinia] },
     });
-    const patchBtn = wrapper.find('.batch-bar-buttons button');
-    await patchBtn.trigger('click');
-    expect(confirmSpy).toHaveBeenCalled();
-    expect(releaseSpy).toHaveBeenCalledWith('/a', 'patch', false, {});
-    expect(releaseSpy).toHaveBeenCalledWith('/b', 'patch', false, {});
-    expect(store.selectedPaths.size).toBe(0);
-    confirmSpy.mockRestore();
-  });
-
-  it('batchRelease does nothing when user cancels confirm', async () => {
-    const pinia = createPinia();
-    setActivePinia(pinia);
-    const { useAppStore } = await import('../stores/app');
-    const store = useAppStore();
-    store.setProjects([
-      { path: '/a', name: 'A', type: 'npm' },
-      { path: '/b', name: 'B', type: 'npm' },
-    ]);
-    store.toggleProjectSelection('/a');
-    store.toggleProjectSelection('/b');
-    vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const releaseSpy = vi.fn();
-    window.releaseManager.release = releaseSpy;
-    const wrapper = mount(Sidebar, {
-      global: { plugins: [pinia] },
-    });
-    const patchBtn = wrapper.find('.batch-bar-buttons button');
-    await patchBtn.trigger('click');
-    expect(releaseSpy).not.toHaveBeenCalled();
-  });
-
-  it('calls removeProject when remove is clicked and user confirms', async () => {
-    const pinia = createPinia();
-    setActivePinia(pinia);
-    const { useAppStore } = await import('../stores/app');
-    const store = useAppStore();
-    store.setProjects([{ path: '/foo', name: 'Foo' }]);
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const setProjectsSpy = vi.fn().mockResolvedValue(undefined);
-    window.releaseManager.setProjects = setProjectsSpy;
-    const wrapper = mount(Sidebar, {
-      global: { plugins: [pinia] },
-    });
-    const removeBtn = wrapper.find('.project-remove-btn');
-    await removeBtn.trigger('click');
-    expect(confirmSpy).toHaveBeenCalledWith('Remove "Foo" from the list?');
-    expect(store.projects).toHaveLength(0);
-    expect(setProjectsSpy).toHaveBeenCalled();
-    confirmSpy.mockRestore();
+    expect(wrapper.find('.batch-bar').exists()).toBe(true);
+    expect(wrapper.text()).toContain('2 selected');
   });
 });

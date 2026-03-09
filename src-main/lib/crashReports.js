@@ -1,11 +1,22 @@
 /**
- * Send crash reports to an ingestion API (POST /api/crash-reports style).
+ * Send crash reports to the backend (POST /api/crash-reports).
+ * Endpoint is derived from the license server base URL.
  * No auth; server may throttle by IP (e.g. 60/min).
  */
 
 const os = require('os');
 const path = require('path');
 const fs = require('fs');
+
+let _baseUrlProvider = null;
+
+/** Set a function that returns the current backend base URL (e.g. from the license server config). */
+function setBaseUrlProvider(fn) { _baseUrlProvider = typeof fn === 'function' ? fn : null; }
+
+function getCrashReportEndpoint() {
+  const base = _baseUrlProvider ? _baseUrlProvider() : '';
+  return base ? base.replace(/\/+$/, '') + '/api/crash-reports' : '';
+}
 
 /**
  * Build a short OS string for crash reports (e.g. "macOS 14.0", "Windows 10").
@@ -19,9 +30,15 @@ function getOsString() {
   return `${platform} ${release}`;
 }
 
+let _accessTokenProvider = null;
+
+/** Set a function that returns the current access token (or null). */
+function setAccessTokenProvider(fn) { _accessTokenProvider = typeof fn === 'function' ? fn : null; }
+
 /**
- * Send a crash report to the configured endpoint.
- * Only sends if crashReports preference is true and crashReportEndpoint is set.
+ * Send a crash report to the backend.
+ * Only sends if crashReports preference is true and a base URL is configured.
+ * When the user is logged in, includes a Bearer token so the server can link the report.
  *
  * @param {() => any} getPreference - Get preference by key
  * @param {object} options - Report fields (all optional)
@@ -39,10 +56,9 @@ async function sendCrashReport(getPreference, options = {}, fetchImpl) {
   if (!enabled) {
     return { ok: false, error: 'Crash reports are disabled in settings.' };
   }
-  const endpoint = getPreference && getPreference('crashReportEndpoint');
-  const url = typeof endpoint === 'string' ? endpoint.trim() : '';
-  if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
-    return { ok: false, error: 'Crash report endpoint URL is not set or invalid. Set it in Settings → Data & privacy.' };
+  const url = getCrashReportEndpoint();
+  if (!url) {
+    return { ok: false, error: 'Crash report endpoint not available (no backend URL configured).' };
   }
 
   const body = {};
@@ -56,11 +72,17 @@ async function sendCrashReport(getPreference, options = {}, fetchImpl) {
   if (body.app_version === undefined) body.app_version = getAppVersionFromPreference();
   if (body.os === undefined) body.os = getOsString();
 
+  const headers = { 'Content-Type': 'application/json' };
+  const token = _accessTokenProvider ? _accessTokenProvider() : null;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const fetchFn = fetchImpl || globalThis.fetch;
   try {
     const res = await fetchFn(url, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify(body),
     });
     const text = await res.text();
@@ -89,6 +111,8 @@ function getAppVersionFromPreference() {
 }
 
 module.exports = {
+  setBaseUrlProvider,
+  setAccessTokenProvider,
   sendCrashReport,
   getOsString,
 };

@@ -2,9 +2,22 @@
   <div class="login-gate flex-1 flex flex-col min-h-0 items-center justify-center p-8">
     <div class="login-gate-inner max-w-sm w-full">
       <!-- Sign in screen -->
-      <template v-if="screen === 'login'">
-        <h1 class="login-gate-headline">Sign in to Shipwell</h1>
-        <p class="login-gate-subhead">
+      <template v-if="screenVal === 'login'">
+        <img src="/icon-128.png" alt="Shipwell" class="login-gate-logo" width="72" height="72" />
+        <h1 class="login-gate-headline" @click="gate.onSecretTap">Sign in to Shipwell</h1>
+
+        <!-- Hidden environment switcher (tap title 7 times to reveal) -->
+        <div v-if="gate.showEnvSwitcher" class="env-switcher">
+          <select v-model="gate.selectedEnv" class="env-switcher-select" @change="gate.switchEnv">
+            <option v-for="env in gate.environments" :key="env.id" :value="env.id">{{ env.label }}</option>
+          </select>
+          <span class="env-switcher-hint">{{ gate.currentEnvUrl }}</span>
+        </div>
+        <p v-if="gate.license.offlineGraceExpired?.value" class="login-gate-reauth-notice">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+          <span>Your offline grace period has expired. Please sign in to continue using the app.</span>
+        </p>
+        <p v-else class="login-gate-subhead">
           Use the same account as the web app to unlock projects, dashboard, and all features.
         </p>
 
@@ -12,61 +25,61 @@
           <button
             type="button"
             class="github-login-btn"
-            :disabled="loading || githubLoading"
-            @click="loginWithGitHub"
+            :disabled="loadingVal || githubLoadingVal"
+            @click="gate.loginWithGitHub"
           >
             <svg class="github-icon" viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/></svg>
-            <span>{{ githubLoading ? 'Waiting for GitHub...' : 'Sign in with GitHub' }}</span>
+            <span>{{ githubLoadingVal ? 'Waiting for GitHub...' : 'Sign in with GitHub' }}</span>
           </button>
 
           <div class="login-divider">
             <span class="login-divider-text">or sign in with email</span>
           </div>
 
-          <form class="flex flex-col gap-4" @submit.prevent="submit">
+          <form class="flex flex-col gap-4" @submit.prevent="gate.submit">
             <div class="flex flex-col gap-1">
               <label for="login-email" class="text-sm font-medium text-rm-text">Email</label>
               <InputText
                 id="login-email"
-                v-model="email"
+                v-model="gate.email"
                 type="email"
                 placeholder="you@example.com"
                 class="w-full"
                 autocomplete="email"
-                :disabled="loading"
+                :disabled="loadingVal"
               />
             </div>
             <div class="flex flex-col gap-1">
               <label for="login-password" class="text-sm font-medium text-rm-text">Password</label>
               <InputText
                 id="login-password"
-                v-model="password"
+                v-model="gate.password"
                 type="password"
                 placeholder="Password"
                 class="w-full"
                 autocomplete="current-password"
-                :disabled="loading"
-                @keydown.enter="submit"
+                :disabled="loadingVal"
+                @keydown.enter="gate.submit"
               />
             </div>
             <div class="flex justify-end">
               <button
                 type="button"
                 class="login-gate-link text-xs font-medium text-rm-muted hover:text-rm-accent transition-colors"
-                :disabled="loading"
-                @click="screen = 'forgot'"
+                :disabled="loadingVal"
+                @click="gate.setScreen('forgot')"
               >
                 Forgot password?
               </button>
             </div>
-            <Message v-if="error" severity="error" class="text-sm">{{ error }}</Message>
+            <Message v-if="gate.error" severity="error" class="text-sm">{{ gate.error }}</Message>
             <Button
               type="submit"
               severity="primary"
               size="large"
               class="login-gate-submit"
-              :loading="loading"
-              :disabled="!email.trim() || !password || loading"
+              :loading="loadingVal"
+              :disabled="!emailTrimmed || !passwordVal || loadingVal"
             >
               Sign in
             </Button>
@@ -75,8 +88,8 @@
               <button
                 type="button"
                 class="login-gate-link font-medium text-rm-accent"
-                :disabled="loading"
-                @click="screen = 'register'; error = ''"
+                :disabled="loadingVal"
+                @click="gate.setScreen('register')"
               >
                 Create account
               </button>
@@ -86,78 +99,79 @@
       </template>
 
       <!-- Register screen -->
-      <template v-else-if="screen === 'register'">
+      <template v-else-if="screenVal === 'register'">
+        <img src="/icon-128.png" alt="Shipwell" class="login-gate-logo" width="72" height="72" />
         <h1 class="login-gate-headline">Create account</h1>
         <p class="login-gate-subhead">
           Sign up with the same account you use for the Shipwell web app.
         </p>
 
-        <form class="login-gate-form flex flex-col gap-4 mt-6" @submit.prevent="registerSubmit">
+        <form class="login-gate-form flex flex-col gap-4 mt-6" @submit.prevent="gate.registerSubmit">
           <div class="flex flex-col gap-1">
             <label for="register-name" class="text-sm font-medium text-rm-text">Name</label>
             <InputText
               id="register-name"
-              v-model="name"
+              v-model="gate.name"
               type="text"
               placeholder="Your name"
               class="w-full"
               autocomplete="name"
-              :disabled="loading"
+              :disabled="loadingVal"
             />
           </div>
           <div class="flex flex-col gap-1">
             <label for="register-email" class="text-sm font-medium text-rm-text">Email</label>
             <InputText
               id="register-email"
-              v-model="email"
+              v-model="gate.email"
               type="email"
               placeholder="you@example.com"
               class="w-full"
               autocomplete="email"
-              :disabled="loading"
+              :disabled="loadingVal"
             />
           </div>
           <div class="flex flex-col gap-1">
             <label for="register-password" class="text-sm font-medium text-rm-text">Password</label>
             <InputText
               id="register-password"
-              v-model="password"
+              v-model="gate.password"
               type="password"
               placeholder="Password"
               class="w-full"
               autocomplete="new-password"
-              :disabled="loading"
-              @keydown.enter="registerSubmit"
+              :disabled="loadingVal"
+              @keydown.enter="gate.registerSubmit"
             />
           </div>
           <div class="flex flex-col gap-1">
             <label for="register-password-confirm" class="text-sm font-medium text-rm-text">Confirm password</label>
             <InputText
               id="register-password-confirm"
-              v-model="passwordConfirmation"
+              v-model="gate.passwordConfirmation"
               type="password"
               placeholder="Confirm password"
               class="w-full"
               autocomplete="new-password"
-              :disabled="loading"
+              :disabled="loadingVal"
             />
           </div>
-          <Message v-if="error" severity="error" class="text-sm">{{ error }}</Message>
+          <Message v-if="gate.error" severity="error" class="text-sm">{{ gate.error }}</Message>
           <Button
             type="submit"
             severity="primary"
             size="large"
             class="login-gate-submit"
-            :loading="loading"
-            :disabled="!email.trim() || !password || password !== passwordConfirmation || loading"
+            :loading="loadingVal"
+            :disabled="!emailTrimmed || !passwordVal || passwordVal !== passwordConfirmationVal || loadingVal"
           >
             Create account
           </Button>
           <button
             type="button"
             class="login-gate-link text-sm font-medium text-rm-muted hover:text-rm-accent transition-colors mt-2"
-            :disabled="loading"
-            @click="goBackToLogin"
+            :disabled="loadingVal"
+            @click="gate.goBackToLogin"
           >
             ← Back to sign in
           </button>
@@ -166,99 +180,100 @@
 
       <!-- Forgot password screen -->
       <template v-else>
+        <img src="/icon-128.png" alt="Shipwell" class="login-gate-logo" width="72" height="72" />
         <h1 class="login-gate-headline">Reset password</h1>
         <p class="login-gate-subhead">
           Enter your email and we'll send you a link to reset your password.
         </p>
 
-        <form class="login-gate-form flex flex-col gap-4 mt-6" @submit.prevent="sendResetLink">
+        <form class="login-gate-form flex flex-col gap-4 mt-6" @submit.prevent="gate.sendResetLink">
           <div class="flex flex-col gap-1">
             <label for="forgot-email" class="text-sm font-medium text-rm-text">Email</label>
             <InputText
               id="forgot-email"
-              v-model="email"
+              v-model="gate.email"
               type="email"
               placeholder="you@example.com"
               class="w-full"
               autocomplete="email"
-              :disabled="loading || resetSent"
+              :disabled="loadingVal || resetSentVal"
             />
           </div>
-          <Message v-if="error" severity="error" class="text-sm">
-            <span class="block">{{ error }}</span>
+          <Message v-if="gate.error" severity="error" class="text-sm">
+            <span class="block">{{ gate.error }}</span>
           </Message>
           <!-- Debug bar (Laravel Debugbar-style) when reset failed -->
-          <div v-if="resetDebug" class="login-debug-bar">
+          <div v-if="gate.resetDebug" class="login-debug-bar">
             <button
               type="button"
               class="login-debug-bar-header"
-              :aria-expanded="debugBarOpen"
-              @click="debugBarOpen = !debugBarOpen"
+              :aria-expanded="gate.debugBarOpen"
+              @click="gate.toggleDebugBar"
             >
               <span class="login-debug-bar-title">Debug</span>
-              <span class="login-debug-bar-badge">{{ resetDebug.status ?? '—' }}</span>
-              <span class="login-debug-bar-toggle" aria-hidden="true">{{ debugBarOpen ? '▼' : '▶' }}</span>
+              <span class="login-debug-bar-badge">{{ gate.resetDebug.status ?? '—' }}</span>
+              <span class="login-debug-bar-toggle" aria-hidden="true">{{ gate.debugBarOpen ? '▼' : '▶' }}</span>
             </button>
-            <div v-show="debugBarOpen" class="login-debug-bar-body">
+            <div v-show="gate.debugBarOpen" class="login-debug-bar-body">
               <div class="login-debug-tabs">
                 <button
                   type="button"
                   class="login-debug-tab"
-                  :class="{ 'login-debug-tab-active': debugTab === 'request' }"
-                  @click="debugTab = 'request'"
+                  :class="{ 'login-debug-tab-active': gate.debugTab === 'request' }"
+                  @click="gate.setDebugTab('request')"
                 >
                   Request
                 </button>
                 <button
                   type="button"
                   class="login-debug-tab"
-                  :class="{ 'login-debug-tab-active': debugTab === 'response' }"
-                  @click="debugTab = 'response'"
+                  :class="{ 'login-debug-tab-active': gate.debugTab === 'response' }"
+                  @click="gate.setDebugTab('response')"
                 >
                   Response
                 </button>
                 <button
-                  v-if="traceFrames.length"
+                  v-if="safeTraceFrames.length"
                   type="button"
                   class="login-debug-tab"
-                  :class="{ 'login-debug-tab-active': debugTab === 'trace' }"
-                  @click="debugTab = 'trace'"
+                  :class="{ 'login-debug-tab-active': gate.debugTab === 'trace' }"
+                  @click="gate.setDebugTab('trace')"
                 >
-                  Stack trace ({{ traceFrames.length }})
+                  Stack trace ({{ safeTraceFrames.length }})
                 </button>
               </div>
               <div class="login-debug-panel">
-                <div v-show="debugTab === 'request'" class="login-debug-content">
+                <div v-show="gate.debugTab === 'request'" class="login-debug-content">
                   <dl class="login-debug-dl">
                     <dt>URL</dt>
-                    <dd class="login-debug-mono">{{ resetDebug.url }}</dd>
+                    <dd class="login-debug-mono">{{ gate.resetDebug.url }}</dd>
                     <dt>Status</dt>
-                    <dd class="login-debug-mono">{{ resetDebug.status ?? '—' }}</dd>
+                    <dd class="login-debug-mono">{{ gate.resetDebug.status ?? '—' }}</dd>
                   </dl>
                 </div>
-                <div v-show="debugTab === 'response'" class="login-debug-content">
-                  <template v-if="responseMessage">
-                    <p class="login-debug-message">{{ responseMessage }}</p>
+                <div v-show="gate.debugTab === 'response'" class="login-debug-content">
+                  <template v-if="gate.responseMessage">
+                    <p class="login-debug-message">{{ gate.responseMessage }}</p>
                   </template>
-                  <pre v-if="responsePreview" class="login-debug-pre">{{ responsePreview }}</pre>
+                  <pre v-if="gate.responsePreview" class="login-debug-pre">{{ gate.responsePreview }}</pre>
                 </div>
-                <div v-show="debugTab === 'trace'" class="login-debug-content login-debug-trace-wrap">
+                <div v-show="gate.debugTab === 'trace'" class="login-debug-content login-debug-trace-wrap">
                   <ol class="login-debug-trace">
                     <li
-                      v-for="(frame, idx) in traceFrames"
+                      v-for="(frame, idx) in safeTraceFrames"
                       :key="idx"
                       class="login-debug-trace-frame"
                     >
-                      <span class="login-debug-trace-file">{{ frame.file || '—' }}</span>
-                      <span v-if="frame.line != null" class="login-debug-trace-line">:{{ frame.line }}</span>
-                      <span v-if="frame.function" class="login-debug-trace-fn">{{ frame.function }}{{ frame.class ? ` (${frame.class})` : '' }}</span>
+                      <span class="login-debug-trace-file">{{ (frame && frame.file) || '—' }}</span>
+                      <span v-if="frame && frame.line != null" class="login-debug-trace-line">:{{ frame.line }}</span>
+                      <span v-if="frame && frame.function" class="login-debug-trace-fn">{{ frame.function }}{{ frame.class ? ` (${frame.class})` : '' }}</span>
                     </li>
                   </ol>
                 </div>
               </div>
             </div>
           </div>
-          <Message v-if="resetSent" severity="success" class="text-sm">
+          <Message v-if="gate.resetSent" severity="success" class="text-sm">
             If an account exists for that email, we've sent a password reset link.
           </Message>
           <Button
@@ -266,16 +281,16 @@
             severity="primary"
             size="large"
             class="login-gate-submit"
-            :loading="loading"
-            :disabled="!email.trim() || loading || resetSent"
+            :loading="loadingVal"
+            :disabled="!emailTrimmed || loadingVal || resetSentVal"
           >
-            {{ resetSent ? 'Check your email' : 'Send reset link' }}
+            {{ resetSentVal ? 'Check your email' : 'Send reset link' }}
           </Button>
           <button
             type="button"
             class="login-gate-link text-sm font-medium text-rm-muted hover:text-rm-accent transition-colors mt-2"
-            :disabled="loading"
-            @click="goBackToLogin"
+            :disabled="loadingVal"
+            @click="gate.goBackToLogin"
           >
             ← Back to sign in
           </button>
@@ -286,190 +301,39 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { computed } from 'vue';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
 import Message from 'primevue/message';
-import { useApi } from '../composables/useApi';
-import { useLicense } from '../composables/useLicense';
-import * as debug from '../utils/debug';
+import { useLoginGate } from '../composables/useLoginGate';
 
-const api = useApi();
-const license = useLicense();
+const gate = useLoginGate();
 
-const screen = ref('login'); // 'login' | 'register' | 'forgot'
-const name = ref('');
-const email = ref('');
-const password = ref('');
-const passwordConfirmation = ref('');
-const loading = ref(false);
-const error = ref('');
-const githubLoading = ref(false);
-
-let unsubOAuthSuccess = null;
-let unsubOAuthError = null;
-
-onMounted(() => {
-  unsubOAuthSuccess = api.onGitHubOAuthSuccess?.(() => {
-    githubLoading.value = false;
-    error.value = '';
-    license.loadStatus();
-  });
-  unsubOAuthError = api.onGitHubOAuthError?.((err) => {
-    githubLoading.value = false;
-    error.value = err || 'GitHub sign-in failed.';
-  });
-});
-
-onUnmounted(() => {
-  unsubOAuthSuccess?.();
-  unsubOAuthError?.();
-});
-
-async function loginWithGitHub() {
-  error.value = '';
-  githubLoading.value = true;
-  try {
-    const result = await api.loginWithGitHub?.();
-    if (!result?.ok) {
-      error.value = result?.error || 'Could not start GitHub sign-in.';
-      githubLoading.value = false;
-    }
-  } catch (e) {
-    error.value = e?.message || 'Could not start GitHub sign-in.';
-    githubLoading.value = false;
-  }
+/** Safe string access for template (handles refs that may not unwrap in tests) */
+function str(val) {
+  const s = typeof val === 'string' ? val : val?.value ?? '';
+  return String(s);
 }
-const resetSent = ref(false);
-/** When set, show extra debug details for password reset failure (URL, status, response). */
-const resetDebug = ref(null);
-const debugBarOpen = ref(true);
-const debugTab = ref('request');
-
-/** Laravel-style trace array from response body. */
-const traceFrames = computed(() => {
-  const body = resetDebug.value?.body;
-  if (!body || !Array.isArray(body.trace)) return [];
-  return body.trace;
-});
-
-/** Main error message from Laravel response (message or exception). */
-const responseMessage = computed(() => {
-  const body = resetDebug.value?.body;
-  if (!body || typeof body !== 'object') return '';
-  return body.message || body.exception || body.error || '';
-});
-
-/** Response body as formatted JSON for Response tab (excluding huge trace if we have Stack trace tab). */
-const responsePreview = computed(() => {
-  const body = resetDebug.value?.body;
-  if (!body || typeof body !== 'object') return '';
-  const clone = { ...body };
-  if (Array.isArray(clone.trace) && clone.trace.length > 0) {
-    clone.trace = `[${clone.trace.length} frames — see Stack trace tab]`;
-  }
-  return JSON.stringify(clone, null, 2);
-});
-
-function goBackToLogin() {
-  screen.value = 'login';
-  error.value = '';
-  resetSent.value = false;
-  resetDebug.value = null;
-  passwordConfirmation.value = '';
-}
-
-async function registerSubmit() {
-  error.value = '';
-  if (!email.value?.trim() || !password.value) return;
-  if (password.value !== passwordConfirmation.value) {
-    error.value = 'Password and confirmation do not match.';
-    return;
-  }
-  loading.value = true;
-  try {
-    debug.log('login', 'register', { name: name.value?.trim(), email: email.value.trim() });
-    const result = await api.registerToLicenseServer?.(name.value?.trim() || email.value.trim(), email.value.trim(), password.value, passwordConfirmation.value);
-    if (!result?.ok) {
-      error.value = result?.error || 'Could not create account.';
-      debug.warn('login', 'register failed', { error: error.value });
-      return;
-    }
-    debug.log('login', 'register ok, signing in');
-    const loginResult = await api.loginToLicenseServer?.(email.value.trim(), password.value);
-    if (loginResult?.ok) {
-      password.value = '';
-      passwordConfirmation.value = '';
-      await license.loadStatus();
-    } else {
-      error.value = loginResult?.error || 'Account created. Please sign in.';
-    }
-  } catch (e) {
-    error.value = e?.message || 'Could not create account.';
-    debug.warn('login', 'register exception', e?.message ?? e);
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function submit() {
-  error.value = '';
-  if (!email.value?.trim()) return;
-  loading.value = true;
-  try {
-    debug.log('login', 'submit', { email: email.value.trim() });
-    const result = await api.loginToLicenseServer?.(email.value.trim(), password.value ?? '');
-    if (result?.ok) {
-      debug.log('login', 'submit ok, loading status');
-      password.value = '';
-      await license.loadStatus();
-    } else {
-      error.value = result?.error || 'Sign in failed';
-      debug.warn('login', 'submit failed', { error: error.value, result });
-    }
-  } catch (e) {
-    error.value = e?.message || 'Sign in failed';
-    debug.warn('login', 'submit exception', {
-      message: e?.message,
-      name: e?.name,
-      cause: e?.cause,
-      stack: e?.stack,
-    });
-  } finally {
-    loading.value = false;
-  }
-}
-
-async function sendResetLink() {
-  error.value = '';
-  resetDebug.value = null;
-  if (!email.value?.trim()) return;
-  loading.value = true;
-  resetSent.value = false;
-  try {
-    debug.log('login', 'requestPasswordReset', { email: email.value.trim() });
-    const result = await api.requestPasswordReset?.(email.value.trim());
-    if (result?.ok) {
-      resetSent.value = true;
-      debug.log('login', 'requestPasswordReset ok');
-    } else {
-      error.value = result?.error || 'Could not send reset link';
-      resetDebug.value = result?.debug ?? null;
-      debug.warn('login', 'requestPasswordReset failed', { error: error.value, debug: resetDebug.value });
-    }
-  } catch (e) {
-    error.value = e?.message || 'Could not send reset link';
-    resetDebug.value = { thrown: e?.message, name: e?.name };
-    debug.warn('login', 'requestPasswordReset exception', e?.message ?? e);
-  } finally {
-    loading.value = false;
-  }
-}
+const emailTrimmed = computed(() => str(gate.email).trim());
+const passwordVal = computed(() => str(gate.password));
+const passwordConfirmationVal = computed(() => str(gate.passwordConfirmation));
+const safeTraceFrames = computed(() => (Array.isArray(gate.traceFrames) ? gate.traceFrames : []).filter(Boolean));
+/** Unwrap refs for props (tests may not auto-unwrap) */
+const loadingVal = computed(() => !!(gate.loading?.value ?? gate.loading));
+const githubLoadingVal = computed(() => !!(gate.githubLoading?.value ?? gate.githubLoading));
+const resetSentVal = computed(() => !!(gate.resetSent?.value ?? gate.resetSent));
+const screenVal = computed(() => gate.screen?.value ?? gate.screen ?? 'login');
 </script>
 
 <style scoped>
 .login-gate {
   background: linear-gradient(135deg, rgb(var(--rm-accent) / 0.08) 0%, rgb(var(--rm-accent) / 0.02) 100%);
+}
+.login-gate-logo {
+  display: block;
+  margin-bottom: 1.25rem;
+  border-radius: 16px;
+  filter: drop-shadow(0 4px 12px rgb(0 0 0 / 0.15));
 }
 .login-gate-headline {
   font-size: 1.75rem;
@@ -479,11 +343,56 @@ async function sendResetLink() {
   margin: 0;
   line-height: 1.2;
 }
+.login-gate-reauth-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.75rem 0 0 0;
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: rgb(var(--rm-warning));
+  background: rgb(var(--rm-warning) / 0.1);
+  border: 1px solid rgb(var(--rm-warning) / 0.3);
+  border-radius: 6px;
+}
 .login-gate-subhead {
   font-size: 0.9375rem;
   color: rgb(var(--rm-muted));
   margin: 0.5rem 0 0 0;
   line-height: 1.5;
+}
+.env-switcher {
+  margin-top: 0.75rem;
+  padding: 0.75rem;
+  border-radius: 6px;
+  background: rgb(var(--rm-surface));
+  border: 1px dashed rgb(var(--rm-border));
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.env-switcher-select {
+  width: 100%;
+  padding: 0.5rem 0.625rem;
+  border-radius: 6px;
+  border: 1px solid rgb(var(--rm-border));
+  background: rgb(var(--rm-bg));
+  color: rgb(var(--rm-text));
+  font-size: 0.8125rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+.env-switcher-select:focus {
+  outline: none;
+  border-color: rgb(var(--rm-accent));
+  box-shadow: 0 0 0 2px rgb(var(--rm-accent) / 0.2);
+}
+.env-switcher-hint {
+  font-size: 0.6875rem;
+  color: rgb(var(--rm-muted));
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
 }
 .login-gate-submit {
   font-size: 1rem;

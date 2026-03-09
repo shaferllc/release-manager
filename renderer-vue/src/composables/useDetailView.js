@@ -1,10 +1,9 @@
 import { ref, watch, onMounted, computed } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from './useApi';
-import { useFeatureFlags } from './useFeatureFlags';
 import { useLicense } from './useLicense';
+import { useExtensionPrefs } from './useExtensionPrefs';
 import { useDetailTabOrder } from './useDetailTabOrder';
-import { useHiddenExtensions } from './useHiddenExtensions';
 import { getDetailTabExtensions } from '../extensions/registry';
 
 const TAB_ICONS = {
@@ -26,15 +25,14 @@ const BASE_TABS = [
 ];
 
 /**
- * Composable for detail view: project info, tabs (feature-flagged), load on path change.
+ * Composable for detail view: project info, tabs, load on path change.
  * No arguments. Returns { store, info, error, visibleTabs, load }.
  */
 export function useDetailView() {
   const store = useAppStore();
   const api = useApi();
-  const { isTabEnabled } = useFeatureFlags();
   const license = useLicense();
-  const { isHidden: isExtensionHidden } = useHiddenExtensions();
+  const extPrefs = useExtensionPrefs();
   const { detailTabOrder, setDetailTabOrder } = useDetailTabOrder();
 
   const info = ref(null);
@@ -45,7 +43,7 @@ export function useDetailView() {
   const showCoverageTab = computed(() => projectType.value === 'npm' || projectType.value === 'php');
 
   const visibleTabs = computed(() => {
-    const allowed = (id) => isTabEnabled(id) && license.isTabAllowed(id);
+    const allowed = (id) => license.isTabAllowed(id);
     const t = BASE_TABS.filter((tab) => tab && tab.id && allowed(tab.id));
     if (allowed('composer') && info.value?.hasComposer) t.push({ id: 'composer', label: 'Composer', icon: TAB_ICONS.composer });
     if (allowed('tests') && showTestsTab.value) t.push({ id: 'tests', label: 'Tests', icon: TAB_ICONS.tests });
@@ -54,9 +52,7 @@ export function useDetailView() {
     const extensions = getDetailTabExtensions();
     extensions.forEach((ext) => {
       if (!ext || ext.id == null) return;
-      if (isExtensionHidden(ext.id)) return;
-      const flagId = ext.featureFlagId ?? ext.id;
-      if (!isTabEnabled(flagId) || !license.isTabAllowed(ext.id)) return;
+      if (!extPrefs.isEnabled(ext.id)) return;
       if (ext.isVisible && info.value && !ext.isVisible(info.value)) return;
       t.push({ id: ext.id, label: ext.label, icon: ext.icon });
     });

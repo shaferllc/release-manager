@@ -125,15 +125,25 @@ function moveSelection(direction) {
 function onDialogKeydown(e) {
   if (!palette.isOpen.value) return;
   const flat = flatItems.value;
-  const isNavKey = e.key === 'ArrowDown' || e.key === 'ArrowUp' || (e.key === 'j' && !e.ctrlKey && !e.metaKey && !e.altKey) || (e.key === 'k' && !e.ctrlKey && !e.metaKey && !e.altKey);
-  if (isNavKey) {
+  const inputFocused = document.activeElement === inputRef.value;
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
     e.preventDefault();
     e.stopPropagation();
     e.stopImmediatePropagation();
-    if (e.key === 'ArrowDown' || e.key === 'j') moveSelection(1);
-    else if (e.key === 'ArrowUp' || e.key === 'k') moveSelection(-1);
+    moveSelection(e.key === 'ArrowDown' ? 1 : -1);
     return;
   }
+
+  // j/k navigation only when NOT typing in the search input
+  if (!inputFocused && (e.key === 'j' || e.key === 'k') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.stopImmediatePropagation();
+    moveSelection(e.key === 'j' ? 1 : -1);
+    return;
+  }
+
   if (e.key === 'Escape') {
     if (query.value.trim()) {
       query.value = '';
@@ -235,20 +245,19 @@ function selectCommand(cmd) {
 }
 
 function handleKeydown(e) {
-  const flat = flatItems.value;
-  if (e.key === 'ArrowDown' || e.key === 'j') {
+  if (e.key === 'ArrowDown') {
     e.preventDefault();
     moveSelection(1);
     return;
   }
-  if (e.key === 'ArrowUp' || e.key === 'k') {
+  if (e.key === 'ArrowUp') {
     e.preventDefault();
     moveSelection(-1);
     return;
   }
   if (e.key === 'Enter') {
     e.preventDefault();
-    const item = flat[selectedIndex.value];
+    const item = flatItems.value[selectedIndex.value];
     if (item?.type === 'command') palette.runCommand(item.cmd.id);
     return;
   }

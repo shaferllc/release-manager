@@ -5,6 +5,11 @@ contextBridge.exposeInMainWorld('releaseManager', {
   getAllProjectsInfo: () => ipcRenderer.invoke('rm-get-all-projects-info'),
   setProjects: (projects) => ipcRenderer.invoke('rm-set-projects', projects),
   showDirectoryDialog: () => ipcRenderer.invoke('rm-show-directory-dialog'),
+  bulkImportProjects: () => ipcRenderer.invoke('rm-bulk-import-projects'),
+  fetchShipwellProjects: () => ipcRenderer.invoke('rm-fetch-shipwell-projects'),
+  cloneGitHubRepo: (repoOrUrl, targetDir) => ipcRenderer.invoke('rm-clone-github-repo', repoOrUrl, targetDir),
+  syncProjectsToShipwell: () => ipcRenderer.invoke('rm-sync-projects-to-shipwell'),
+  syncReleasesToShipwell: () => ipcRenderer.invoke('rm-sync-releases-to-shipwell'),
   getProjectInfo: (dirPath) => ipcRenderer.invoke('rm-get-project-info', dirPath),
   getComposerInfo: (dirPath) => ipcRenderer.invoke('rm-get-composer-info', dirPath),
   getComposerOutdated: (dirPath, direct) => ipcRenderer.invoke('rm-get-composer-outdated', dirPath, direct),
@@ -20,8 +25,8 @@ contextBridge.exposeInMainWorld('releaseManager', {
   getCommitsSinceTag: (dirPath, sinceTag) => ipcRenderer.invoke('rm-get-commits-since-tag', dirPath, sinceTag),
   getRecentCommits: (dirPath, n) => ipcRenderer.invoke('rm-get-recent-commits', dirPath, n),
   getSuggestedBump: (commits) => ipcRenderer.invoke('rm-get-suggested-bump', commits),
-  getShortcutAction: (viewMode, selectedPath, key, metaKey, ctrlKey, inInput) =>
-    ipcRenderer.invoke('rm-get-shortcut-action', viewMode, selectedPath, key, metaKey, ctrlKey, inInput),
+  getShortcutAction: (viewMode, selectedPath, key, metaKey, ctrlKey, inInput, detailTab) =>
+    ipcRenderer.invoke('rm-get-shortcut-action', viewMode, selectedPath, key, metaKey, ctrlKey, inInput, detailTab),
   getActionsUrl: (gitRemote) => ipcRenderer.invoke('rm-get-actions-url', gitRemote),
   getGitHubToken: () => ipcRenderer.invoke('rm-get-github-token'),
   setGitHubToken: (token) => ipcRenderer.invoke('rm-set-github-token', token),
@@ -121,6 +126,10 @@ contextBridge.exposeInMainWorld('releaseManager', {
   submoduleUpdate: (dirPath, init) => ipcRenderer.invoke('rm-submodule-update', dirPath, init),
   getGitState: (dirPath) => ipcRenderer.invoke('rm-get-git-state', dirPath),
   getGitUser: (dirPath) => ipcRenderer.invoke('rm-get-git-user', dirPath),
+  listGpgKeys: () => ipcRenderer.invoke('rm-list-gpg-keys'),
+  generateGpgKey: (name, email) => ipcRenderer.invoke('rm-generate-gpg-key', name, email),
+  getGitGlobalConfig: () => ipcRenderer.invoke('rm-get-git-global-config'),
+  setGitGlobalConfig: (key, value) => ipcRenderer.invoke('rm-set-git-global-config', key, value),
   getWorktrees: (dirPath) => ipcRenderer.invoke('rm-get-worktrees', dirPath),
   worktreeAdd: (dirPath, worktreePath, branch) => ipcRenderer.invoke('rm-worktree-add', dirPath, worktreePath, branch),
   worktreeRemove: (dirPath, worktreePath) => ipcRenderer.invoke('rm-worktree-remove', dirPath, worktreePath),
@@ -140,7 +149,7 @@ contextBridge.exposeInMainWorld('releaseManager', {
   getTerminalPopoutState: () => ipcRenderer.invoke('rm-get-terminal-popout-state'),
   closeTerminalPopoutWindow: () => ipcRenderer.invoke('rm-close-terminal-popout-window'),
   openInEditor: (dirPath) => ipcRenderer.invoke('rm-open-in-editor', dirPath),
-  openFileInEditor: (dirPath, relativePath) => ipcRenderer.invoke('rm-open-file-in-editor', dirPath, relativePath),
+  openFileInEditor: (dirPath, relativePath, line) => ipcRenderer.invoke('rm-open-file-in-editor', dirPath, relativePath, line),
   getFileDiff: (dirPath, filePath, isUntracked) => ipcRenderer.invoke('rm-get-file-diff', dirPath, filePath, isUntracked),
   readProjectFile: (dirPath, relativePath) => ipcRenderer.invoke('rm-read-project-file', dirPath, relativePath),
   writeProjectFile: (dirPath, relativePath, content) => ipcRenderer.invoke('rm-write-project-file', dirPath, relativePath, content),
@@ -201,17 +210,28 @@ contextBridge.exposeInMainWorld('releaseManager', {
   openSshInTerminal: (connection) => ipcRenderer.invoke('rm-open-ssh-in-terminal', connection),
   getChangelog: () => ipcRenderer.invoke('rm-get-changelog'),
   getExtensionsDir: () => ipcRenderer.invoke('rm-get-extensions-dir'),
+  getGitHubExtensionRegistry: () => ipcRenderer.invoke('rm-get-github-extension-registry'),
+  installExtensionFromGitHub: (extensionIdOrInfo) => ipcRenderer.invoke('rm-install-extension-from-github', extensionIdOrInfo),
+  syncPlanExtensions: () => ipcRenderer.invoke('rm-sync-plan-extensions'),
+  switchPlan: (plan) => ipcRenderer.invoke('rm-switch-plan', plan),
+  registerGitHubExtension: (repo) => ipcRenderer.invoke('rm-register-github-extension', repo),
   getMarketplaceExtensions: (baseUrl) => ipcRenderer.invoke('rm-get-marketplace-extensions', baseUrl),
+  getAutoInstallExtensions: () => ipcRenderer.invoke('rm-get-auto-install-extensions'),
   installExtension: (extensionId, extensionInfo, downloadUrlOrBaseUrl) =>
     ipcRenderer.invoke('rm-install-extension', extensionId, extensionInfo, downloadUrlOrBaseUrl),
   getInstalledUserExtensions: () => ipcRenderer.invoke('rm-get-installed-user-extensions'),
   getExtensionScriptContent: (extensionId) => ipcRenderer.invoke('rm-get-extension-script-content', extensionId),
+  getExtensionCssContent: (extensionId) => ipcRenderer.invoke('rm-get-extension-css-content', extensionId),
+  buildAllExtensions: () => ipcRenderer.invoke('rm-build-all-extensions'),
   uninstallExtension: (extensionId) => ipcRenderer.invoke('rm-uninstall-extension', extensionId),
   uploadExtensionToMarketplace: (baseUrl, filePath) =>
     ipcRenderer.invoke('rm-upload-extension-to-marketplace', baseUrl, filePath),
   getPreference: (key) => ipcRenderer.invoke('rm-get-preference', key),
   setPreference: (key, value) => ipcRenderer.invoke('rm-set-preference', key, value),
   getLicenseStatus: () => ipcRenderer.invoke('rm-get-license-status'),
+  getOfflineGraceConfig: () => ipcRenderer.invoke('rm-get-offline-grace-config'),
+  setOfflineGraceDays: (days) => ipcRenderer.invoke('rm-set-offline-grace-days', days),
+  checkConnectivity: () => ipcRenderer.invoke('rm-check-connectivity'),
   getLicenseServerConfig: () => ipcRenderer.invoke('rm-get-license-server-config'),
   getLicenseServerEnvironments: () => ipcRenderer.invoke('rm-get-license-server-environments'),
   setLicenseServerConfig: (config) => ipcRenderer.invoke('rm-set-license-server-config', config),
@@ -245,6 +265,32 @@ contextBridge.exposeInMainWorld('releaseManager', {
   sendCrashReport: (options) => ipcRenderer.invoke('rm-send-crash-report', options),
   sendTelemetry: (event, properties) => ipcRenderer.invoke('rm-send-telemetry', event, properties),
   flushTelemetry: () => ipcRenderer.invoke('rm-flush-telemetry'),
+  getCustomTelemetryEvents: () => ipcRenderer.invoke('rm-get-custom-telemetry-events'),
+  setCustomTelemetryEvents: (events) => ipcRenderer.invoke('rm-set-custom-telemetry-events', events),
+  downloadExtensionTemplate: () => ipcRenderer.invoke('rm-download-extension-template'),
+  getWebhooks: () => ipcRenderer.invoke('rm-get-webhooks'),
+  createWebhook: (data) => ipcRenderer.invoke('rm-create-webhook', data),
+  updateWebhook: (id, data) => ipcRenderer.invoke('rm-update-webhook', id, data),
+  deleteWebhook: (id) => ipcRenderer.invoke('rm-delete-webhook', id),
+  testWebhook: (id) => ipcRenderer.invoke('rm-test-webhook', id),
+  getTeamInfo: () => ipcRenderer.invoke('rm-get-team-info'),
+  createTeam: (name) => ipcRenderer.invoke('rm-create-team', name),
+  updateTeam: (name) => ipcRenderer.invoke('rm-update-team', name),
+  inviteTeamMember: (email, role) => ipcRenderer.invoke('rm-invite-team-member', email, role),
+  cancelTeamInvite: (inviteId) => ipcRenderer.invoke('rm-cancel-team-invite', inviteId),
+  removeTeamMember: (userId) => ipcRenderer.invoke('rm-remove-team-member', userId),
+  leaveTeam: () => ipcRenderer.invoke('rm-leave-team'),
+  getTeamInvites: () => ipcRenderer.invoke('rm-get-team-invites'),
+  getSharedNotes: (projectPath) => ipcRenderer.invoke('rm-get-shared-notes', projectPath),
+  createSharedNote: (title, content, projectPath) => ipcRenderer.invoke('rm-create-shared-note', title, content, projectPath),
+  deleteSharedNote: (noteId) => ipcRenderer.invoke('rm-delete-shared-note', noteId),
+  fetchRemoteSettings: () => ipcRenderer.invoke('rm-fetch-remote-settings'),
+  pushRemoteSettings: (settings) => ipcRenderer.invoke('rm-push-remote-settings', settings),
+  fetchGitHubHealth: () => ipcRenderer.invoke('rm-fetch-github-health'),
+  fetchNotificationPreferences: () => ipcRenderer.invoke('rm-fetch-notification-preferences'),
+  updateNotificationPreferences: (preferences) => ipcRenderer.invoke('rm-update-notification-preferences', preferences),
+  getExtensionAnalyticsOverview: () => ipcRenderer.invoke('rm-get-extension-analytics-overview'),
+  getExtensionAnalyticsChartData: (extensionId, range) => ipcRenderer.invoke('rm-get-extension-analytics-chart-data', extensionId, range),
   showSystemNotification: (title, body) => ipcRenderer.invoke('rm-show-system-notification', title, body),
   getApiServerStatus: () => ipcRenderer.invoke('rm-get-api-server-status'),
   getBookmarksReceiverPort: () => ipcRenderer.invoke('rm-get-bookmarks-receiver-port'),
@@ -259,6 +305,45 @@ contextBridge.exposeInMainWorld('releaseManager', {
   invokeApi: (method, params) => ipcRenderer.invoke('rm-invoke-api', method, params),
   onTheme: (callback) => {
     ipcRenderer.on('rm-theme', (_e, effective) => callback(effective));
+  },
+  // CodeSeer extension (PHP debugging)
+  codeseerOnMessage: (callback) => {
+    ipcRenderer.on('codeseer-message', (_e, msg) => callback(msg));
+  },
+  codeseerOnServerReady: (callback) => {
+    ipcRenderer.on('codeseer-server-ready', (_e, data) => callback(data));
+  },
+  codeseerOnServerError: (callback) => {
+    ipcRenderer.on('codeseer-server-error', (_e, err) => callback(err));
+  },
+  codeseerOnClearRequest: (callback) => {
+    ipcRenderer.on('codeseer-clear-request', () => callback());
+  },
+  codeseerGetMessages: (opts) => ipcRenderer.invoke('codeseer-get-messages', opts),
+  codeseerClear: () => ipcRenderer.invoke('codeseer-clear'),
+  codeseerGetConnectionsStatus: () => ipcRenderer.invoke('codeseer-get-connections-status'),
+  codeseerRestartServer: () => ipcRenderer.invoke('codeseer-restart-server'),
+  codeseerOpenApiDashboard: () => ipcRenderer.invoke('codeseer-open-api-dashboard'),
+  codeseerOnProxyReady: (callback) => {
+    ipcRenderer.on('codeseer-proxy-ready', (_e, data) => callback(data));
+  },
+  codeseerOnProxyError: (callback) => {
+    ipcRenderer.on('codeseer-proxy-error', (_e, err) => callback(err));
+  },
+  codeseerGetDemoList: () => ipcRenderer.invoke('codeseer-get-demo-list'),
+  codeseerRunDemo: (id) => ipcRenderer.invoke('codeseer-run-demo', id),
+  codeseerShowDirectoryDialog: () => ipcRenderer.invoke('codeseer-show-directory-dialog'),
+  codeseerDetectProject: (dirPath) => ipcRenderer.invoke('codeseer-detect-project', dirPath),
+  codeseerInstallForProject: (dirPath, option) => ipcRenderer.invoke('codeseer-install-for-project', dirPath, option),
+  codeseerSendTestData: (opts) => ipcRenderer.invoke('codeseer-send-test-data', opts),
+  codeseerOnSshReady: (callback) => {
+    ipcRenderer.on('codeseer-ssh-ready', (_e, data) => callback(data));
+  },
+  codeseerOnSshError: (callback) => {
+    ipcRenderer.on('codeseer-ssh-error', (_e, err) => callback(err));
+  },
+  codeseerOnMcpReady: (callback) => {
+    ipcRenderer.on('codeseer-mcp-ready', (_e, data) => callback(data));
   },
   onProcessStatusChanged: (callback) => {
     ipcRenderer.on('rm-process-status-changed', () => callback());
@@ -277,5 +362,10 @@ contextBridge.exposeInMainWorld('releaseManager', {
     const handler = (_e, error) => callback(error);
     ipcRenderer.on('rm-github-oauth-error', handler);
     return () => ipcRenderer.removeListener('rm-github-oauth-error', handler);
+  },
+  onInstallExtensionFromDeeplink: (callback) => {
+    const handler = (_e, data) => callback(data);
+    ipcRenderer.on('install-extension-from-deeplink', handler);
+    return () => ipcRenderer.removeListener('install-extension-from-deeplink', handler);
   },
 });

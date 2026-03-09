@@ -11,7 +11,7 @@ describe('useAppStore', () => {
     const store = useAppStore();
     expect(store.projects).toEqual([]);
     expect(store.selectedPath).toBe(null);
-    expect(store.viewMode).toBe('detail');
+    expect(store.viewMode).toBe('dashboard');
     expect(store.detailTab).toBe('dashboard');
     expect(store.useDetailTabs).toBe(true);
   });
@@ -84,6 +84,23 @@ describe('useAppStore', () => {
     const store = useAppStore();
     store.setDetailTab('git');
     expect(store.detailTab).toBe('git');
+  });
+
+  it('setPendingTerminalCommand and clearPendingTerminalCommand', () => {
+    const store = useAppStore();
+    store.setPendingTerminalCommand('npm test');
+    expect(store.pendingTerminalCommand).toBe('npm test');
+    store.clearPendingTerminalCommand();
+    expect(store.pendingTerminalCommand).toBe(null);
+  });
+
+  it('toggleSidebar and setSidebarVisible', () => {
+    const store = useAppStore();
+    expect(store.sidebarVisible).toBe(true);
+    store.toggleSidebar();
+    expect(store.sidebarVisible).toBe(false);
+    store.setSidebarVisible(true);
+    expect(store.sidebarVisible).toBe(true);
   });
 
   it('filteredProjects returns sorted list', () => {
@@ -317,6 +334,16 @@ describe('useAppStore', () => {
     expect(list[1].name).toBe('Same');
   });
 
+  it('allTypes returns unique sorted types', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/a', name: 'A', type: 'php' },
+      { path: '/b', name: 'B', type: 'npm' },
+      { path: '/c', name: 'C', type: 'php' },
+    ]);
+    expect(store.allTypes).toEqual(['npm', 'php']);
+  });
+
   it('allTags returns unique sorted tags', () => {
     const store = useAppStore();
     store.setProjects([
@@ -366,6 +393,19 @@ describe('useAppStore', () => {
     store.setSelectedPath('/a');
     store.removeProject('/b');
     expect(store.selectedPath).toBe('/a');
+  });
+
+  it('removeProject removes path from selectedPaths', () => {
+    const store = useAppStore();
+    store.setProjects([
+      { path: '/a', name: 'A' },
+      { path: '/b', name: 'B' },
+    ]);
+    store.toggleProjectSelection('/a');
+    store.toggleProjectSelection('/b');
+    store.removeProject('/a');
+    expect(store.selectedPaths.has('/a')).toBe(false);
+    expect(store.selectedPaths.has('/b')).toBe(true);
   });
 
   it('selectedProject returns null when selectedPath not in projects', () => {

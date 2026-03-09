@@ -3,7 +3,7 @@
     <Message v-if="error" severity="warn" class="m-4">{{ error }}</Message>
     <template v-else-if="info">
       <div
-        class="detail-content w-full py-8 px-8 relative flex flex-col"
+        class="detail-content w-full py-6 px-6 relative flex flex-col"
         :class="store.detailTab === 'coverage' ? 'detail-content-coverage' : 'flex-1 min-h-0'"
       >
         <DetailHeader :info="info" @remove="$emit('refresh')" />
@@ -22,7 +22,7 @@
               :class="[store.detailTab === tab.id ? 'text-rm-accent border-rm-accent/50 bg-rm-accent/10' : 'text-rm-muted hover:text-rm-text hover:bg-rm-surface/50 border-transparent', draggedTabId === tab.id ? 'opacity-50' : '']"
               :data-tab-id="tab.id"
               :aria-label="`${tab.label} tab. Drag to reorder.`"
-              @click="store.setDetailTab(tab.id)"
+              @click="store.setDetailTab(tab.id); announcePolite(`${tab.label} tab selected`)"
               @dragstart="onTabDragStart($event, tab.id)"
               @dragover.prevent="onTabDragOver($event, index)"
               @dragenter="onTabDragEnter(index)"
@@ -89,22 +89,20 @@ import DetailCoverageCard from '../components/detail/DetailCoverageCard.vue';
 import DetailApiCard from '../components/detail/DetailApiCard.vue';
 import DetailPullRequestsCard from '../components/detail/DetailPullRequestsCard.vue';
 import { useDetailView } from '../composables/useDetailView';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useAnnouncer } from '../composables/useAnnouncer';
 import { getDetailTabExtension } from '../extensions/registry';
 import { computed, ref } from 'vue';
 
 defineEmits(['refresh']);
 
 const { store, info, error, visibleTabs, load, setDetailTabOrder } = useDetailView();
-const { isTabEnabled } = useFeatureFlags();
+const { announcePolite } = useAnnouncer();
 const draggedTabId = ref(null);
 const dropTargetIndex = ref(null);
 
 const extensionComponent = computed(() => {
   const ext = getDetailTabExtension(store.detailTab);
   if (!ext) return null;
-  const flagId = ext.featureFlagId ?? ext.id;
-  if (!isTabEnabled(flagId)) return null;
   return ext.component;
 });
 

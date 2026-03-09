@@ -23,7 +23,7 @@ function createLicenseServer(deps) {
   const ENV_PRESETS = {
     dev: { label: 'Development', url: 'https://shipwell-web.test' },
     staging: { label: 'Staging', url: 'https://staging.shipwell.com' },
-    prod: { label: 'Production', url: 'https://app.shipwell.com' },
+    prod: { label: 'Production', url: 'https://shipwell.dply.io' },
   };
 
   const PREF_BASE = 'licenseServer';
@@ -39,6 +39,13 @@ function createLicenseServer(deps) {
   const PREF_USER_PLAN_LABEL = `${PREF_BASE}.userPlanLabel`;
   const PREF_USER_ALLOWED_TABS = `${PREF_BASE}.userAllowedTabs`;
   const PREF_USER_FEATURES = `${PREF_BASE}.userFeatures`;
+  const PREF_USER_LIMITS = `${PREF_BASE}.userLimits`;
+  const PREF_USER_TEAM = `${PREF_BASE}.userTeam`;
+  const PREF_USER_PROFILE = `${PREF_BASE}.userProfile`;
+  const PREF_LAST_VERIFIED = `${PREF_BASE}.lastVerifiedAt`;
+  const PREF_OFFLINE_GRACE_DAYS = 'offlineGraceDays';
+
+  const DEFAULT_OFFLINE_GRACE_DAYS = 7;
 
   /** Seconds before expiry to consider token expired and refresh. */
   const REFRESH_BUFFER_SEC = 60;
@@ -75,10 +82,23 @@ function createLicenseServer(deps) {
   }
 
   function setConfig({ url = '', clientId = '', clientSecret = '', environment } = {}) {
+    const previousEnv = getPreference(PREF_ENVIRONMENT) || 'dev';
+    const previousUrl = (getPreference(PREF_URL) || '').toString().trim();
+
     if (environment !== undefined) setPreference(PREF_ENVIRONMENT, environment && ENV_PRESETS[environment] ? environment : '');
     setPreference(PREF_URL, (url || '').toString().trim().replace(/\/+$/, ''));
     setPreference(PREF_CLIENT_ID, (clientId || '').toString().trim());
     setPreference(PREF_CLIENT_SECRET, (clientSecret || '').toString().trim());
+
+    const newEnv = getPreference(PREF_ENVIRONMENT) || 'dev';
+    const newUrl = (getPreference(PREF_URL) || '').toString().trim();
+    const envChanged = (environment !== undefined && newEnv !== previousEnv)
+      || (url && newUrl !== previousUrl);
+
+    if (envChanged) {
+      debugLog('setConfig() environment changed, clearing stored tokens', { previousEnv, newEnv });
+      clearStoredToken();
+    }
   }
 
   function getStoredToken() {
@@ -90,6 +110,9 @@ function createLicenseServer(deps) {
     const userPlanLabel = getPreference(PREF_USER_PLAN_LABEL);
     const userAllowedTabs = getPreference(PREF_USER_ALLOWED_TABS);
     const userFeatures = getPreference(PREF_USER_FEATURES);
+    const userLimits = getPreference(PREF_USER_LIMITS);
+    const userTeam = getPreference(PREF_USER_TEAM);
+    const userProfile = getPreference(PREF_USER_PROFILE);
     return {
       accessToken: typeof accessToken === 'string' ? accessToken : null,
       refreshToken: typeof refreshToken === 'string' ? refreshToken : null,
@@ -99,12 +122,15 @@ function createLicenseServer(deps) {
       userPlanLabel: typeof userPlanLabel === 'string' ? userPlanLabel : null,
       userAllowedTabs: Array.isArray(userAllowedTabs) ? userAllowedTabs : null,
       userFeatures: userFeatures && typeof userFeatures === 'object' && !Array.isArray(userFeatures) ? userFeatures : null,
+      userLimits: userLimits && typeof userLimits === 'object' && !Array.isArray(userLimits) ? userLimits : null,
+      userTeam: userTeam && typeof userTeam === 'object' && !Array.isArray(userTeam) ? userTeam : null,
+      userProfile: userProfile && typeof userProfile === 'object' && !Array.isArray(userProfile) ? userProfile : null,
     };
   }
 
   function setStoredToken({
     accessToken, refreshToken, expiresAt, userEmail, userTier,
-    userPlanLabel, userAllowedTabs, userFeatures,
+    userPlanLabel, userAllowedTabs, userFeatures, userLimits, userTeam, userProfile,
   } = {}) {
     if (accessToken !== undefined) setPreference(PREF_ACCESS_TOKEN, accessToken || null);
     if (refreshToken !== undefined) setPreference(PREF_REFRESH_TOKEN, refreshToken || null);
@@ -114,12 +140,15 @@ function createLicenseServer(deps) {
     if (userPlanLabel !== undefined) setPreference(PREF_USER_PLAN_LABEL, userPlanLabel || null);
     if (userAllowedTabs !== undefined) setPreference(PREF_USER_ALLOWED_TABS, Array.isArray(userAllowedTabs) ? userAllowedTabs : null);
     if (userFeatures !== undefined) setPreference(PREF_USER_FEATURES, userFeatures && typeof userFeatures === 'object' ? userFeatures : null);
+    if (userLimits !== undefined) setPreference(PREF_USER_LIMITS, userLimits && typeof userLimits === 'object' ? userLimits : null);
+    if (userTeam !== undefined) setPreference(PREF_USER_TEAM, userTeam && typeof userTeam === 'object' ? userTeam : null);
+    if (userProfile !== undefined) setPreference(PREF_USER_PROFILE, userProfile && typeof userProfile === 'object' ? userProfile : null);
   }
 
   function clearStoredToken() {
     setStoredToken({
       accessToken: null, refreshToken: null, expiresAt: null,
-      userEmail: null, userTier: null, userPlanLabel: null, userAllowedTabs: null, userFeatures: null,
+      userEmail: null, userTier: null, userPlanLabel: null, userAllowedTabs: null, userFeatures: null, userLimits: null, userTeam: null, userProfile: null,
     });
   }
 
@@ -216,33 +245,35 @@ function createLicenseServer(deps) {
    * GET baseUrl/api/user with Bearer token. Returns user + permissions from Laravel (plan, tabs, features).
    * If the API returns permissions.tabs, the app uses that as the source of truth; otherwise falls back to tier.
    */
+  /**
+   * GET baseUrl/api/user with Bearer token. Returns user data or null (auth failure).
+   * Throws on network errors so callers can distinguish network vs auth issues.
+   */
   async function fetchUser(baseUrl, accessToken) {
     const userUrl = `${baseUrl}/api/user`;
     debugLog('GET', userUrl);
-    try {
-      const res = await fetch(userUrl, {
-        method: 'GET',
-        headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
-      });
-      debugLog('GET /api/user response', { status: res.status, ok: res.ok });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        debugWarn('GET /api/user failed', { status: res.status, data });
-        return null;
-      }
+    const res = await fetch(userUrl, {
+      method: 'GET',
+      headers: { Accept: 'application/json', Authorization: `Bearer ${accessToken}` },
+    });
+    debugLog('GET /api/user response', { status: res.status, ok: res.ok });
+    if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      const email = data.email;
-      if (typeof email !== 'string') return null;
-      const raw = (data.plan || data.tier || 'free').toString().toLowerCase();
-      const tier = raw === 'pro' ? 'pro' : raw === 'plus' ? 'plus' : 'free';
-      const allowedTabs = Array.isArray(data.permissions?.tabs) ? data.permissions.tabs : null;
-      const planLabel = typeof data.plan_label === 'string' ? data.plan_label : null;
-      const features = data.features && typeof data.features === 'object' && !Array.isArray(data.features) ? data.features : null;
-      return { email, tier, planLabel, allowedTabs, features };
-    } catch (e) {
-      debugWarn('GET /api/user fetch failed', { message: e?.message, name: e?.name, cause: e?.cause?.message ?? e?.cause });
+      debugWarn('GET /api/user failed', { status: res.status, data });
       return null;
     }
+    const data = await res.json().catch(() => ({}));
+    const email = data.email;
+    if (typeof email !== 'string') return null;
+    const raw = (data.plan || data.tier || 'free').toString().toLowerCase();
+    const tier = raw === 'pro' ? 'pro' : raw === 'plus' ? 'plus' : raw === 'team' ? 'pro' : raw === 'developer' ? 'pro' : 'free';
+    const allowedTabs = Array.isArray(data.permissions?.tabs) ? data.permissions.tabs : null;
+    const planLabel = typeof data.plan_label === 'string' ? data.plan_label : null;
+    const features = data.features && typeof data.features === 'object' && !Array.isArray(data.features) ? data.features : null;
+    const limits = data.limits && typeof data.limits === 'object' && !Array.isArray(data.limits) ? data.limits : null;
+    const team = data.team && typeof data.team === 'object' ? data.team : null;
+    const profile = data.profile && typeof data.profile === 'object' ? data.profile : null;
+    return { email, tier, planLabel, allowedTabs, features, limits, team, profile };
   }
 
   /**
@@ -268,16 +299,24 @@ function createLicenseServer(deps) {
       expiresAt,
       userEmail: email,
     });
-    const user = await fetchUser(url, result.accessToken);
-    if (user?.email) {
-      setStoredToken({
-        userEmail: user.email,
-        userTier: user.tier || 'free',
-        userPlanLabel: user.planLabel || null,
-        userAllowedTabs: user.allowedTabs || null,
-        userFeatures: user.features || null,
-      });
+    try {
+      const user = await fetchUser(url, result.accessToken);
+      if (user?.email) {
+        setStoredToken({
+          userEmail: user.email,
+          userTier: user.tier || 'free',
+          userPlanLabel: user.planLabel || null,
+          userAllowedTabs: user.allowedTabs || null,
+          userFeatures: user.features || null,
+          userLimits: user.limits || null,
+          userTeam: user.team || null,
+          userProfile: user.profile || null,
+        });
+      }
+    } catch (e) {
+      debugWarn('login() fetchUser failed (non-critical)', e?.message);
     }
+    stampLastVerified();
     return { ok: true };
   }
 
@@ -300,16 +339,24 @@ function createLicenseServer(deps) {
       expiresAt: null,
       userEmail: email || null,
     });
-    const user = await fetchUser(url, accessToken);
-    if (user?.email) {
-      setStoredToken({
-        userEmail: user.email,
-        userTier: user.tier || 'free',
-        userPlanLabel: user.planLabel || null,
-        userAllowedTabs: user.allowedTabs || null,
-        userFeatures: user.features || null,
-      });
+    try {
+      const user = await fetchUser(url, accessToken);
+      if (user?.email) {
+        setStoredToken({
+          userEmail: user.email,
+          userTier: user.tier || 'free',
+          userPlanLabel: user.planLabel || null,
+          userAllowedTabs: user.allowedTabs || null,
+          userFeatures: user.features || null,
+          userLimits: user.limits || null,
+          userTeam: user.team || null,
+          userProfile: user.profile || null,
+        });
+      }
+    } catch (e) {
+      debugWarn('loginWithToken() fetchUser failed (non-critical)', e?.message);
     }
+    stampLastVerified();
     return { ok: true };
   }
 
@@ -408,8 +455,9 @@ function createLicenseServer(deps) {
   }
 
   /**
-   * Ensure we have a valid access token (refresh if needed). Returns { ok: true, accessToken, userEmail? } or { ok: false }.
-   * Supports both password grant tokens (with refresh) and personal access tokens (no expiry).
+   * Ensure we have a valid access token (refresh if needed).
+   * Returns { ok: true, accessToken, ... } or { ok: false, networkError?: true }.
+   * Does NOT clear tokens on network errors — only on confirmed auth failures (401/403).
    */
   async function ensureValidToken() {
     const { url, clientId, clientSecret } = getConfig();
@@ -423,13 +471,18 @@ function createLicenseServer(deps) {
     if (stored.expiresAt == null && !stored.refreshToken) {
       if (!url) {
         debugLog('ensureValidToken() PAT but no server URL');
-        clearStoredToken();
         return { ok: false };
       }
       debugLog('ensureValidToken() personal access token, verifying via /api/user');
-      const user = await fetchUser(url, stored.accessToken);
-      if (!user?.email) {
-        debugWarn('ensureValidToken() PAT invalid, clearing token');
+      let user;
+      try {
+        user = await fetchUser(url, stored.accessToken);
+      } catch (e) {
+        debugWarn('ensureValidToken() PAT network error', e?.message);
+        return { ok: false, networkError: true };
+      }
+      if (user === null || !user?.email) {
+        debugWarn('ensureValidToken() PAT auth failed (401/invalid), clearing token');
         clearStoredToken();
         return { ok: false };
       }
@@ -439,6 +492,9 @@ function createLicenseServer(deps) {
         userPlanLabel: user.planLabel || null,
         userAllowedTabs: user.allowedTabs || null,
         userFeatures: user.features || null,
+        userLimits: user.limits || null,
+        userTeam: user.team || null,
+        userProfile: user.profile || null,
       });
       const updated = getStoredToken();
       return {
@@ -449,13 +505,15 @@ function createLicenseServer(deps) {
         userPlanLabel: updated.userPlanLabel,
         userAllowedTabs: updated.userAllowedTabs,
         userFeatures: updated.userFeatures,
+        userLimits: updated.userLimits,
+        userTeam: updated.userTeam,
+        userProfile: updated.userProfile,
       };
     }
 
     // Password grant tokens with expiry
     if (!url || !clientId || !clientSecret) {
-      debugLog('ensureValidToken() no config, clearing token');
-      clearStoredToken();
+      debugLog('ensureValidToken() no config');
       return { ok: false };
     }
     if (!isTokenExpired(stored.expiresAt)) {
@@ -468,13 +526,20 @@ function createLicenseServer(deps) {
         userPlanLabel: stored.userPlanLabel,
         userAllowedTabs: stored.userAllowedTabs,
         userFeatures: stored.userFeatures,
+        userLimits: stored.userLimits,
+        userTeam: stored.userTeam,
+        userProfile: stored.userProfile,
       };
     }
     debugLog('ensureValidToken() token expired, refreshing');
     if (!stored.refreshToken || !url || !clientId || !clientSecret) return { ok: false };
     const refresh = await requestTokenRefresh(url, clientId, clientSecret, stored.refreshToken);
     if (!refresh.ok) {
-      debugWarn('ensureValidToken() refresh failed', refresh.error);
+      if (isNetworkError(refresh.error)) {
+        debugWarn('ensureValidToken() refresh network error', refresh.error);
+        return { ok: false, networkError: true };
+      }
+      debugWarn('ensureValidToken() refresh auth failed, clearing token', refresh.error);
       clearStoredToken();
       return { ok: false };
     }
@@ -483,7 +548,10 @@ function createLicenseServer(deps) {
       refreshToken: refresh.refreshToken,
       expiresAt: refresh.expiresAt,
     });
-    const user = await fetchUser(url, refresh.accessToken);
+    let user;
+    try {
+      user = await fetchUser(url, refresh.accessToken);
+    } catch (_) { /* non-critical */ }
     if (user?.email) {
       setStoredToken({
         userEmail: user.email,
@@ -491,6 +559,9 @@ function createLicenseServer(deps) {
         userPlanLabel: user.planLabel || null,
         userAllowedTabs: user.allowedTabs || null,
         userFeatures: user.features || null,
+        userLimits: user.limits || null,
+        userTeam: user.team || null,
+        userProfile: user.profile || null,
       });
     }
     const updated = getStoredToken();
@@ -502,15 +573,26 @@ function createLicenseServer(deps) {
       userPlanLabel: updated.userPlanLabel,
       userAllowedTabs: updated.userAllowedTabs,
       userFeatures: updated.userFeatures,
+      userLimits: updated.userLimits,
+      userTeam: updated.userTeam,
     };
   }
 
+  function isNetworkError(errString) {
+    if (!errString || typeof errString !== 'string') return false;
+    const lower = errString.toLowerCase();
+    return lower.includes('network') || lower.includes('fetch') || lower.includes('econnrefused')
+      || lower.includes('enotfound') || lower.includes('timeout') || lower.includes('could not connect')
+      || lower.includes('abort') || lower.includes('dns');
+  }
+
   /**
-   * Returns whether the license server considers this session licensed (valid token).
+   * Returns { valid: true } or { valid: false, networkError?: true }.
    */
   async function hasValidRemoteLicense() {
     const result = await ensureValidToken();
-    return result.ok === true;
+    if (result.ok) return { valid: true };
+    return { valid: false, networkError: !!result.networkError };
   }
 
   /**
@@ -526,6 +608,66 @@ function createLicenseServer(deps) {
       plan_label: result.userPlanLabel || null,
       permissions: result.userAllowedTabs != null ? { tabs: result.userAllowedTabs } : null,
       features: result.userFeatures || null,
+      limits: result.userLimits || null,
+      team: result.userTeam || null,
+      profile: result.userProfile || null,
+    };
+  }
+
+  function stampLastVerified() {
+    setPreference(PREF_LAST_VERIFIED, Math.floor(Date.now() / 1000));
+  }
+
+  function getLastVerifiedAt() {
+    const v = getPreference(PREF_LAST_VERIFIED);
+    return typeof v === 'number' ? v : null;
+  }
+
+  function getOfflineGraceDays() {
+    const v = getPreference(PREF_OFFLINE_GRACE_DAYS);
+    return typeof v === 'number' && v >= 0 ? v : DEFAULT_OFFLINE_GRACE_DAYS;
+  }
+
+  function setOfflineGraceDays(days) {
+    const n = typeof days === 'number' && days >= 0 ? Math.floor(days) : DEFAULT_OFFLINE_GRACE_DAYS;
+    setPreference(PREF_OFFLINE_GRACE_DAYS, n);
+  }
+
+  /**
+   * Check if the offline grace period is still valid.
+   * Returns { valid: true, daysRemaining } or { valid: false, daysExpired }.
+   */
+  function checkOfflineGrace() {
+    const lastVerified = getLastVerifiedAt();
+    if (lastVerified == null) return { valid: false, daysRemaining: 0, daysExpired: 0 };
+    const graceDays = getOfflineGraceDays();
+    const nowSec = Math.floor(Date.now() / 1000);
+    const elapsedSec = nowSec - lastVerified;
+    const elapsedDays = elapsedSec / 86400;
+    const remaining = Math.max(0, graceDays - elapsedDays);
+    if (remaining > 0) {
+      return { valid: true, daysRemaining: Math.ceil(remaining), graceDays };
+    }
+    return { valid: false, daysRemaining: 0, daysExpired: Math.floor(elapsedDays - graceDays), graceDays };
+  }
+
+  /**
+   * Get cached license info for offline use. Returns the stored user data
+   * without hitting the network at all.
+   */
+  function getCachedLicense() {
+    const stored = getStoredToken();
+    if (!stored.accessToken) return null;
+    return {
+      email: stored.userEmail,
+      tier: stored.userTier || 'free',
+      planLabel: stored.userPlanLabel,
+      allowedTabs: stored.userAllowedTabs,
+      features: stored.userFeatures,
+      limits: stored.userLimits,
+      team: stored.userTeam || null,
+      profile: stored.userProfile || null,
+      lastVerifiedAt: getLastVerifiedAt(),
     };
   }
 
@@ -544,6 +686,12 @@ function createLicenseServer(deps) {
     ensureValidToken,
     hasValidRemoteLicense,
     getRemoteSession,
+    stampLastVerified,
+    getLastVerifiedAt,
+    getOfflineGraceDays,
+    setOfflineGraceDays,
+    checkOfflineGrace,
+    getCachedLicense,
   };
 }
 
