@@ -24,7 +24,7 @@ npm start
 
 ## Downloads
 
-**Latest:** v0.7.0 — [Release & downloads](https://github.com/shaferllc/release-manager/releases/latest)
+**Latest:** v0.10.0 — [Release & downloads](https://github.com/shaferllc/release-manager/releases/latest)
 
 ## Features
 
