@@ -26,284 +26,10 @@
         <SettingsSectionAccount />
 
         <!-- Subscription -->
-        <section v-show="activeSection === 'subscription'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('subscription').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('subscription').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('subscription').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-          <!-- Plan info (when logged in) -->
-          <div v-if="license.isLoggedIn?.value" class="py-3.5 px-4 rounded-lg border border-rm-border bg-rm-surface/50 mb-4">
-            <div class="flex items-baseline gap-2 text-[0.8125rem]">
-              <span class="text-rm-muted font-medium min-w-[5rem]">Plan limits</span>
-              <span class="text-rm-text">
-                {{ license.maxProjects?.value === -1 ? 'Unlimited' : license.maxProjects?.value }} projects
-                ·
-                {{ license.maxExtensions?.value === -1 ? 'Unlimited' : license.maxExtensions?.value }} extensions
-              </span>
-            </div>
-            <div v-if="license.team?.value" class="flex items-baseline gap-2 text-[0.8125rem] mt-1.5">
-              <span class="text-rm-muted font-medium min-w-[5rem]">Team</span>
-              <span class="text-rm-text">{{ license.team?.value?.name || '—' }} ({{ license.team?.value?.member_count ?? license.team?.value?.members?.length ?? 0 }} members)</span>
-            </div>
-          </div>
-
-          <!-- Current plan banner -->
-          <div class="flex items-center justify-between gap-4 flex-wrap p-4 px-5 rounded-[10px] border border-rm-border bg-rm-surface mb-5" :class="license.isPro?.value ? 'border-rm-accent/30 bg-rm-accent/6' : license.isPlus?.value ? 'border-blue-500/25 bg-blue-500/5' : ''">
-            <div class="flex items-center gap-3">
-              <div class="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" :class="license.isPro?.value ? 'bg-rm-accent/15 text-rm-accent' : license.isPlus?.value ? 'bg-blue-500/12 text-blue-400' : 'bg-rm-accent/12 text-rm-accent'">
-                <svg v-if="license.isPro?.value" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                <svg v-else-if="license.isPlus?.value" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4"/><path d="m4.9 4.9 2.8 2.8"/><path d="M2 12h4"/><path d="m4.9 19.1 2.8-2.8"/><path d="M12 18v4"/><path d="m19.1 19.1-2.8-2.8"/><path d="M22 12h-4"/><path d="m19.1 4.9-2.8 2.8"/><circle cx="12" cy="12" r="4"/></svg>
-                <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-              </div>
-              <div>
-                <span class="block text-base font-bold text-rm-text leading-tight">{{ license.tierLabel?.value || 'Free' }}</span>
-                <span class="block text-[0.6875rem] text-rm-muted font-medium">Current plan</span>
-              </div>
-            </div>
-            <div class="flex gap-2 shrink-0">
-              <Button
-                v-if="!license.isPro?.value"
-                severity="primary"
-                size="small"
-                label="Upgrade"
-                @click="openSubscriptionPage('pricing')"
-                :disabled="!license.isLoggedIn?.value"
-              />
-              <Button
-                severity="secondary"
-                size="small"
-                label="Manage billing"
-                @click="openSubscriptionPage('billing/portal')"
-                :disabled="!license.isLoggedIn?.value"
-              />
-            </div>
-          </div>
-
-          <!-- Plan tiers -->
-          <div class="grid grid-cols-3 gap-2.5 mb-5">
-            <div v-for="tier in PLAN_TIERS" :key="tier.id" class="border border-rm-border rounded-[10px] p-4 bg-rm-surface/40 relative text-center transition-[border-color] duration-150 hover:border-rm-border-focus/30" :class="currentPlanId === tier.id ? 'border-rm-accent/40 bg-rm-accent/4' : tier.popular ? 'border-rm-accent/25' : ''">
-              <div v-if="tier.popular && currentPlanId !== tier.id" class="absolute -top-[0.4375rem] left-1/2 -translate-x-1/2 text-[0.5625rem] font-bold uppercase tracking-wider py-px px-2 rounded-full bg-rm-accent text-rm-bg whitespace-nowrap">Popular</div>
-              <div v-else-if="currentPlanId === tier.id" class="absolute -top-[0.4375rem] left-1/2 -translate-x-1/2 text-[0.5625rem] font-bold uppercase tracking-wider py-px px-2 rounded-full bg-rm-accent/15 text-rm-accent whitespace-nowrap">Current</div>
-              <div v-if="tier.icon" class="flex items-center justify-center w-8 h-8 mx-auto mb-2 text-rm-muted" :class="currentPlanId === tier.id ? 'text-rm-accent' : ''" aria-hidden="true" v-html="tier.icon"></div>
-              <h4 class="text-[0.8125rem] font-bold text-rm-text m-0">{{ tier.name }}</h4>
-              <div class="mt-1 mb-0.5 leading-none">
-                <span class="text-xl font-extrabold text-rm-text tabular-nums">{{ tier.price }}</span>
-                <span v-if="tier.period" class="text-[0.6875rem] text-rm-muted font-medium">{{ tier.period }}</span>
-              </div>
-              <p class="text-[0.6875rem] text-rm-muted m-0 leading-snug">{{ tier.desc }}</p>
-              <Button
-                v-if="currentPlanId !== tier.id && tier.id !== 'free'"
-                :label="tier.id === 'pro' ? 'Upgrade' : 'Go Team'"
-                :severity="tier.popular ? 'primary' : 'secondary'"
-                size="small"
-                class="w-full mt-2"
-                @click="openSubscriptionPage('pricing')"
-                :disabled="!license.isLoggedIn?.value"
-              />
-              <div v-else-if="currentPlanId === tier.id" class="flex items-center justify-center gap-1 text-[0.6875rem] font-semibold text-rm-accent mt-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg>
-                Active
-              </div>
-            </div>
-          </div>
-
-          <!-- Feature comparison table -->
-          <div class="border border-rm-border rounded-[10px] overflow-hidden bg-rm-surface/25">
-            <table class="w-full border-collapse text-[0.75rem]">
-              <thead>
-                <tr>
-                  <th class="w-[45%] text-center py-2.5 px-2 text-[0.6875rem] font-semibold text-rm-muted border-b border-rm-border uppercase tracking-wider text-left pl-4"></th>
-                  <th v-for="tier in PLAN_TIERS" :key="tier.id" class="text-center py-2.5 px-2 text-[0.6875rem] font-semibold text-rm-muted border-b border-rm-border uppercase tracking-wider" :class="currentPlanId === tier.id ? 'text-rm-accent' : ''">{{ tier.name }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template v-for="group in PLAN_FEATURES" :key="group.category">
-                  <tr>
-                    <td :colspan="PLAN_TIERS.length + 1" class="p-0 text-[0.625rem] font-bold uppercase tracking-wider text-rm-muted py-2.5 px-4 pt-2.5 pb-1.5 bg-rm-bg/50 border-b border-rm-border/50">
-                      <span v-if="group.icon" class="inline-flex items-center justify-center mr-1.5 align-[-0.15em] text-rm-muted" aria-hidden="true" v-html="group.icon"></span>
-                      {{ group.category }}
-                    </td>
-                  </tr>
-                  <tr v-for="feat in group.features" :key="feat.label" class="border-b border-rm-border/30 last:border-b-0">
-                    <td class="py-[0.4375rem] px-2 py-[0.4375rem] pl-4 text-rm-text font-normal">{{ feat.label }}</td>
-                    <td v-for="tier in PLAN_TIERS" :key="tier.id" class="text-center py-[0.4375rem] px-2 align-middle" :class="currentPlanId === tier.id ? 'bg-rm-accent/3' : ''">
-                      <template v-if="feat[tier.id] === true">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="inline-block align-middle text-rm-accent"><polyline points="20 6 9 17 4 12"/></svg>
-                      </template>
-                      <template v-else-if="feat[tier.id] === false">
-                        <span class="text-rm-muted/25 text-sm">—</span>
-                      </template>
-                      <template v-else>
-                        <span class="text-rm-text font-semibold tabular-nums">{{ feat[tier.id] }}</span>
-                      </template>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
-
-          <p v-if="!license.isLoggedIn?.value" class="text-sm text-rm-warning mt-4 m-0">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block mr-1 align-[-2px]"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-            Sign in to manage your subscription.
-          </p>
-          </div>
-        </section>
+        <SettingsSectionSubscription />
 
         <!-- Team -->
-        <section v-show="activeSection === 'team'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('team').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('team').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('team').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-          <!-- Not logged in -->
-          <div v-if="!license.isLoggedIn?.value" class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6">
-            <div class="block">
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] text-rm-warning">Sign in to manage your team.</p>
-            </div>
-          </div>
-
-          <!-- No team yet — create one -->
-          <div v-else-if="!teamData" class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-            <div class="block">
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] mb-4">You're not part of a team yet. Create one to invite members and collaborate on projects.</p>
-              <div class="flex items-end gap-3">
-                <div class="flex-1 max-w-xs">
-                  <label class="text-[0.8125rem] font-semibold text-rm-text block mb-1" for="create-team-name">Team name</label>
-                  <InputText id="create-team-name" v-model="newTeamName" placeholder="e.g. My Team" class="w-full" />
-                </div>
-                <Button severity="primary" label="Create team" :loading="teamCreating" :disabled="!newTeamName.trim()" @click="handleCreateTeam" />
-              </div>
-              <p v-if="teamError" class="text-sm text-red-500 mt-2 m-0">{{ teamError }}</p>
-            </div>
-          </div>
-
-          <!-- Has team -->
-          <template v-else>
-            <!-- Team switcher (when user has multiple teams) -->
-            <div v-if="teamsList.length > 1" class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 mb-5">
-              <label class="text-[0.8125rem] font-semibold text-rm-text block mb-2">Active team</label>
-              <Select
-                :model-value="activeTeamId"
-                :options="teamsList"
-                option-label="name"
-                option-value="id"
-                placeholder="Select team"
-                class="w-full max-w-xs"
-                @update:model-value="onActiveTeamChange"
-              />
-            </div>
-            <!-- Team header -->
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5 mb-5">
-              <div class="block flex items-center justify-between gap-4 flex-wrap">
-                <div class="min-w-0 flex-1">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-[0.8125rem] font-semibold text-rm-text text-base font-semibold">{{ teamData.name }}</span>
-                    <span class="inline-flex items-center py-0.5 px-2 text-[0.7rem] font-semibold capitalize rounded tracking-wide" :class="teamMyRole === 'owner' ? 'bg-rm-accent/15 text-rm-accent' : teamMyRole === 'admin' ? 'bg-rm-accent/10 text-rm-accent/85' : 'bg-rm-surface-hover text-rm-muted'">{{ teamMyRole }}</span>
-                  </div>
-                  <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 mt-1">
-                    {{ teamData.member_count || teamData.members?.length || 0 }}
-                    member{{ (teamData.member_count || teamData.members?.length || 0) === 1 ? '' : 's' }}
-                  </p>
-                </div>
-                <div class="flex items-center gap-2">
-                  <Button severity="secondary" size="small" icon="pi pi-refresh" :loading="teamRefreshing" @click="refreshTeamData" v-tooltip.bottom="'Refresh'" />
-                  <Button v-if="teamData.is_admin" severity="secondary" size="small" label="Open on web" @click="openSubscriptionPage('teams')" />
-                </div>
-              </div>
-
-              <!-- Rename (admin only) -->
-              <div v-if="teamData.is_admin" class="block pt-3 border-t border-rm-border">
-                <label class="text-[0.8125rem] font-semibold text-rm-text block mb-1" for="rename-team">Rename team</label>
-                <div class="flex items-center gap-2">
-                  <InputText id="rename-team" v-model="renameTeamName" class="flex-1 max-w-xs" placeholder="Team name" />
-                  <Button severity="secondary" size="small" label="Save" :loading="teamRenaming" :disabled="!renameTeamName.trim() || renameTeamName.trim() === teamData.name" @click="handleRenameTeam" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Members -->
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-0 mb-5">
-              <div class="block flex items-center justify-between gap-3">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Members</span>
-              </div>
-              <div v-for="member in teamData.members" :key="member.id" class="flex items-center justify-between gap-2 py-2.5 px-5 border-t border-rm-border/50">
-                <div class="flex items-center gap-3 min-w-0 flex-1">
-                  <div class="w-8 h-8 rounded-full overflow-hidden shrink-0 bg-rm-surface-hover">
-                    <img v-if="member.avatar_url" :src="member.avatar_url" alt="" referrerpolicy="no-referrer" class="w-full h-full object-cover" />
-                    <span v-else class="w-full h-full flex items-center justify-center text-[0.7rem] font-semibold text-rm-muted">{{ memberInitials(member) }}</span>
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <span class="text-sm font-medium text-rm-text block truncate">{{ member.name || member.email }}</span>
-                    <span class="text-xs text-rm-muted block truncate">{{ member.email }}</span>
-                  </div>
-                  <span class="inline-flex items-center py-0.5 px-2 text-[10px] font-semibold capitalize rounded tracking-wide" :class="member.role === 'owner' ? 'bg-rm-accent/15 text-rm-accent' : member.role === 'admin' ? 'bg-rm-accent/10 text-rm-accent/85' : 'bg-rm-surface-hover text-rm-muted'">{{ member.role }}</span>
-                </div>
-                <Button
-                  v-if="teamData.is_admin && member.role !== 'owner'"
-                  severity="danger"
-                  variant="text"
-                  size="small"
-                  icon="pi pi-times"
-                  v-tooltip.bottom="'Remove member'"
-                  :loading="removingMemberId === member.id"
-                  @click="handleRemoveMember(member)"
-                />
-              </div>
-
-              <!-- Leave team (non-owner) -->
-              <div v-if="!teamData.is_owner" class="block pt-3 border-t border-rm-border">
-                <Button severity="danger" variant="text" size="small" label="Leave team" :loading="teamLeaving" @click="handleLeaveTeam" />
-              </div>
-            </div>
-
-            <!-- Invite (admin only) -->
-            <div v-if="teamData.is_admin" class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-4 mb-5">
-              <div class="block">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block mb-1">Invite a member</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 mb-3">They'll receive an invite they can accept from the web app.</p>
-                <div class="flex items-end gap-2 flex-wrap">
-                  <div class="flex-1 min-w-[200px] max-w-xs">
-                    <label class="block text-xs text-rm-muted mb-1" for="invite-email">Email</label>
-                    <InputText id="invite-email" v-model="inviteEmail" type="email" placeholder="user@example.com" class="w-full" />
-                  </div>
-                  <div class="w-28">
-                    <label class="block text-xs text-rm-muted mb-1" for="invite-role">Role</label>
-                    <Select id="invite-role" v-model="inviteRole" :options="[{label:'Member',value:'member'},{label:'Admin',value:'admin'}]" optionLabel="label" optionValue="value" class="w-full" />
-                  </div>
-                  <Button severity="primary" size="small" label="Send invite" :loading="inviteSending" :disabled="!inviteEmail.trim()" @click="handleInvite" />
-                </div>
-                <p v-if="inviteSuccess" class="text-sm text-rm-success mt-2 m-0">{{ inviteSuccess }}</p>
-                <p v-if="inviteError" class="text-sm text-red-500 mt-2 m-0">{{ inviteError }}</p>
-              </div>
-
-              <!-- Pending invites -->
-              <div v-if="teamInvites.length" class="block pt-3 border-t border-rm-border">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block mb-2">Pending invites</span>
-                <div class="space-y-2">
-                  <div v-for="inv in teamInvites" :key="inv.id" class="flex items-center justify-between gap-3 py-1.5">
-                    <div class="min-w-0">
-                      <span class="text-sm text-rm-text block truncate">{{ inv.email }}</span>
-                      <span class="text-xs text-rm-muted">{{ inv.role }} · sent {{ formatInviteDate(inv.created_at) }}</span>
-                    </div>
-                    <Button severity="danger" variant="text" size="small" icon="pi pi-times" v-tooltip.bottom="'Cancel invite'" :loading="cancellingInviteId === inv.id" @click="handleCancelInvite(inv)" />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <p v-if="teamError" class="text-sm text-red-500 m-0">{{ teamError }}</p>
-          </template>
-          </div>
-        </section>
+        <SettingsSectionTeam />
 
         <!-- Application -->
         <section v-show="activeSection === 'application'" class="settings-section">
@@ -2080,6 +1806,8 @@ import { useNotifications } from '../composables/useNotifications';
 
 import { useAppStore } from '../stores/app';
 import SettingsSectionAccount from '../components/settings/SettingsSectionAccount.vue';
+import SettingsSectionSubscription from '../components/settings/SettingsSectionSubscription.vue';
+import SettingsSectionTeam from '../components/settings/SettingsSectionTeam.vue';
 import { SETTINGS_INJECTION_KEY } from '../components/settings/settingsInjectionKey';
 
 const modals = useModals();
@@ -2606,58 +2334,6 @@ function removeCustomEvent(idx) {
 const modKey = navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl';
 const altKey = navigator.platform?.includes('Mac') ? '⌥' : 'Alt';
 
-const TIER_ICONS = {
-  free: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
-  pro: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
-  team: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-};
-
-const PLAN_TIERS = [
-  { id: 'free', name: 'Free', price: '$0', period: '', desc: 'For personal projects', icon: TIER_ICONS.free },
-  { id: 'pro', name: 'Pro', price: '$9', period: '/mo', desc: 'For developers who ship regularly', popular: true, icon: TIER_ICONS.pro },
-  { id: 'team', name: 'Team', price: '$29', period: '/mo', desc: 'For teams and organizations', icon: TIER_ICONS.team },
-];
-
-const FEATURE_CATEGORY_ICONS = {
-  Limits: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>',
-  Core: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2 1.33-2 0 0-2.77 2.24-5 5-5 1.66 0 3 1.35 3 3.02 0 1.33 2 1.33 2 0"/></svg>',
-  'Pro features': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
-  'Team features': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-};
-
-const PLAN_FEATURES = [
-  { category: 'Limits', icon: FEATURE_CATEGORY_ICONS.Limits, features: [
-    { label: 'Projects', free: '3', pro: '50', team: 'Unlimited' },
-    { label: 'Extensions', free: '3', pro: '25', team: 'Unlimited' },
-    { label: 'Team members', free: '1', pro: '1', team: '10' },
-  ]},
-  { category: 'Core', icon: FEATURE_CATEGORY_ICONS.Core, features: [
-    { label: 'Releases & version bumps', free: true, pro: true, team: true },
-    { label: 'Git integration', free: true, pro: true, team: true },
-    { label: 'Dashboard overview', free: true, pro: true, team: true },
-    { label: 'Notes, wiki & bookmarks', free: true, pro: true, team: true },
-    { label: 'Kanban & checklists', free: true, pro: true, team: true },
-    { label: 'Env file editor', free: true, pro: true, team: true },
-    { label: 'Settings sync', free: false, pro: true, team: true },
-  ]},
-  { category: 'Pro features', icon: FEATURE_CATEGORY_ICONS['Pro features'], features: [
-    { label: 'AI commit messages', free: false, pro: true, team: true },
-    { label: 'AI release notes', free: false, pro: true, team: true },
-    { label: 'Pull requests', free: false, pro: true, team: true },
-    { label: 'GitHub issues', free: false, pro: true, team: true },
-    { label: 'Terminal & processes', free: false, pro: true, team: true },
-    { label: 'Runbooks & changelogs', free: false, pro: true, team: true },
-    { label: 'Usage analytics', free: false, pro: true, team: true },
-    { label: 'Priority support', free: false, pro: true, team: true },
-  ]},
-  { category: 'Team features', icon: FEATURE_CATEGORY_ICONS['Team features'], features: [
-    { label: 'Team collaboration', free: false, pro: false, team: true },
-    { label: 'Shared dashboard', free: false, pro: false, team: true },
-    { label: 'Batch release', free: false, pro: false, team: true },
-    { label: 'SSH, FTP & tunnels', free: false, pro: false, team: true },
-  ]},
-];
-
 const currentPlanId = computed(() => selectedPlan.value || 'free');
 
 function formatTimestamp(unixSec) {
@@ -2794,16 +2470,6 @@ async function signOut() {
   await api.logoutFromLicenseServer?.();
   await license.loadStatus();
 }
-
-provide(SETTINGS_INJECTION_KEY, {
-  ...settingsFromUseSettings,
-  signOut,
-  planOptions,
-  selectedPlan,
-  switchingPlan,
-  onPlanSwitch,
-  isDeveloperPlan,
-});
 
 // ── Team management ──
 
@@ -2999,6 +2665,47 @@ async function handleLeaveTeam() {
     teamLeaving.value = false;
   }
 }
+
+provide(SETTINGS_INJECTION_KEY, {
+  ...settingsFromUseSettings,
+  signOut,
+  planOptions,
+  selectedPlan,
+  switchingPlan,
+  onPlanSwitch,
+  isDeveloperPlan,
+  openSubscriptionPage,
+  currentPlanId,
+  teamData,
+  teamsList,
+  activeTeamId,
+  teamInvites,
+  teamError,
+  teamRefreshing,
+  teamCreating,
+  teamRenaming,
+  teamLeaving,
+  inviteSending,
+  inviteSuccess,
+  inviteError,
+  removingMemberId,
+  cancellingInviteId,
+  newTeamName,
+  renameTeamName,
+  inviteEmail,
+  inviteRole,
+  teamMyRole,
+  memberInitials,
+  formatInviteDate,
+  refreshTeamData,
+  onActiveTeamChange,
+  handleCreateTeam,
+  handleRenameTeam,
+  handleRemoveMember,
+  handleLeaveTeam,
+  handleInvite,
+  handleCancelInvite,
+});
 
 // ── Webhook management ──
 
