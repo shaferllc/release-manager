@@ -6,6 +6,13 @@ export default defineConfig({
   plugins: [vue()],
   root: __dirname,
   base: './',
+  resolve: {
+    alias: {
+      // Include the Vue template compiler so user-installed extensions with
+      // string templates (e.g. ExtensionLayout) can compile at runtime.
+      vue: 'vue/dist/vue.esm-bundler.js',
+    },
+  },
   build: {
     outDir: path.join(__dirname, '..', 'dist-renderer'),
     // Don't clear output when in watch mode so Electron can load the initial build while watch rebuilds

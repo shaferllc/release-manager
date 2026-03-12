@@ -8,6 +8,7 @@
     :style="{ width: '36rem' }"
     content-class="p-0 overflow-hidden flex flex-col"
     class="command-palette-dialog"
+    :pt="{ root: { 'aria-label': 'Command palette' } }"
     @update:visible="onVisibleChange"
     @show="focusSearchInput"
   >
@@ -36,7 +37,12 @@
       </div>
     </template>
 
-    <div ref="listRef" class="command-palette-list" role="listbox">
+    <div
+      ref="listRef"
+      class="command-palette-list"
+      :role="flatItems.length ? 'listbox' : 'status'"
+      :aria-label="flatItems.length ? 'Commands' : undefined"
+    >
       <template v-if="flatItems.length">
         <template v-for="(item, index) in flatItems" :key="item.key">
           <div v-if="item.type === 'category'" class="command-palette-category">

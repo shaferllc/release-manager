@@ -2928,7 +2928,7 @@ async function unstageFile(filePath) {
 async function discardFile(filePath) {
   const path = store.selectedPath;
   if (!path || !api.discardFile) return;
-  if (!window.confirm(`Discard all changes in "${filePath}"? This cannot be undone.`)) return;
+  if (store.confirmDestructiveActions && store.confirmBeforeDiscard && !window.confirm(`Discard all changes in "${filePath}"? This cannot be undone.`)) return;
   try {
     await api.discardFile(path, filePath);
     gitActionStatus.value = 'File discarded.';
@@ -3019,7 +3019,7 @@ async function createTestFileAndRefresh() {
 }
 
 async function discardAll() {
-  if (!window.confirm(GIT_ACTION_CONFIRMS.discard)) return;
+  if (store.confirmDestructiveActions && store.confirmBeforeDiscard && !window.confirm(GIT_ACTION_CONFIRMS.discard)) return;
   const path = store.selectedPath;
   try {
     await api.gitDiscardChanges?.(path);

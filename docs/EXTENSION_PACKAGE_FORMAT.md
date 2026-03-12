@@ -33,6 +33,8 @@ Because user extensions are loaded at runtime (not bundled by Vite), the script 
 1. Imports or defines a Vue component for the tab content.
 2. Calls `window.__registerDetailTabExtension({ id, label, component, ... })` when the script runs.
 
+The app exposes `window.PrimeVue` with UI components (button, panel, dialog, inputtext, textarea, select, checkbox, message, etc.). Extensions use these via `window.PrimeVue['button']`, `window.PrimeVue['panel']`, etc. (lowercase keys). Do not import PrimeVue directly.
+
 ## Marketplace API
 
 The marketplace backend (Laravel or standalone PHP) exposes:

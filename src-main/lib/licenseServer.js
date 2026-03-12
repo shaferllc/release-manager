@@ -36,6 +36,7 @@ function createLicenseServer(deps) {
   const PREF_EXPIRES_AT = `${PREF_BASE}.expiresAt`;
   const PREF_USER_EMAIL = `${PREF_BASE}.userEmail`;
   const PREF_USER_TIER = `${PREF_BASE}.userTier`;
+  const PREF_USER_PLAN = `${PREF_BASE}.userPlan`;
   const PREF_USER_PLAN_LABEL = `${PREF_BASE}.userPlanLabel`;
   const PREF_USER_ALLOWED_TABS = `${PREF_BASE}.userAllowedTabs`;
   const PREF_USER_FEATURES = `${PREF_BASE}.userFeatures`;
@@ -107,6 +108,7 @@ function createLicenseServer(deps) {
     const expiresAt = getPreference(PREF_EXPIRES_AT);
     const userEmail = getPreference(PREF_USER_EMAIL);
     const userTier = getPreference(PREF_USER_TIER);
+    const userPlan = getPreference(PREF_USER_PLAN);
     const userPlanLabel = getPreference(PREF_USER_PLAN_LABEL);
     const userAllowedTabs = getPreference(PREF_USER_ALLOWED_TABS);
     const userFeatures = getPreference(PREF_USER_FEATURES);
@@ -119,6 +121,7 @@ function createLicenseServer(deps) {
       expiresAt: typeof expiresAt === 'number' ? expiresAt : null,
       userEmail: typeof userEmail === 'string' ? userEmail : null,
       userTier: typeof userTier === 'string' ? userTier : 'free',
+      userPlan: typeof userPlan === 'string' ? userPlan : null,
       userPlanLabel: typeof userPlanLabel === 'string' ? userPlanLabel : null,
       userAllowedTabs: Array.isArray(userAllowedTabs) ? userAllowedTabs : null,
       userFeatures: userFeatures && typeof userFeatures === 'object' && !Array.isArray(userFeatures) ? userFeatures : null,
@@ -129,7 +132,7 @@ function createLicenseServer(deps) {
   }
 
   function setStoredToken({
-    accessToken, refreshToken, expiresAt, userEmail, userTier,
+    accessToken, refreshToken, expiresAt, userEmail, userTier, userPlan,
     userPlanLabel, userAllowedTabs, userFeatures, userLimits, userTeam, userProfile,
   } = {}) {
     if (accessToken !== undefined) setPreference(PREF_ACCESS_TOKEN, accessToken || null);
@@ -137,6 +140,7 @@ function createLicenseServer(deps) {
     if (expiresAt !== undefined) setPreference(PREF_EXPIRES_AT, expiresAt || null);
     if (userEmail !== undefined) setPreference(PREF_USER_EMAIL, userEmail || null);
     if (userTier !== undefined) setPreference(PREF_USER_TIER, userTier || 'free');
+    if (userPlan !== undefined) setPreference(PREF_USER_PLAN, userPlan || null);
     if (userPlanLabel !== undefined) setPreference(PREF_USER_PLAN_LABEL, userPlanLabel || null);
     if (userAllowedTabs !== undefined) setPreference(PREF_USER_ALLOWED_TABS, Array.isArray(userAllowedTabs) ? userAllowedTabs : null);
     if (userFeatures !== undefined) setPreference(PREF_USER_FEATURES, userFeatures && typeof userFeatures === 'object' ? userFeatures : null);
@@ -148,7 +152,7 @@ function createLicenseServer(deps) {
   function clearStoredToken() {
     setStoredToken({
       accessToken: null, refreshToken: null, expiresAt: null,
-      userEmail: null, userTier: null, userPlanLabel: null, userAllowedTabs: null, userFeatures: null, userLimits: null, userTeam: null, userProfile: null,
+      userEmail: null, userTier: null, userPlan: null, userPlanLabel: null, userAllowedTabs: null, userFeatures: null, userLimits: null, userTeam: null, userProfile: null,
     });
   }
 
@@ -266,6 +270,7 @@ function createLicenseServer(deps) {
     const email = data.email;
     if (typeof email !== 'string') return null;
     const raw = (data.plan || data.tier || 'free').toString().toLowerCase();
+    const plan = ['free', 'pro', 'team', 'developer'].includes(raw) ? raw : 'free';
     const tier = raw === 'pro' ? 'pro' : raw === 'plus' ? 'plus' : raw === 'team' ? 'pro' : raw === 'developer' ? 'pro' : 'free';
     const allowedTabs = Array.isArray(data.permissions?.tabs) ? data.permissions.tabs : null;
     const planLabel = typeof data.plan_label === 'string' ? data.plan_label : null;
@@ -273,7 +278,7 @@ function createLicenseServer(deps) {
     const limits = data.limits && typeof data.limits === 'object' && !Array.isArray(data.limits) ? data.limits : null;
     const team = data.team && typeof data.team === 'object' ? data.team : null;
     const profile = data.profile && typeof data.profile === 'object' ? data.profile : null;
-    return { email, tier, planLabel, allowedTabs, features, limits, team, profile };
+    return { email, tier, plan, planLabel, allowedTabs, features, limits, team, profile };
   }
 
   /**
@@ -305,6 +310,7 @@ function createLicenseServer(deps) {
         setStoredToken({
           userEmail: user.email,
           userTier: user.tier || 'free',
+          userPlan: user.plan || null,
           userPlanLabel: user.planLabel || null,
           userAllowedTabs: user.allowedTabs || null,
           userFeatures: user.features || null,
@@ -345,6 +351,7 @@ function createLicenseServer(deps) {
         setStoredToken({
           userEmail: user.email,
           userTier: user.tier || 'free',
+          userPlan: user.plan || null,
           userPlanLabel: user.planLabel || null,
           userAllowedTabs: user.allowedTabs || null,
           userFeatures: user.features || null,
@@ -489,6 +496,7 @@ function createLicenseServer(deps) {
       setStoredToken({
         userEmail: user.email,
         userTier: user.tier || 'free',
+        userPlan: user.plan || null,
         userPlanLabel: user.planLabel || null,
         userAllowedTabs: user.allowedTabs || null,
         userFeatures: user.features || null,
@@ -502,6 +510,7 @@ function createLicenseServer(deps) {
         accessToken: stored.accessToken,
         userEmail: updated.userEmail,
         userTier: updated.userTier,
+        userPlan: updated.userPlan,
         userPlanLabel: updated.userPlanLabel,
         userAllowedTabs: updated.userAllowedTabs,
         userFeatures: updated.userFeatures,
@@ -523,6 +532,7 @@ function createLicenseServer(deps) {
         accessToken: stored.accessToken,
         userEmail: stored.userEmail,
         userTier: stored.userTier,
+        userPlan: stored.userPlan,
         userPlanLabel: stored.userPlanLabel,
         userAllowedTabs: stored.userAllowedTabs,
         userFeatures: stored.userFeatures,
@@ -556,6 +566,7 @@ function createLicenseServer(deps) {
       setStoredToken({
         userEmail: user.email,
         userTier: user.tier || 'free',
+        userPlan: user.plan || null,
         userPlanLabel: user.planLabel || null,
         userAllowedTabs: user.allowedTabs || null,
         userFeatures: user.features || null,
@@ -570,11 +581,13 @@ function createLicenseServer(deps) {
       accessToken: refresh.accessToken,
       userEmail: updated.userEmail,
       userTier: updated.userTier,
+      userPlan: updated.userPlan,
       userPlanLabel: updated.userPlanLabel,
       userAllowedTabs: updated.userAllowedTabs,
       userFeatures: updated.userFeatures,
       userLimits: updated.userLimits,
       userTeam: updated.userTeam,
+      userProfile: updated.userProfile,
     };
   }
 
@@ -605,6 +618,7 @@ function createLicenseServer(deps) {
       loggedIn: true,
       email: result.userEmail || null,
       tier: result.userTier || 'free',
+      plan: result.userPlan || null,
       plan_label: result.userPlanLabel || null,
       permissions: result.userAllowedTabs != null ? { tabs: result.userAllowedTabs } : null,
       features: result.userFeatures || null,

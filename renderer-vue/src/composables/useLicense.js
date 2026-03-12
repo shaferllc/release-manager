@@ -6,10 +6,10 @@ export const TIER_FREE = 'free';
 export const TIER_PLUS = 'plus';
 export const TIER_PRO = 'pro';
 
-/** Only used when logged in but API did not return permissions.tabs (e.g. old backend). */
+/** Only used when logged in but API did not return permissions.tabs (e.g. old backend). Matches free plan. */
 const DEFAULT_TABS_WHEN_NO_PERMISSIONS = [
-  'dashboard', 'git', 'version', 'sync', 'notes', 'bookmarks', 'wiki', 'kanban',
-  'checklist', 'markdown', 'env', 'composer', 'tests', 'coverage',
+  'dashboard', 'git', 'version', 'notes', 'bookmarks', 'wiki', 'kanban',
+  'checklist', 'markdown', 'env', 'composer', 'tests', 'coverage', 'api',
 ];
 
 const actualHasLicense = ref(false);
@@ -18,6 +18,8 @@ const licenseEmail = ref(null); // when source === 'remote'
 const licenseTier = ref(TIER_FREE); // from API, for display
 /** Allowed tab IDs from Laravel (GET /api/user permissions.tabs). Applied as-is. */
 const serverAllowedTabs = ref(null); // string[] | null
+/** Raw plan from Laravel (free, pro, team, developer). */
+const serverPlan = ref(null); // string | null
 /** Plan label from Laravel (e.g. "Free", "Plus", "Pro"). */
 const serverPlanLabel = ref(null); // string | null
 /** Features from Laravel (e.g. { ai_commit_message: true }). */
@@ -67,6 +69,7 @@ export function useLicense() {
         licenseEmail.value = ok ? (status.email ?? null) : null;
         licenseTier.value = ok ? normalizeTier(status.tier) : TIER_FREE;
         serverAllowedTabs.value = ok && Array.isArray(status.permissions?.tabs) ? status.permissions.tabs : null;
+        serverPlan.value = ok && typeof status.plan === 'string' ? status.plan : null;
         serverPlanLabel.value = ok && typeof status.plan_label === 'string' ? status.plan_label : null;
         serverFeatures.value = ok && status.features && typeof status.features === 'object' ? status.features : null;
         serverLimits.value = ok && status.limits && typeof status.limits === 'object' ? status.limits : null;
@@ -90,6 +93,7 @@ export function useLicense() {
     licenseEmail.value = null;
     licenseTier.value = TIER_FREE;
     serverAllowedTabs.value = null;
+    serverPlan.value = null;
     serverPlanLabel.value = null;
     serverFeatures.value = null;
     serverLimits.value = null;
@@ -115,7 +119,7 @@ export function useLicense() {
     return false;
   }
 
-  const DEFAULT_LIMITS = { max_projects: 5, max_extensions: 5 };
+  const DEFAULT_LIMITS = { max_projects: 3, max_extensions: 3 };
 
   return {
     licenseStatusLoaded: computed(() => licenseStatusLoaded.value),
@@ -137,14 +141,19 @@ export function useLicense() {
     limits: computed(() => serverLimits.value || DEFAULT_LIMITS),
     maxProjects: computed(() => {
       const v = (serverLimits.value || DEFAULT_LIMITS).max_projects;
-      return typeof v === 'number' ? v : 5;
+      return typeof v === 'number' ? v : 3;
     }),
     maxExtensions: computed(() => {
       const v = (serverLimits.value || DEFAULT_LIMITS).max_extensions;
-      return typeof v === 'number' ? v : 5;
+      return typeof v === 'number' ? v : 3;
     }),
     isPro: computed(() => licenseTier.value === TIER_PRO),
     isPlus: computed(() => licenseTier.value === TIER_PLUS),
+    /** True when plan is team or developer (can create teams, use team settings). */
+    isTeam: computed(() => {
+      const p = (serverPlan.value || '').toLowerCase();
+      return p === 'team' || p === 'developer';
+    }),
     /** User profile from backend (name, avatar_url, github_linked, created_at). */
     profile: computed(() => serverProfile.value),
     /** Team info from backend (null if no team). */

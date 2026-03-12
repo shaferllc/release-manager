@@ -24,12 +24,17 @@
       <div class="settings-content-inner py-8 px-8 max-w-2xl">
         <!-- Account -->
         <section v-show="activeSection === 'account'" class="settings-section">
-          <h3 class="settings-section-title">Account</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Same account as the web app.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('account').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('account').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('account').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <!-- Profile card -->
-          <div class="settings-card mb-5">
-            <div class="settings-row flex items-center gap-4">
+          <div class="account-profile-card">
+            <div class="account-profile-row">
               <div v-if="license.isLoggedIn?.value" class="account-avatar-wrap">
                 <img
                   v-if="!avatarError && avatarSrc"
@@ -41,17 +46,17 @@
                 />
                 <div v-else class="account-avatar-initials">{{ userInitials }}</div>
               </div>
-              <div class="min-w-0 flex-1">
-                <span class="text-base font-semibold text-rm-text block">
+              <div class="account-profile-info">
+                <span class="account-profile-name">
                   <template v-if="license.isLoggedIn?.value">
                     {{ license.profile?.value?.name || license.licenseEmail?.value || 'Signed in' }}
                   </template>
                   <template v-else>Not signed in</template>
                 </span>
-                <p v-if="license.isLoggedIn?.value" class="text-sm text-rm-muted m-0 mt-0.5">
+                <p v-if="license.isLoggedIn?.value" class="account-profile-email">
                   {{ license.licenseEmail?.value }}
                 </p>
-                <p v-else class="text-sm text-rm-warning m-0 mt-0.5">Sign in to use the app.</p>
+                <p v-else class="account-profile-hint">Sign in to use the app.</p>
               </div>
               <Button
                 v-if="license.isLoggedIn?.value"
@@ -59,7 +64,7 @@
                 size="small"
                 label="Sign out"
                 @click="signOut"
-                class="shrink-0"
+                class="account-signout-btn"
               />
             </div>
           </div>
@@ -67,7 +72,15 @@
           <!-- Your info -->
           <template v-if="license.isLoggedIn?.value">
             <div class="settings-card mb-5">
-              <div class="settings-row pb-4">
+              <div
+                class="settings-row pb-4 cursor-pointer select-none"
+                role="button"
+                tabindex="0"
+                aria-label="Your info"
+                @click="onYourInfoTap"
+                @keydown.enter="onYourInfoTap"
+                @keydown.space.prevent="onYourInfoTap"
+              >
                 <span class="settings-label block mb-1">Your info</span>
                 <p class="settings-desc m-0">Information synced from your account.</p>
               </div>
@@ -124,28 +137,55 @@
             </div>
           </template>
 
-          <!-- Environment -->
-          <div class="settings-card">
-            <div class="settings-row">
-              <span class="settings-label block mb-1">Environment</span>
-              <p class="settings-desc m-0 mb-3">Backend used for sign-in and password reset.</p>
-              <Select
-                v-model="licenseServerEnvironment"
-                :options="licenseServerEnvironments"
-                option-label="label"
-                option-value="id"
-                class="max-w-xs"
-                placeholder="Development"
-                @change="saveLicenseServerEnvironment"
-              />
+          <!-- Environment (hidden until "Your info" is clicked 7 times) -->
+          <div v-if="showEnvSetting" class="env-setting-card">
+            <div class="env-setting-header">
+              <span class="env-setting-icon" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v2"/><path d="M12 21v2"/><path d="M4.22 4.22l1.42 1.42"/><path d="M18.36 18.36l1.42 1.42"/><path d="M1 12h2"/><path d="M21 12h2"/><path d="M4.22 19.78l1.42-1.42"/><path d="M18.36 5.64l1.42-1.42"/></svg>
+              </span>
+              <div>
+                <span class="env-setting-label">Environment</span>
+                <p class="env-setting-desc">Backend used for sign-in and password reset.</p>
+              </div>
             </div>
+            <Select
+              v-model="licenseServerEnvironment"
+              :options="licenseServerEnvironments"
+              option-label="label"
+              option-value="id"
+              class="env-setting-select"
+              placeholder="Development"
+              @change="saveLicenseServerEnvironment"
+            />
+          </div>
           </div>
         </section>
 
         <!-- Subscription -->
         <section v-show="activeSection === 'subscription'" class="settings-section">
-          <h3 class="settings-section-title">Subscription</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Manage your plan and billing.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('subscription').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('subscription').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('subscription').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
+          <!-- Plan info (when logged in) -->
+          <div v-if="license.isLoggedIn?.value" class="sub-info-card">
+            <div class="sub-info-row">
+              <span class="sub-info-label">Plan limits</span>
+              <span class="sub-info-value">
+                {{ license.maxProjects?.value === -1 ? 'Unlimited' : license.maxProjects?.value }} projects
+                ·
+                {{ license.maxExtensions?.value === -1 ? 'Unlimited' : license.maxExtensions?.value }} extensions
+              </span>
+            </div>
+            <div v-if="license.team?.value" class="sub-info-row">
+              <span class="sub-info-label">Team</span>
+              <span class="sub-info-value">{{ license.team?.value?.name || '—' }} ({{ license.team?.value?.member_count ?? license.team?.value?.members?.length ?? 0 }} members)</span>
+            </div>
+          </div>
 
           <!-- Current plan banner -->
           <div class="sub-current-banner" :class="{ 'sub-banner-pro': license.isPro?.value, 'sub-banner-plus': license.isPlus?.value }">
@@ -184,6 +224,7 @@
             <div v-for="tier in PLAN_TIERS" :key="tier.id" class="sub-tier" :class="{ 'sub-tier-active': currentPlanId === tier.id, 'sub-tier-popular': tier.popular && currentPlanId !== tier.id }">
               <div v-if="tier.popular && currentPlanId !== tier.id" class="sub-tier-tag">Popular</div>
               <div v-else-if="currentPlanId === tier.id" class="sub-tier-tag sub-tier-tag-current">Current</div>
+              <div v-if="tier.icon" class="sub-tier-icon" aria-hidden="true" v-html="tier.icon"></div>
               <h4 class="sub-tier-name">{{ tier.name }}</h4>
               <div class="sub-tier-pricing">
                 <span class="sub-tier-price">{{ tier.price }}</span>
@@ -218,7 +259,10 @@
               <tbody>
                 <template v-for="group in PLAN_FEATURES" :key="group.category">
                   <tr class="sub-compare-category-row">
-                    <td :colspan="PLAN_TIERS.length + 1" class="sub-compare-category">{{ group.category }}</td>
+                    <td :colspan="PLAN_TIERS.length + 1" class="sub-compare-category">
+                      <span v-if="group.icon" class="sub-compare-category-icon" aria-hidden="true" v-html="group.icon"></span>
+                      {{ group.category }}
+                    </td>
                   </tr>
                   <tr v-for="feat in group.features" :key="feat.label" class="sub-compare-row">
                     <td class="sub-compare-label">{{ feat.label }}</td>
@@ -243,13 +287,19 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="inline-block mr-1 align-[-2px]"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
             Sign in to manage your subscription.
           </p>
+          </div>
         </section>
 
         <!-- Team -->
         <section v-show="activeSection === 'team'" class="settings-section">
-          <h3 class="settings-section-title">Team</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Collaborate with your team. Changes sync with the web app.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('team').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('team').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('team').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <!-- Not logged in -->
           <div v-if="!license.isLoggedIn?.value" class="settings-card">
             <div class="settings-row">
@@ -274,6 +324,19 @@
 
           <!-- Has team -->
           <template v-else>
+            <!-- Team switcher (when user has multiple teams) -->
+            <div v-if="teamsList.length > 1" class="settings-card mb-5">
+              <label class="settings-label block mb-2">Active team</label>
+              <Select
+                :model-value="activeTeamId"
+                :options="teamsList"
+                option-label="name"
+                option-value="id"
+                placeholder="Select team"
+                class="w-full max-w-xs"
+                @update:model-value="onActiveTeamChange"
+              />
+            </div>
             <!-- Team header -->
             <div class="settings-card space-y-5 mb-5">
               <div class="settings-row flex items-center justify-between gap-4 flex-wrap">
@@ -375,50 +438,89 @@
 
             <p v-if="teamError" class="text-sm text-red-500 m-0">{{ teamError }}</p>
           </template>
+          </div>
         </section>
 
         <!-- Application -->
         <section v-show="activeSection === 'application'" class="settings-section">
-          <h3 class="settings-section-title">Application</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Startup and quit behavior.</p>
-          <div class="settings-card space-y-5">
-            <label class="settings-row settings-row-clickable settings-checkbox-row">
-              <div class="min-w-0">
-                <span class="settings-label block text-rm-text">Launch at login</span>
-                <p class="settings-desc m-0 text-sm text-rm-muted">Start the app when you log in to your computer.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('application').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('application').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('application').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
+          <div class="app-settings-grid">
+            <!-- Startup -->
+            <div class="app-settings-card">
+              <h4 class="app-settings-card-title">Startup</h4>
+              <label class="app-settings-row app-settings-row-clickable">
+                <div class="min-w-0 flex-1">
+                  <span class="app-settings-label">Launch at login</span>
+                  <p class="app-settings-desc">Start the app when you log in to your computer.</p>
+                </div>
+                <Checkbox v-model="launchAtLogin" binary @update:model-value="saveLaunchAtLogin" class="shrink-0" />
+              </label>
+              <div class="app-settings-row">
+                <span class="app-settings-label">Open to</span>
+                <p class="app-settings-desc">Default view when the app starts.</p>
+                <Select v-model="defaultView" :options="defaultViewOptions" optionLabel="label" optionValue="value" class="app-settings-select mt-2" @change="saveDefaultView" />
               </div>
-              <Checkbox v-model="launchAtLogin" binary @update:model-value="saveLaunchAtLogin" class="shrink-0" />
-            </label>
-            <Divider />
-            <div class="settings-row pt-2">
-              <span class="settings-label">Open to</span>
-              <p class="settings-desc">Default view when the app starts.</p>
-              <Select v-model="defaultView" :options="defaultViewOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveDefaultView" />
             </div>
-            <div class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">Check for updates</span>
-              <p class="settings-desc">When to look for new versions.</p>
-              <Select v-model="checkForUpdates" :options="checkForUpdatesOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveCheckForUpdates" />
-            </div>
-            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="settings-label block text-rm-text">Confirm before closing</span>
-                <p class="settings-desc m-0 text-sm text-rm-muted">Ask for confirmation when quitting the app.</p>
+
+            <!-- Updates -->
+            <div class="app-settings-card">
+              <h4 class="app-settings-card-title">Updates</h4>
+              <div class="app-settings-row">
+                <span class="app-settings-label">Check for updates</span>
+                <p class="app-settings-desc">When to look for new versions.</p>
+                <div class="flex flex-wrap items-center gap-2 mt-2">
+                  <Select v-model="checkForUpdates" :options="checkForUpdatesOptions" optionLabel="label" optionValue="value" class="app-settings-select min-w-[10rem]" @change="saveCheckForUpdates" />
+                  <Button label="Check now" size="small" severity="secondary" :loading="updateCheckLoading" :disabled="updateCheckLoading" @click="checkForUpdatesNow" />
+                </div>
+                <p v-if="updateCheckMessage" class="app-settings-hint mt-2">{{ updateCheckMessage }}</p>
+                <div v-if="appStore.updateAvailableVersion && !appStore.updateDownloaded" class="flex flex-wrap items-center gap-2 mt-2">
+                  <span class="text-sm text-rm-success">Update available (v{{ appStore.updateAvailableVersion }})</span>
+                  <Button label="Download" size="small" severity="success" :loading="updateDownloading" :disabled="updateDownloading" @click="downloadUpdate" />
+                </div>
+                <div v-if="appStore.updateDownloaded" class="flex flex-wrap items-center gap-2 mt-2">
+                  <span class="text-sm text-rm-success">Update downloaded. Restart to install.</span>
+                  <Button label="Restart now" size="small" severity="success" @click="quitAndInstall" />
+                </div>
               </div>
-              <Checkbox v-model="confirmBeforeQuit" binary @update:model-value="saveConfirmBeforeQuit" class="shrink-0" />
-            </label>
-            <div class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">Setup wizard</span>
-              <p class="settings-desc">Walk through adding projects, Git, tests, and extensions.</p>
-              <Button label="Run setup wizard" size="small" severity="secondary" class="mt-2" @click="openSetupWizard" />
             </div>
+
+            <!-- Quit & Setup -->
+            <div class="app-settings-card">
+              <h4 class="app-settings-card-title">Quit & setup</h4>
+              <label class="app-settings-row app-settings-row-clickable">
+                <div class="min-w-0 flex-1">
+                  <span class="app-settings-label">Confirm before closing</span>
+                  <p class="app-settings-desc">Ask for confirmation when quitting the app.</p>
+                </div>
+                <Checkbox v-model="confirmBeforeQuit" binary @update:model-value="saveConfirmBeforeQuit" class="shrink-0" />
+              </label>
+              <div class="app-settings-row">
+                <span class="app-settings-label">Setup wizard</span>
+                <p class="app-settings-desc">Walk through adding projects, Git, tests, and extensions.</p>
+                <Button label="Run setup wizard" size="small" severity="secondary" class="mt-2" @click="openSetupWizard" />
+              </div>
+            </div>
+          </div>
           </div>
         </section>
 
         <!-- Notifications -->
         <section v-show="activeSection === 'notifications'" class="settings-section">
-          <h3 class="settings-section-title">Notifications</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">In-app and system notifications.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('notifications').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('notifications').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('notifications').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <div class="settings-card space-y-5">
             <label class="settings-row settings-row-clickable settings-checkbox-row">
               <div class="min-w-0">
@@ -480,12 +582,19 @@
               </div>
             </template>
           </template>
+          </div>
         </section>
 
         <!-- Behavior -->
         <section v-show="activeSection === 'behavior'" class="settings-section">
-          <h3 class="settings-section-title">Behavior</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">How you interact with projects and the UI.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('behavior').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('behavior').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('behavior').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <div class="settings-card space-y-5">
             <label class="settings-row settings-row-clickable settings-checkbox-row">
               <div class="min-w-0">
@@ -494,12 +603,94 @@
               </div>
               <Checkbox v-model="doubleClickToOpenProject" binary @update:model-value="saveDoubleClickToOpenProject" class="shrink-0" />
             </label>
+            <div class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Default project sort</span>
+              <p class="settings-desc">How to order projects in the sidebar.</p>
+              <Select v-model="projectSortOrder" :options="projectSortOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveProjectSortOrder" />
+            </div>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Lock sidebar width</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Prevent resizing the sidebar (width stays fixed).</p>
+              </div>
+              <Checkbox v-model="sidebarWidthLocked" binary @update:model-value="saveSidebarWidthLocked" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Open project in new tab</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">When using tabs, open projects in a new tab instead of replacing the current one.</p>
+              </div>
+              <Checkbox v-model="openProjectInNewTab" binary @update:model-value="saveOpenProjectInNewTab" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Compact sidebar</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Smaller icons and labels in the project list.</p>
+              </div>
+              <Checkbox v-model="compactSidebar" binary @update:model-value="saveCompactSidebar" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Show project path in sidebar</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Display full path under each project name.</p>
+              </div>
+              <Checkbox v-model="showProjectPathInSidebar" binary @update:model-value="saveShowProjectPathInSidebar" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Remember last opened tab</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Per project, restore the last detail tab (Git, Tests, etc.) when reopening.</p>
+              </div>
+              <Checkbox v-model="rememberLastDetailTab" binary @update:model-value="saveRememberLastDetailTab" class="shrink-0" />
+            </label>
             <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
               <div class="min-w-0">
                 <span class="settings-label block text-rm-text">Confirm destructive actions</span>
                 <p class="settings-desc m-0 text-sm text-rm-muted">Ask for confirmation before delete, release, or batch release.</p>
               </div>
               <Checkbox v-model="confirmDestructiveActions" binary @update:model-value="saveConfirmDestructiveActions" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Confirm before discarding changes</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Extra confirmation before git discard or reset.</p>
+              </div>
+              <Checkbox v-model="confirmBeforeDiscard" binary @update:model-value="saveConfirmBeforeDiscard" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Confirm before force push</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Extra confirmation before git push --force.</p>
+              </div>
+              <Checkbox v-model="confirmBeforeForcePush" binary @update:model-value="saveConfirmBeforeForcePush" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Open links in default browser</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Open external links (docs, GitHub, etc.) in the system browser instead of in-app.</p>
+              </div>
+              <Checkbox v-model="openLinksInExternalBrowser" binary @update:model-value="saveOpenLinksInExternalBrowser" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Debug bar visible</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Show the debug bar by default (for developers).</p>
+              </div>
+              <Checkbox v-model="debugBarVisible" binary @update:model-value="saveDebugBarVisible" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Notify on release success/failure</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Show system notifications when a release finishes.</p>
+              </div>
+              <Checkbox v-model="notifyOnRelease" binary @update:model-value="saveNotifyOnRelease" class="shrink-0" />
+            </label>
+            <label class="settings-row settings-row-clickable settings-checkbox-row pt-2 border-t border-rm-border">
+              <div class="min-w-0">
+                <span class="settings-label block text-rm-text">Notify when project sync completes</span>
+                <p class="settings-desc m-0 text-sm text-rm-muted">Alert when background sync finishes.</p>
+              </div>
+              <Checkbox v-model="notifyOnSyncComplete" binary @update:model-value="saveNotifyOnSyncComplete" class="shrink-0" />
             </label>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">Auto-refresh interval</span>
@@ -519,15 +710,21 @@
               <Checkbox v-model="showTips" binary @update:model-value="saveShowTips" class="shrink-0" />
             </label>
           </div>
+          </div>
         </section>
 
         <!-- Extensions -->
         <section v-show="activeSection === 'extensions'" class="settings-section">
-          <h3 class="settings-section-title">Extensions</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Browse, install, and manage extensions from the marketplace.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('extensions').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('extensions').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('extensions').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <!-- Analytics summary -->
-          <div v-if="license.isLoggedIn?.value && extAnalytics.overview.value" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          <div v-if="license.isLoggedIn?.value && license.hasFeature?.('usage_analytics') && extAnalytics.overview.value" class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
             <div class="rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-3">
               <span class="text-[10px] uppercase tracking-wider text-rm-muted block">Available</span>
               <span class="text-lg font-bold text-rm-text">{{ extAnalytics.totalExtensions.value ?? '—' }}</span>
@@ -602,7 +799,7 @@
                 </template>
                 <template v-else-if="extIsInstalled(item.slug || item.id)">
                   <label class="flex items-center gap-1.5 cursor-pointer">
-                    <InputSwitch :modelValue="extPrefs.isEnabled(item.slug || item.id)" @update:modelValue="(v) => extPrefs.setEnabled(item.slug || item.id, v)" class="ext-switch" />
+                    <ToggleSwitch :modelValue="extPrefs.isEnabled(item.slug || item.id)" @update:modelValue="(v) => extPrefs.setEnabled(item.slug || item.id, v)" class="ext-switch" />
                     <span class="text-xs" :class="extPrefs.isEnabled(item.slug || item.id) ? 'text-green-500' : 'text-rm-muted'">
                       {{ extPrefs.isEnabled(item.slug || item.id) ? 'Enabled' : 'Disabled' }}
                     </span>
@@ -616,12 +813,19 @@
           </div>
 
           <p class="text-xs text-rm-muted mt-4">Restart the app after installing or uninstalling extensions to load changes.</p>
+          </div>
         </section>
 
         <!-- Git -->
         <section v-show="activeSection === 'git'" class="settings-section">
-          <h3 class="settings-section-title">Git</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Commit, identity, signing, and repository options.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('git').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('git').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('git').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
 
           <!-- Identity -->
           <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-3">Identity</h4>
@@ -744,13 +948,19 @@
               </div>
             </div>
           </div>
+          </div>
         </section>
 
         <!-- GitHub -->
         <section v-show="activeSection === 'github'" class="settings-section">
-          <h3 class="settings-section-title">GitHub</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Integration status with GitHub via the web app.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('github').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('github').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('github').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <template v-if="!license.isLoggedIn?.value">
             <div class="settings-card">
               <p class="text-sm text-rm-warning m-0">
@@ -858,17 +1068,41 @@
               <p class="text-sm text-rm-muted m-0">No projects with linked GitHub repositories.</p>
             </div>
           </template>
+          </div>
         </section>
 
         <!-- AI -->
         <section v-show="activeSection === 'ai'" class="settings-section">
-          <h3 class="settings-section-title">AI</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">
-            Used for commit messages, release notes, and test-fix suggestions.
-            <span v-if="!license.isLoggedIn?.value" class="text-rm-warning"> Sign in required.</span>
-          </p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('ai').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('ai').label }}</h3>
+              <p class="settings-section-hero-desc">
+                {{ getSectionMeta('ai').description }}
+                <span v-if="!license.isLoggedIn?.value" class="settings-section-hero-warning"> Sign in required.</span>
+              </p>
+            </div>
+          </div>
 
-          <div class="settings-card space-y-5">
+          <div class="settings-section-card space-y-5">
+            <!-- AI Onboarding -->
+            <div v-if="showAiOnboarding" class="ai-onboarding-card rounded-rm border border-rm-border bg-rm-bg-secondary/50 p-4">
+              <div class="flex items-start gap-3">
+                <span class="text-2xl" aria-hidden="true">🤖</span>
+                <div class="flex-1 min-w-0">
+                  <h4 class="font-medium text-rm-fg mb-1">Get started with AI</h4>
+                  <p class="text-sm text-rm-muted mb-3">AI powers commit messages, release notes, and test suggestions. Follow these steps:</p>
+                  <ol class="ai-onboarding-steps list-decimal list-inside space-y-2 text-sm text-rm-muted">
+                    <li>Choose a provider below (Ollama and LM Studio run locally, no API key needed).</li>
+                    <li>For local providers: enter the base URL and click <strong>List models</strong> to load options.</li>
+                    <li>Select a model. For cloud providers, add your API key and pick a model.</li>
+                    <li>Optionally adjust temperature and max tokens under Model parameters.</li>
+                  </ol>
+                  <Button severity="secondary" size="small" label="Got it" class="mt-3" @click="dismissAiOnboarding" />
+                </div>
+              </div>
+            </div>
+
             <div class="settings-row">
               <span class="settings-label">Provider</span>
               <p class="settings-desc">Choose where to send prompts.</p>
@@ -902,6 +1136,37 @@
                   </div>
                   <p v-if="ollamaListError" class="mt-1 text-xs text-rm-warning">{{ ollamaListError }}</p>
                   <p v-else-if="!ollamaModelOptions.length" class="mt-1 text-xs text-rm-muted">Click <strong>List models</strong> to load options from Ollama.</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- LM Studio -->
+            <div v-if="aiProvider === 'lmstudio'" class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">LM Studio</span>
+              <p class="settings-desc m-0">Local models via OpenAI-compatible API. No API key needed. <Button variant="link" label="Download LM Studio" class="text-rm-accent p-0 min-w-0 h-auto inline" @click="openUrl('https://lmstudio.ai')" /></p>
+              <div class="grid gap-3 mt-3">
+                <div>
+                  <label class="block text-xs font-medium text-rm-muted mb-1">Base URL</label>
+                  <InputText v-model="lmStudioBaseUrl" type="text" placeholder="http://localhost:1234/v1" autocomplete="off" @blur="saveLmStudio" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Select
+                      v-model="lmStudioModel"
+                      :options="lmStudioModelOptions"
+                      option-label="label"
+                      option-value="value"
+                      placeholder="Choose model"
+                      class="flex-1 min-w-[12rem]"
+                      :loading="lmStudioListLoading"
+                      :disabled="lmStudioListLoading"
+                      @change="saveLmStudio"
+                    />
+                    <Button severity="secondary" size="small" class="text-xs" :disabled="lmStudioListLoading" @click="listLmStudioModels">List models</Button>
+                  </div>
+                  <p v-if="lmStudioListError" class="mt-1 text-xs text-rm-warning">{{ lmStudioListError }}</p>
+                  <p v-else-if="!lmStudioModelOptions.length" class="mt-1 text-xs text-rm-muted">Click <strong>List models</strong> to load options from LM Studio.</p>
                 </div>
               </div>
             </div>
@@ -956,13 +1221,80 @@
                 </div>
               </div>
             </div>
+
+            <!-- Groq -->
+            <div v-if="aiProvider === 'groq'" class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Groq</span>
+              <p class="settings-desc m-0">Fast inference. <Button variant="link" label="Get API key" class="text-rm-accent p-0 min-w-0 h-auto inline" @click="openUrl('https://console.groq.com/keys')" /></p>
+              <div class="grid gap-3 mt-3">
+                <div>
+                  <label class="block text-xs font-medium text-rm-muted mb-1">API key</label>
+                  <InputText v-model="groqApiKey" type="password" placeholder="gsk_..." autocomplete="off" @blur="saveGroq" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
+                  <Select v-model="groqModelPreset" :options="groqModelPresetOptions" optionLabel="label" optionValue="value" class="max-w-xs" @change="onGroqModelPresetChange" />
+                  <InputText v-if="groqModelPreset === 'custom'" v-model="groqModel" type="text" class="mt-2" placeholder="llama-3.3-70b-versatile" autocomplete="off" @blur="saveGroq" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Mistral -->
+            <div v-if="aiProvider === 'mistral'" class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Mistral AI</span>
+              <p class="settings-desc m-0">Mistral API. <Button variant="link" label="Get API key" class="text-rm-accent p-0 min-w-0 h-auto inline" @click="openUrl('https://console.mistral.ai/api-keys/')" /></p>
+              <div class="grid gap-3 mt-3">
+                <div>
+                  <label class="block text-xs font-medium text-rm-muted mb-1">API key</label>
+                  <InputText v-model="mistralApiKey" type="password" placeholder="..." autocomplete="off" @blur="saveMistral" />
+                </div>
+                <div>
+                  <label class="block text-xs font-medium text-rm-muted mb-1">Model</label>
+                  <Select v-model="mistralModelPreset" :options="mistralModelPresetOptions" optionLabel="label" optionValue="value" class="max-w-xs" @change="onMistralModelPresetChange" />
+                  <InputText v-if="mistralModelPreset === 'custom'" v-model="mistralModel" type="text" class="mt-2" placeholder="mistral-small-latest" autocomplete="off" @blur="saveMistral" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Model parameters (all providers) -->
+            <div class="settings-row pt-2 border-t border-rm-border">
+              <span class="settings-label">Model parameters</span>
+              <p class="settings-desc m-0">Adjust generation behavior. Used by Ollama and LM Studio; cloud providers may use their defaults.</p>
+              <div class="flex flex-col gap-4 mt-4">
+                <div class="grid gap-4 grid-cols-3">
+                  <div>
+                    <label class="block text-xs font-medium text-rm-muted mb-1">Temperature</label>
+                    <InputNumber v-model="aiTemperature" :min="0" :max="2" :step="0.1" class="w-full" inputClass="text-sm" @blur="saveAiParams" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-rm-muted mb-1">Max tokens</label>
+                    <InputNumber v-model="aiMaxTokens" :min="256" :max="32768" :step="256" class="w-full" inputClass="text-sm" @blur="saveAiParams" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-rm-muted mb-1">Top P</label>
+                    <InputNumber v-model="aiTopP" :min="0" :max="1" :step="0.05" class="w-full" inputClass="text-sm" @blur="saveAiParams" />
+                  </div>
+                </div>
+                <div class="grid gap-4 grid-cols-3 text-xs text-rm-muted leading-relaxed">
+                  <p class="m-0">0 = deterministic, 2 = creative</p>
+                  <p class="m-0">Response length limit (~4 chars/token)</p>
+                  <p class="m-0">Nucleus sampling (0.9 = top 90%)</p>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
 
         <!-- Tools -->
         <section v-show="activeSection === 'tools'" class="settings-section">
-          <h3 class="settings-section-title">Tools</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Editor and runtimes used when opening files or running commands.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('tools').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('tools').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('tools').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
 
           <div class="settings-card space-y-5">
             <div class="settings-row">
@@ -974,41 +1306,6 @@
               <span class="settings-label">Default terminal (macOS)</span>
               <p class="settings-desc">When opening a folder or SSH session in your system terminal. Default uses Terminal.app (macOS default).</p>
               <Select v-model="preferredTerminal" :options="preferredTerminalOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="savePreferredTerminal" />
-            </div>
-            <div class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">CodeSeer TCP port</span>
-              <p class="settings-desc">Port for receiving PHP dumps (CodeSeer extension). Default 23523. Restart server after change.</p>
-              <InputText v-model.number="codeseerTcpPort" type="number" class="max-w-[120px] mt-2" min="1024" max="65535" placeholder="23523" @blur="saveCodeseerTcpPort" />
-            </div>
-            <div class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">CodeSeer proxy TCP port</span>
-              <p class="settings-desc">HTTP API proxy TCP port. Default 23524. Used when opening API dashboard.</p>
-              <InputText v-model.number="codeseerProxyTcpPort" type="number" class="max-w-[120px] mt-2" min="1024" max="65535" placeholder="23524" @blur="saveCodeseerProxyTcpPort" />
-            </div>
-            <div class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">CodeSeer proxy HTTP port</span>
-              <p class="settings-desc">HTTP API dashboard port. Default 23525.</p>
-              <InputText v-model.number="codeseerProxyHttpPort" type="number" class="max-w-[120px] mt-2" min="1024" max="65535" placeholder="23525" @blur="saveCodeseerProxyHttpPort" />
-            </div>
-            <div class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">CodeSeer SSH server</span>
-              <p class="settings-desc">Enable SSH server for PHP dumps over SSH. Requires ssh2 package. Restart app after change.</p>
-              <div class="mt-2 flex items-center gap-2">
-                <InputSwitch v-model="codeseerSshEnabled" @change="saveCodeseerSshEnabled" />
-                <span class="text-sm">{{ codeseerSshEnabled ? 'Enabled' : 'Disabled' }}</span>
-                <InputText v-model.number="codeseerSshPort" type="number" class="max-w-[100px]" min="1024" max="65535" placeholder="23526" @blur="saveCodeseerSshPort" />
-              </div>
-            </div>
-            <div class="settings-row pt-2 border-t border-rm-border">
-              <span class="settings-label">CodeSeer MCP server</span>
-              <p class="settings-desc">Enable MCP (Model Context Protocol) for AI tools. Restart app after change.</p>
-              <div class="mt-2 flex flex-wrap items-center gap-2">
-                <InputSwitch v-model="codeseerMcpEnabled" @change="saveCodeseerMcpEnabled" />
-                <span class="text-sm">{{ codeseerMcpEnabled ? 'Enabled' : 'Disabled' }}</span>
-                <InputText v-model.number="codeseerMcpPort" type="number" class="max-w-[100px]" min="1024" max="65535" placeholder="3000" @blur="saveCodeseerMcpPort" />
-                <InputText v-model.number="codeseerMcpLimit" type="number" class="max-w-[80px]" min="1" max="500" placeholder="300" @blur="saveCodeseerMcpLimit" />
-                <span class="text-xs text-rm-muted">max items</span>
-              </div>
             </div>
             <div class="settings-row pt-2 border-t border-rm-border">
               <span class="settings-label">PHP executable (default)</span>
@@ -1033,13 +1330,19 @@
               </div>
             </div>
           </div>
+          </div>
         </section>
 
         <!-- Appearance & behavior -->
         <section v-show="activeSection === 'appearance'" class="settings-section">
-          <h3 class="settings-section-title">Appearance &amp; behavior</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Theme, colors, density, and layout.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('appearance').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('appearance').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('appearance').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <div class="settings-card space-y-5">
             <div class="settings-row">
               <span class="settings-label">Theme</span>
@@ -1152,13 +1455,19 @@
               </div>
             </div>
           </div>
+          </div>
         </section>
 
         <!-- Network -->
         <section v-show="activeSection === 'network'" class="settings-section">
-          <h3 class="settings-section-title">Network</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Proxy, connection, and offline options.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('network').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('network').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('network').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <!-- Connectivity status -->
           <div class="settings-card mb-5">
             <div class="flex items-center justify-between gap-3">
@@ -1181,10 +1490,11 @@
             <div class="settings-row">
               <span class="settings-label">Proxy</span>
               <p class="settings-desc">Use system proxy or set custom (e.g. http://proxy:8080). Leave empty for system.</p>
-              <InputText v-model="proxy" type="text" class="mt-2" placeholder="System or http://host:port" @blur="saveProxy" />
+              <InputText v-model="proxy" type="text" class="mt-2 w-full max-w-md" placeholder="System or http://host:port" @blur="saveProxy" />
             </div>
-            <div class="settings-row pt-2 border-t border-rm-border">
+            <div class="settings-row pt-5 mt-5 border-t border-rm-border">
               <span class="settings-label">Request timeout (seconds)</span>
+              <p class="settings-desc">How long to wait for HTTP requests before timing out.</p>
               <Select v-model="requestTimeoutSeconds" :options="requestTimeoutOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveRequestTimeout" />
             </div>
           </div>
@@ -1229,6 +1539,7 @@
               </p>
             </div>
           </div>
+          </div>
         </section>
 
         <!-- Extension settings (e.g. Email) -->
@@ -1238,14 +1549,28 @@
           v-show="activeSection === ext.id"
           class="settings-section"
         >
-          <component :is="ext.component" />
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta(ext.id).icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta(ext.id).label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta(ext.id).description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
+            <component :is="ext.component" />
+          </div>
         </section>
 
         <!-- Keyboard -->
         <section v-show="activeSection === 'keyboard'" class="settings-section">
-          <h3 class="settings-section-title">Keyboard</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">All available keyboard shortcuts. Custom shortcut editing may be added in a future release.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('keyboard').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('keyboard').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('keyboard').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <div class="settings-card mb-5">
             <h4 class="text-xs font-semibold uppercase tracking-wider text-rm-muted mb-4">Navigation</h4>
             <table class="shortcut-table">
@@ -1253,6 +1578,10 @@
                 <tr>
                   <td class="shortcut-keys"><kbd>{{ modKey }}</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd></td>
                   <td>Command palette</td>
+                </tr>
+                <tr>
+                  <td class="shortcut-keys"><kbd>{{ modKey }}</kbd> + <kbd>B</kbd></td>
+                  <td>Toggle sidebar</td>
                 </tr>
               </tbody>
             </table>
@@ -1281,6 +1610,14 @@
                 <tr>
                   <td class="shortcut-keys"><kbd>{{ modKey }}</kbd> + <kbd>D</kbd></td>
                   <td>Download latest release</td>
+                </tr>
+                <tr>
+                  <td class="shortcut-keys"><kbd>{{ modKey }}</kbd> + <kbd>K</kbd></td>
+                  <td>Clear Codeseer messages <span class="font-normal normal-case text-rm-muted/70">(Codeseer tab)</span></td>
+                </tr>
+                <tr>
+                  <td class="shortcut-keys"><kbd>{{ modKey }}</kbd> + <kbd>{{ altKey }}</kbd> + <kbd>F</kbd></td>
+                  <td>Focus Git filter <span class="font-normal normal-case text-rm-muted/70">(Git tab)</span></td>
                 </tr>
               </tbody>
             </table>
@@ -1337,12 +1674,19 @@
               <span v-for="cmd in paletteCommands" :key="cmd" class="palette-cmd-badge">{{ cmd }}</span>
             </div>
           </div>
+          </div>
         </section>
 
         <!-- Data & privacy -->
         <section v-show="activeSection === 'dataPrivacy'" class="settings-section">
-          <h3 class="settings-section-title">Data &amp; privacy</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Usage data, crash reports, and settings backup.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('dataPrivacy').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('dataPrivacy').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('dataPrivacy').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <div class="settings-card space-y-5">
             <label class="settings-row settings-row-clickable settings-checkbox-row">
               <div class="min-w-0">
@@ -1445,12 +1789,19 @@
               </div>
             </div>
           </div>
+          </div>
         </section>
 
         <!-- Window -->
         <section v-show="activeSection === 'window'" class="settings-section">
-          <h3 class="settings-section-title">Window</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Window behavior and tray.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('window').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('window').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('window').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <div class="settings-card space-y-5">
             <label class="settings-row settings-row-clickable settings-checkbox-row">
               <div class="min-w-0">
@@ -1467,12 +1818,19 @@
               <Checkbox v-model="minimizeToTray" binary @update:model-value="saveMinimizeToTray" class="shrink-0" />
             </label>
           </div>
+          </div>
         </section>
 
         <!-- Accessibility -->
         <section v-show="activeSection === 'accessibility'" class="settings-section">
-          <h3 class="settings-section-title">Accessibility</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Focus, cursor, and screen reader support.</p>
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('accessibility').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('accessibility').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('accessibility').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <div class="settings-card space-y-5">
             <label class="settings-row settings-row-clickable settings-checkbox-row">
               <div class="min-w-0">
@@ -1496,14 +1854,19 @@
               <Checkbox v-model="screenReaderSupport" binary @update:model-value="saveScreenReaderSupport" class="shrink-0" />
             </label>
           </div>
+          </div>
         </section>
 
-        <!-- Developer -->
         <!-- Webhooks -->
         <section v-show="activeSection === 'webhooks'" class="settings-section">
-          <h3 class="settings-section-title">Webhooks</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Send HTTP callbacks when events occur. Managed via the web app API.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('webhooks').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('webhooks').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('webhooks').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <!-- Not logged in -->
           <div v-if="!license.isLoggedIn?.value" class="settings-card">
             <div class="settings-row">
@@ -1615,12 +1978,18 @@
               </div>
             </template>
           </Dialog>
+          </div>
         </section>
 
         <section v-show="activeSection === 'developer'" class="settings-section">
-          <h3 class="settings-section-title">Developer</h3>
-          <p class="settings-section-desc text-sm text-rm-muted mb-6">Options for debugging and troubleshooting.</p>
-
+          <div class="settings-section-hero">
+            <div class="settings-section-hero-icon" aria-hidden="true" v-html="getSectionMeta('developer').icon"></div>
+            <div>
+              <h3 class="settings-section-hero-title">{{ getSectionMeta('developer').label }}</h3>
+              <p class="settings-section-hero-desc">{{ getSectionMeta('developer').description }}</p>
+            </div>
+          </div>
+          <div class="settings-section-card">
           <div class="settings-card">
             <label class="settings-row settings-row-clickable settings-checkbox-row">
               <div class="min-w-0">
@@ -1629,6 +1998,7 @@
               </div>
               <Checkbox v-model="debugLogging" binary @update:model-value="saveDebugLogging" class="shrink-0" />
             </label>
+          </div>
           </div>
         </section>
       </div>
@@ -1642,7 +2012,8 @@ import Checkbox from 'primevue/checkbox';
 import Dialog from 'primevue/dialog';
 import Divider from 'primevue/divider';
 import InputText from 'primevue/inputtext';
-import InputSwitch from 'primevue/inputswitch';
+import InputNumber from 'primevue/inputnumber';
+import ToggleSwitch from 'primevue/toggleswitch';
 import Message from 'primevue/message';
 import Select from 'primevue/select';
 import Tag from 'primevue/tag';
@@ -1680,8 +2051,33 @@ const extRegistryList = ref([]);
 const extRegistryFetched = ref(false);
 const extRegistryError = ref('');
 
+const extMergedList = computed(() => {
+  const registry = extRegistryList.value;
+  const registryIds = new Set(registry.map((item) => item.slug || item.id));
+  const localOnly = extInstalledUser.value
+    .filter((u) => !registryIds.has(u.id))
+    .map((u) => ({
+      id: u.id,
+      slug: u.id,
+      name: u.name || u.id,
+      description: u.description || '',
+      version: u.version || null,
+      download_url: null,
+      github_repo: null,
+      homepage: null,
+      author: null,
+      icon: null,
+      required_plan: 'free',
+      accessible: true,
+      installed: true,
+      installed_version: u.version || null,
+      _localOnly: true,
+    }));
+  return [...registry, ...localOnly];
+});
+
 const extFilteredRegistry = computed(() => {
-  let list = extRegistryList.value;
+  let list = extMergedList.value;
   if (extFilterMode.value === 'installed') list = list.filter((item) => extIsInstalled(item.slug || item.id));
   else if (extFilterMode.value === 'not_installed') list = list.filter((item) => !extIsInstalled(item.slug || item.id));
   if (extSearchQuery.value.trim()) {
@@ -1700,16 +2096,19 @@ async function loadExtensions() {
   if (extSyncing.value) return;
   extSyncing.value = true;
   extRegistryError.value = '';
-  try { await window.releaseManager?.syncPlanExtensions?.(); } catch (_) {}
+  await extPrefs.fetchFromWeb();
+  try {
+    const syncResult = await window.releaseManager?.syncPlanExtensions?.();
+    if (syncResult?.disabledSlugs) extPrefs.applyWebState(syncResult.disabledSlugs.map((s) => ({ slug: s, enabled: false })));
+  } catch (_) {}
   extInstalledUser.value = await window.releaseManager?.getInstalledUserExtensions?.() || [];
   try {
     const result = await window.releaseManager?.getGitHubExtensionRegistry?.();
-    extRegistryFetched.value = true;
     if (!result?.ok) { extRegistryError.value = result?.error || 'Failed to load extensions'; extRegistryList.value = []; }
     else extRegistryList.value = result.data || [];
   } catch (e) { extRegistryError.value = e.message || 'Failed to load extensions'; }
-  finally { extSyncing.value = false; }
-  if (license.isLoggedIn?.value) extAnalytics.fetchOverview();
+  finally { extRegistryFetched.value = true; extSyncing.value = false; }
+  if (license.isLoggedIn?.value && license.hasFeature?.('usage_analytics')) extAnalytics.fetchOverview();
 }
 
 function extOpenUpgrade() {
@@ -1746,8 +2145,9 @@ function onSectionClick(id) {
   if (id === 'extensions') loadExtensions();
 }
 
-const {
+  const {
   sections,
+  getSectionMeta,
   activeSection,
   license,
   themeOptions,
@@ -1755,12 +2155,15 @@ const {
   defaultViewOptions,
   checkForUpdatesOptions,
   autoRefreshIntervalOptions,
+  projectSortOptions,
   recentListLengthOptions,
   gitAutoFetchIntervalOptions,
   aiProviderOptions,
   claudeModelPresetOptions,
   openaiModelPresetOptions,
   geminiModelPresetOptions,
+  groqModelPresetOptions,
+  mistralModelPresetOptions,
   preferredEditorOptions,
   preferredTerminalOptions,
   fontSizeOptions,
@@ -1774,6 +2177,11 @@ const {
   aiProvider,
   ollamaBaseUrl,
   ollamaModel,
+  lmStudioBaseUrl,
+  lmStudioModel,
+  aiTemperature,
+  aiMaxTokens,
+  aiTopP,
   claudeApiKey,
   claudeModel,
   claudeModelPreset,
@@ -1783,26 +2191,16 @@ const {
   geminiApiKey,
   geminiModel,
   geminiModelPreset,
+  groqApiKey,
+  groqModel,
+  groqModelPreset,
+  mistralApiKey,
+  mistralModel,
+  mistralModelPreset,
   preferredEditor,
   preferredTerminal,
   savePreferredTerminal,
   phpPath,
-  codeseerTcpPort,
-  saveCodeseerTcpPort,
-  codeseerProxyTcpPort,
-  codeseerProxyHttpPort,
-  saveCodeseerProxyTcpPort,
-  saveCodeseerProxyHttpPort,
-  codeseerSshEnabled,
-  codeseerSshPort,
-  saveCodeseerSshEnabled,
-  saveCodeseerSshPort,
-  codeseerMcpEnabled,
-  codeseerMcpPort,
-  codeseerMcpLimit,
-  saveCodeseerMcpEnabled,
-  saveCodeseerMcpPort,
-  saveCodeseerMcpLimit,
   phpVersionOptions,
   phpVersionSelectOptions,
   listPhpVersions,
@@ -1830,9 +2228,33 @@ const {
   notificationsOnlyWhenNotFocused,
   doubleClickToOpenProject,
   confirmDestructiveActions,
+  confirmBeforeDiscard,
+  confirmBeforeForcePush,
+  openLinksInExternalBrowser,
+  projectSortOrder,
+  sidebarWidthLocked,
+  openProjectInNewTab,
+  compactSidebar,
+  showProjectPathInSidebar,
+  rememberLastDetailTab,
+  debugBarVisible,
+  notifyOnRelease,
+  notifyOnSyncComplete,
   autoRefreshIntervalSeconds,
   recentListLength,
   showTips,
+  saveConfirmBeforeDiscard,
+  saveConfirmBeforeForcePush,
+  saveOpenLinksInExternalBrowser,
+  saveProjectSortOrder,
+  saveSidebarWidthLocked,
+  saveOpenProjectInNewTab,
+  saveCompactSidebar,
+  saveShowProjectPathInSidebar,
+  saveRememberLastDetailTab,
+  saveDebugBarVisible,
+  saveNotifyOnRelease,
+  saveNotifyOnSyncComplete,
   gitDefaultBranch,
   gitAutoFetchIntervalMinutes,
   gitSshKeyPath,
@@ -1872,6 +2294,15 @@ const {
   ollamaModels,
   ollamaListLoading,
   ollamaListError,
+  lmStudioModelOptions,
+  lmStudioModels,
+  lmStudioListLoading,
+  lmStudioListError,
+  listLmStudioModels,
+  saveLmStudio,
+  saveAiParams,
+  showAiOnboarding,
+  dismissAiOnboarding,
   setTheme,
   setAccent,
   saveLaunchAtLogin,
@@ -1905,10 +2336,14 @@ const {
   saveClaude,
   saveOpenAI,
   saveGemini,
+  saveGroq,
+  saveMistral,
   saveAiProvider,
   onClaudeModelPresetChange,
   onOpenAiModelPresetChange,
   onGeminiModelPresetChange,
+  onGroqModelPresetChange,
+  onMistralModelPresetChange,
   listOllamaModels,
   savePreferredEditor,
   savePhpPath,
@@ -1927,6 +2362,7 @@ const {
   saveOfflineMode,
   saveOfflineGraceDays,
   checkConnectivity,
+  loadOfflineGraceConfig,
   saveTelemetry,
   saveCrashReports,
   exportSettingsToFile,
@@ -2055,8 +2491,24 @@ function removeCustomEvent(idx) {
 }
 
 const modKey = navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl';
+const altKey = navigator.platform?.includes('Mac') ? '⌥' : 'Alt';
 
 const avatarError = ref(false);
+const yourInfoTapCount = ref(0);
+let yourInfoTapTimer = null;
+const YOUR_INFO_TAP_THRESHOLD = 7;
+const YOUR_INFO_TAP_WINDOW_MS = 3000;
+const showEnvSetting = ref(false);
+
+function onYourInfoTap() {
+  yourInfoTapCount.value++;
+  clearTimeout(yourInfoTapTimer);
+  yourInfoTapTimer = setTimeout(() => { yourInfoTapCount.value = 0; }, YOUR_INFO_TAP_WINDOW_MS);
+  if (yourInfoTapCount.value >= YOUR_INFO_TAP_THRESHOLD) {
+    yourInfoTapCount.value = 0;
+    showEnvSetting.value = !showEnvSetting.value;
+  }
+}
 
 const avatarSrc = computed(() => {
   const profile = license.profile?.value;
@@ -2079,28 +2531,41 @@ const userInitials = computed(() => {
 
 watch(() => license.profile?.value?.avatar_url, () => { avatarError.value = false; });
 
+const TIER_ICONS = {
+  free: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>',
+  pro: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  team: '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+};
+
 const PLAN_TIERS = [
-  { id: 'free', name: 'Free', price: '$0', period: '', desc: 'For personal projects' },
-  { id: 'pro', name: 'Pro', price: '$9', period: '/mo', desc: 'For developers who ship regularly', popular: true },
-  { id: 'team', name: 'Team', price: '$29', period: '/mo', desc: 'For teams and organizations' },
+  { id: 'free', name: 'Free', price: '$0', period: '', desc: 'For personal projects', icon: TIER_ICONS.free },
+  { id: 'pro', name: 'Pro', price: '$9', period: '/mo', desc: 'For developers who ship regularly', popular: true, icon: TIER_ICONS.pro },
+  { id: 'team', name: 'Team', price: '$29', period: '/mo', desc: 'For teams and organizations', icon: TIER_ICONS.team },
 ];
 
+const FEATURE_CATEGORY_ICONS = {
+  Limits: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>',
+  Core: '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2 1.33-2 0 0-2.77 2.24-5 5-5 1.66 0 3 1.35 3 3.02 0 1.33 2 1.33 2 0"/></svg>',
+  'Pro features': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+  'Team features': '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+};
+
 const PLAN_FEATURES = [
-  { category: 'Limits', features: [
-    { label: 'Projects', free: '5', pro: '50', team: 'Unlimited' },
-    { label: 'Extensions', free: '5', pro: '25', team: 'Unlimited' },
+  { category: 'Limits', icon: FEATURE_CATEGORY_ICONS.Limits, features: [
+    { label: 'Projects', free: '3', pro: '50', team: 'Unlimited' },
+    { label: 'Extensions', free: '3', pro: '25', team: 'Unlimited' },
     { label: 'Team members', free: '1', pro: '1', team: '10' },
   ]},
-  { category: 'Core', features: [
+  { category: 'Core', icon: FEATURE_CATEGORY_ICONS.Core, features: [
     { label: 'Releases & version bumps', free: true, pro: true, team: true },
     { label: 'Git integration', free: true, pro: true, team: true },
     { label: 'Dashboard overview', free: true, pro: true, team: true },
     { label: 'Notes, wiki & bookmarks', free: true, pro: true, team: true },
     { label: 'Kanban & checklists', free: true, pro: true, team: true },
     { label: 'Env file editor', free: true, pro: true, team: true },
-    { label: 'Settings sync', free: true, pro: true, team: true },
+    { label: 'Settings sync', free: false, pro: true, team: true },
   ]},
-  { category: 'Pro features', features: [
+  { category: 'Pro features', icon: FEATURE_CATEGORY_ICONS['Pro features'], features: [
     { label: 'AI commit messages', free: false, pro: true, team: true },
     { label: 'AI release notes', free: false, pro: true, team: true },
     { label: 'Pull requests', free: false, pro: true, team: true },
@@ -2110,7 +2575,7 @@ const PLAN_FEATURES = [
     { label: 'Usage analytics', free: false, pro: true, team: true },
     { label: 'Priority support', free: false, pro: true, team: true },
   ]},
-  { category: 'Team features', features: [
+  { category: 'Team features', icon: FEATURE_CATEGORY_ICONS['Team features'], features: [
     { label: 'Team collaboration', free: false, pro: false, team: true },
     { label: 'Shared dashboard', free: false, pro: false, team: true },
     { label: 'Batch release', free: false, pro: false, team: true },
@@ -2173,20 +2638,68 @@ const paletteCommands = [
   'Open setup wizard',
 ];
 
+// Redirect away from Team section when user is not on Team plan
+watch(() => license.isTeam?.value, (isTeam) => {
+  if (!isTeam && activeSection.value === 'team') activeSection.value = 'account';
+}, { immediate: true });
+
 // Refetch license when user opens Account so expired/invalid session immediately shows login screen
 watch(activeSection, (section) => {
   if (section === 'account' && license.loadStatus) license.loadStatus();
-  if (section === 'team' && license.isLoggedIn?.value) refreshTeamData();
+  if (section === 'team' && license.isLoggedIn?.value && license.isTeam?.value) refreshTeamData();
   if (section === 'webhooks' && license.isLoggedIn?.value) loadWebhooks();
-  if (section === 'extensions' && !extRegistryFetched.value) loadExtensions();
+  if (section === 'extensions') loadExtensions();
   if (section === 'github' && license.isLoggedIn?.value && !githubHealth.value && !githubHealthLoading.value) fetchGitHubHealth();
+  if (section === 'network') {
+    checkConnectivity();
+    loadOfflineGraceConfig();
+  }
 });
 
-onMounted(() => {
+onMounted(async () => {
   if (!license.isLoggedIn?.value) {
     activeSection.value = 'account';
   }
+  extInstalledUser.value = await window.releaseManager?.getInstalledUserExtensions?.() || [];
 });
+
+const updateCheckLoading = ref(false);
+const updateCheckMessage = ref('');
+const updateDownloading = ref(false);
+
+async function checkForUpdatesNow() {
+  updateCheckLoading.value = true;
+  updateCheckMessage.value = '';
+  appStore.clearUpdateState();
+  try {
+    const result = await api.checkForUpdatesNow?.();
+    if (result?.updateAvailable) {
+      appStore.setUpdateAvailableVersion(result.version || 'new');
+      updateCheckMessage.value = `Update available (v${result.version || 'new'}). Download to install.`;
+    } else if (result?.ok) {
+      updateCheckMessage.value = 'You\'re up to date.';
+    } else {
+      updateCheckMessage.value = result?.error || 'Update server not configured.';
+    }
+  } catch (_) {
+    updateCheckMessage.value = 'Could not check for updates.';
+  } finally {
+    updateCheckLoading.value = false;
+  }
+}
+
+async function downloadUpdate() {
+  updateDownloading.value = true;
+  try {
+    await api.downloadUpdate?.();
+  } finally {
+    updateDownloading.value = false;
+  }
+}
+
+function quitAndInstall() {
+  api.quitAndInstall?.();
+}
 
 function openSetupWizard() {
   modals.openModal('setupWizard');
@@ -2206,6 +2719,8 @@ async function signOut() {
 // ── Team management ──
 
 const teamData = ref(null);
+const teamsList = ref([]);
+const activeTeamId = ref(null);
 const teamInvites = ref([]);
 const teamError = ref('');
 const teamRefreshing = ref(false);
@@ -2245,8 +2760,16 @@ async function refreshTeamData() {
   teamRefreshing.value = true;
   teamError.value = '';
   try {
-    const res = await api.getTeamInfo?.();
-    teamData.value = res?.team || null;
+    const [teamsRes, activeId] = await Promise.all([
+      api.getTeams?.().catch(() => ({ teams: [] })),
+      api.getActiveTeamId?.().catch(() => null),
+    ]);
+    teamsList.value = teamsRes?.teams || [];
+    activeTeamId.value = activeId || null;
+    const currentTeam = teamsList.value.find((t) => String(t.id) === String(activeTeamId.value))
+      || teamsList.value[0]
+      || null;
+    teamData.value = currentTeam;
     renameTeamName.value = teamData.value?.name || '';
     if (teamData.value?.is_admin) {
       const inv = await api.getTeamInvites?.();
@@ -2258,6 +2781,18 @@ async function refreshTeamData() {
     teamError.value = e.message || 'Failed to load team';
   } finally {
     teamRefreshing.value = false;
+  }
+}
+
+async function onActiveTeamChange(teamId) {
+  if (!teamId) return;
+  try {
+    await api.setActiveTeamId?.(teamId);
+    const t = teamsList.value.find((x) => String(x.id) === String(teamId));
+    teamData.value = t || teamData.value;
+    renameTeamName.value = teamData.value?.name || '';
+  } catch (e) {
+    teamError.value = e.message || 'Failed to switch team';
   }
 }
 
@@ -2571,6 +3106,74 @@ async function handleTestWebhook(wh) {
   border-radius: 10px;
   padding: 1.25rem 1.5rem;
 }
+/* AI section: hero header + standout card */
+.ai-settings-section {
+  position: relative;
+}
+/* Shared section hero + card design for all settings sections */
+.settings-section-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1rem;
+  background: linear-gradient(135deg, rgb(var(--rm-accent) / 0.12) 0%, rgb(var(--rm-accent) / 0.04) 50%, transparent 100%);
+  border: 1px solid rgb(var(--rm-accent) / 0.25);
+  border-radius: 12px;
+}
+.settings-section-hero-icon {
+  flex-shrink: 0;
+  width: 3rem;
+  height: 3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgb(var(--rm-accent) / 0.2);
+  color: rgb(var(--rm-accent));
+}
+.settings-section-hero-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: rgb(var(--rm-text));
+  letter-spacing: -0.03em;
+  margin: 0 0 0.25rem 0;
+}
+.settings-section-hero-desc {
+  font-size: 0.9375rem;
+  color: rgb(var(--rm-muted));
+  margin: 0;
+  line-height: 1.5;
+}
+.settings-section-hero-warning {
+  color: rgb(var(--rm-warning));
+}
+.settings-section-card {
+  position: relative;
+  overflow: hidden;
+  background: rgb(var(--rm-surface));
+  border: 1px solid rgb(var(--rm-border) / 0.8);
+  border-left: 4px solid rgb(var(--rm-accent) / 0.6);
+  border-radius: 12px;
+  padding: 1.5rem 1.75rem;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.08);
+}
+.settings-section-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 30%, rgb(var(--rm-accent) / 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 85% 75%, rgb(var(--rm-accent) / 0.03) 0%, transparent 40%),
+    repeating-radial-gradient(circle at 50% 50%, transparent 0, transparent 2px, rgb(var(--rm-border) / 0.04) 2px, rgb(var(--rm-border) / 0.04) 3px);
+  background-size: 100% 100%, 100% 100%, 28px 28px;
+  opacity: 0.7;
+}
+.settings-section-card > * {
+  position: relative;
+  z-index: 1;
+}
 .settings-row {
   display: block;
 }
@@ -2880,6 +3483,23 @@ async function handleTestWebhook(wh) {
 }
 
 /* Subscription */
+.sub-info-card {
+  padding: 0.875rem 1rem;
+  border-radius: 8px;
+  border: 1px solid rgb(var(--rm-border));
+  background: rgb(var(--rm-surface) / 0.5);
+  margin-bottom: 1rem;
+}
+.sub-info-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+}
+.sub-info-row + .sub-info-row { margin-top: 0.375rem; }
+.sub-info-label { color: rgb(var(--rm-muted)); font-weight: 500; min-width: 5rem; }
+.sub-info-value { color: rgb(var(--rm-text)); }
+
 .sub-current-banner {
   display: flex;
   align-items: center;
@@ -2956,6 +3576,16 @@ async function handleTestWebhook(wh) {
 .sub-tier:hover { border-color: rgb(var(--rm-border-focus) / 0.3); }
 .sub-tier-active { border-color: rgb(var(--rm-accent) / 0.4); background: rgb(var(--rm-accent) / 0.04); }
 .sub-tier-popular:not(.sub-tier-active) { border-color: rgb(var(--rm-accent) / 0.25); }
+.sub-tier-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  margin: 0 auto 0.5rem;
+  color: rgb(var(--rm-muted));
+}
+.sub-tier-active .sub-tier-icon { color: rgb(var(--rm-accent)); }
 .sub-tier-tag {
   position: absolute;
   top: -0.4375rem;
@@ -3000,6 +3630,14 @@ async function handleTestWebhook(wh) {
   border-collapse: collapse;
   font-size: 0.75rem;
 }
+.sub-compare-category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 0.375rem;
+  vertical-align: -0.15em;
+  color: rgb(var(--rm-muted));
+}
 .sub-compare-th-feature { width: 45%; }
 .sub-compare-th,
 .sub-compare-th-feature {
@@ -3042,33 +3680,175 @@ async function handleTestWebhook(wh) {
 .sub-compare-dash { color: rgb(var(--rm-muted) / 0.25); font-size: 0.875rem; }
 .sub-compare-value { color: rgb(var(--rm-text)); font-weight: 600; font-variant-numeric: tabular-nums; }
 
+/* Profile card — clean, minimal layout */
+.account-profile-card {
+  background: rgb(var(--rm-surface));
+  border: 1px solid rgb(var(--rm-border) / 0.6);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-bottom: 1.25rem;
+}
+.account-profile-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+.account-profile-info {
+  flex: 1;
+  min-width: 0;
+}
+.account-profile-name {
+  display: block;
+  font-size: 1rem;
+  font-weight: 600;
+  color: rgb(var(--rm-text));
+  letter-spacing: -0.01em;
+}
+.account-profile-email {
+  font-size: 0.8125rem;
+  color: rgb(var(--rm-muted));
+  margin: 0.25rem 0 0 0;
+  line-height: 1.4;
+}
+.account-profile-hint {
+  font-size: 0.8125rem;
+  color: rgb(var(--rm-warning));
+  margin: 0.25rem 0 0 0;
+}
+.account-signout-btn {
+  flex-shrink: 0;
+}
+.env-setting-card {
+  background: rgb(var(--rm-surface));
+  border: 1px solid rgb(var(--rm-border) / 0.6);
+  border-left: 3px solid rgb(var(--rm-accent) / 0.5);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.env-setting-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+.env-setting-icon {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  background: rgb(var(--rm-accent) / 0.12);
+  color: rgb(var(--rm-accent));
+}
+.env-setting-label {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: rgb(var(--rm-text));
+  letter-spacing: -0.01em;
+}
+.env-setting-desc {
+  font-size: 0.8125rem;
+  color: rgb(var(--rm-muted));
+  margin: 0.25rem 0 0 0;
+  line-height: 1.45;
+}
+.env-setting-select {
+  max-width: 12rem;
+}
+.app-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1rem;
+}
+.app-settings-card {
+  background: rgb(var(--rm-surface));
+  border: 1px solid rgb(var(--rm-border) / 0.6);
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.app-settings-card-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgb(var(--rm-muted));
+  margin: 0 0 1rem 0;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgb(var(--rm-border) / 0.5);
+}
+.app-settings-row {
+  display: flex;
+  flex-direction: column;
+  padding: 0.75rem 0;
+  border-bottom: 1px solid rgb(var(--rm-border) / 0.4);
+}
+.app-settings-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.app-settings-row-clickable {
+  flex-direction: row;
+  align-items: center;
+  gap: 1rem;
+  cursor: pointer;
+}
+.app-settings-label {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: rgb(var(--rm-text));
+}
+.app-settings-desc {
+  font-size: 0.8125rem;
+  color: rgb(var(--rm-muted));
+  margin: 0.25rem 0 0 0;
+  line-height: 1.45;
+}
+.app-settings-select {
+  max-width: 100%;
+}
+.app-settings-hint {
+  font-size: 0.8125rem;
+  color: rgb(var(--rm-muted));
+  margin: 0;
+}
+.settings-row[role="button"]:hover {
+  opacity: 0.9;
+}
 .account-avatar-wrap {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   flex-shrink: 0;
   position: relative;
 }
 .account-avatar {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  border: 2px solid rgb(var(--rm-border));
+  border: 1px solid rgb(var(--rm-border) / 0.5);
   object-fit: cover;
   display: block;
 }
 .account-avatar-initials {
-  width: 52px;
-  height: 52px;
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  border: 2px solid rgb(var(--rm-accent) / 0.25);
-  background: rgb(var(--rm-accent) / 0.1);
+  border: 1px solid rgb(var(--rm-accent) / 0.3);
+  background: rgb(var(--rm-accent) / 0.08);
   display: flex;
   align-items: center;
   justify-content: center;
   color: rgb(var(--rm-accent));
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 600;
-  font-weight: 700;
   letter-spacing: 0.02em;
   user-select: none;
 }
@@ -3222,11 +4002,11 @@ async function handleTestWebhook(wh) {
   font-size: 0.7rem;
   padding: 0.25rem 0.5rem;
 }
-.ext-switch :deep(.p-inputswitch) {
+.ext-switch :deep(.p-toggleswitch) {
   width: 2rem;
   height: 1rem;
 }
-.ext-switch :deep(.p-inputswitch-slider:before) {
+.ext-switch :deep(.p-toggleswitch-slider:before) {
   width: 0.75rem;
   height: 0.75rem;
 }

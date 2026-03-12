@@ -37,6 +37,7 @@ Extensions run in the renderer process and have access to:
 - `window.__registerDocSection(def)` — register a documentation section
 - `window.__sendTelemetry(event, properties)` — fire a usage/telemetry event
 - `window.Vue` — Vue 3 runtime (`h`, `ref`, `reactive`, `computed`, etc.)
+- `window.PrimeVue` — PrimeVue components. Use `window.PrimeVue['button']`, `window.PrimeVue['panel']`, `window.PrimeVue['dialog']`, `window.PrimeVue['inputtext']`, `window.PrimeVue['textarea']`, `window.PrimeVue['select']`, `window.PrimeVue['checkbox']`, `window.PrimeVue['message']`, etc. (lowercase keys)
 
 ## Telemetry / Custom Events
 

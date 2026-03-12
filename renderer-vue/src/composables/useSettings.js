@@ -31,38 +31,54 @@ const SECTION_ICONS = {
 };
 
 const SECTIONS = [
-  { id: 'accessibility', label: 'Accessibility', icon: SECTION_ICONS.accessibility },
-  { id: 'account', label: 'Account', icon: SECTION_ICONS.account },
-  { id: 'ai', label: 'AI', icon: SECTION_ICONS.ai },
-  { id: 'appearance', label: 'Appearance', icon: SECTION_ICONS.appearance },
-  { id: 'application', label: 'Application', icon: SECTION_ICONS.application },
-  { id: 'behavior', label: 'Behavior', icon: SECTION_ICONS.behavior },
-  { id: 'dataPrivacy', label: 'Data & privacy', icon: SECTION_ICONS.dataPrivacy },
-  { id: 'developer', label: 'Developer', icon: SECTION_ICONS.developer },
-  { id: 'extensions', label: 'Extensions', icon: SECTION_ICONS.extensions },
-  { id: 'git', label: 'Git', icon: SECTION_ICONS.git },
-  { id: 'github', label: 'GitHub', icon: SECTION_ICONS.github },
-  { id: 'keyboard', label: 'Keyboard', icon: SECTION_ICONS.keyboard },
-  { id: 'network', label: 'Network', icon: SECTION_ICONS.network },
-  { id: 'notifications', label: 'Notifications', icon: SECTION_ICONS.notifications },
-  { id: 'subscription', label: 'Subscription', icon: SECTION_ICONS.subscription },
-  { id: 'team', label: 'Team', icon: SECTION_ICONS.team },
-  { id: 'tools', label: 'Tools', icon: SECTION_ICONS.tools },
-  { id: 'webhooks', label: 'Webhooks', icon: SECTION_ICONS.webhooks },
-  { id: 'window', label: 'Window', icon: SECTION_ICONS.window },
+  { id: 'accessibility', label: 'Accessibility', icon: SECTION_ICONS.accessibility, description: 'Focus, cursor, and screen reader support.' },
+  { id: 'account', label: 'Account', icon: SECTION_ICONS.account, description: 'Same account as the web app.' },
+  { id: 'ai', label: 'AI', icon: SECTION_ICONS.ai, description: 'Commit messages, release notes, and test-fix suggestions.' },
+  { id: 'appearance', label: 'Appearance', icon: SECTION_ICONS.appearance, description: 'Theme, colors, density, and layout.' },
+  { id: 'application', label: 'Application', icon: SECTION_ICONS.application, description: 'Startup, updates, and quit behavior.' },
+  { id: 'behavior', label: 'Behavior', icon: SECTION_ICONS.behavior, description: 'How you interact with projects and the UI.' },
+  { id: 'dataPrivacy', label: 'Data & privacy', icon: SECTION_ICONS.dataPrivacy, description: 'Usage data, crash reports, and settings backup.' },
+  { id: 'developer', label: 'Developer', icon: SECTION_ICONS.developer, description: 'Options for debugging and troubleshooting.' },
+  { id: 'extensions', label: 'Extensions', icon: SECTION_ICONS.extensions, description: 'Browse, install, and manage extensions from the marketplace.' },
+  { id: 'git', label: 'Git', icon: SECTION_ICONS.git, description: 'Commit, identity, signing, and repository options.' },
+  { id: 'github', label: 'GitHub', icon: SECTION_ICONS.github, description: 'Integration status with GitHub via the web app.' },
+  { id: 'keyboard', label: 'Keyboard', icon: SECTION_ICONS.keyboard, description: 'All available keyboard shortcuts.' },
+  { id: 'network', label: 'Network', icon: SECTION_ICONS.network, description: 'Proxy, connection, and offline options.' },
+  { id: 'notifications', label: 'Notifications', icon: SECTION_ICONS.notifications, description: 'In-app and system notifications.' },
+  { id: 'subscription', label: 'Subscription', icon: SECTION_ICONS.subscription, description: 'Manage your plan and billing.' },
+  { id: 'team', label: 'Team', icon: SECTION_ICONS.team, description: 'Collaborate with your team. Changes sync with the web app.' },
+  { id: 'tools', label: 'Tools', icon: SECTION_ICONS.tools, description: 'Editor and runtimes used when opening files or running commands.' },
+  { id: 'webhooks', label: 'Webhooks', icon: SECTION_ICONS.webhooks, description: 'Send HTTP callbacks when events occur. Managed via the web app API.' },
+  { id: 'window', label: 'Window', icon: SECTION_ICONS.window, description: 'Window behavior and tray.' },
 ];
 
 const DEFAULT_VIEW_OPTIONS = [{ value: 'last', label: 'Last view' }, { value: 'dashboard', label: 'Dashboard' }];
 const CHECK_FOR_UPDATES_OPTIONS = [{ value: 'auto', label: 'Automatically' }, { value: 'manual', label: 'Manually only' }, { value: 'never', label: 'Never' }];
 const AUTO_REFRESH_INTERVAL_OPTIONS = [{ value: 0, label: 'Off' }, { value: 30, label: '30 seconds' }, { value: 60, label: '1 minute' }, { value: 120, label: '2 minutes' }];
 const RECENT_LIST_LENGTH_OPTIONS = [{ value: 5, label: '5' }, { value: 10, label: '10' }, { value: 20, label: '20' }];
+const PROJECT_SORT_OPTIONS = [
+  { value: 'lastOpened', label: 'Last opened' },
+  { value: 'name', label: 'Name (A–Z)' },
+  { value: 'path', label: 'Path' },
+  { value: 'status', label: 'Status' },
+];
 const GIT_AUTO_FETCH_INTERVAL_OPTIONS = [{ value: 0, label: 'Off' }, { value: 5, label: '5 minutes' }, { value: 15, label: '15 minutes' }, { value: 30, label: '30 minutes' }];
 const GIT_PULL_STRATEGY_OPTIONS = [{ value: '', label: 'Default (merge)' }, { value: 'true', label: 'Rebase' }, { value: 'false', label: 'Merge (explicit)' }, { value: 'merges', label: 'Rebase with merges' }];
 const GIT_GPG_FORMAT_OPTIONS = [{ value: 'openpgp', label: 'GPG (OpenPGP)' }, { value: 'ssh', label: 'SSH' }];
-const AI_PROVIDER_OPTIONS = [{ value: 'ollama', label: 'Ollama (local)' }, { value: 'claude', label: 'Claude (Anthropic)' }, { value: 'openai', label: 'OpenAI' }, { value: 'gemini', label: 'Google Gemini' }];
-const CLAUDE_MODEL_PRESET_OPTIONS = [{ value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' }, { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' }, { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' }, { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' }, { value: 'custom', label: 'Custom...' }];
-const OPENAI_MODEL_PRESET_OPTIONS = [{ value: 'gpt-4o-mini', label: 'GPT-4o mini' }, { value: 'gpt-4o', label: 'GPT-4o' }, { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' }, { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }, { value: 'o1-mini', label: 'o1 mini' }, { value: 'custom', label: 'Custom...' }];
-const GEMINI_MODEL_PRESET_OPTIONS = [{ value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }, { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }, { value: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash 8B' }, { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }, { value: 'custom', label: 'Custom...' }];
+const AI_PROVIDER_OPTIONS = [
+  { value: 'ollama', label: 'Ollama (local)' },
+  { value: 'lmstudio', label: 'LM Studio (local)' },
+  { value: 'claude', label: 'Claude (Anthropic)' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'gemini', label: 'Google Gemini' },
+  { value: 'groq', label: 'Groq' },
+  { value: 'mistral', label: 'Mistral AI' },
+];
+const CLAUDE_MODEL_PRESET_OPTIONS = [{ value: 'claude-sonnet-4-20250514', label: 'Claude Sonnet 4' }, { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' }, { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' }, { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' }, { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' }, { value: 'custom', label: 'Custom...' }];
+const OPENAI_MODEL_PRESET_OPTIONS = [{ value: 'gpt-4o-mini', label: 'GPT-4o mini' }, { value: 'gpt-4o', label: 'GPT-4o' }, { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' }, { value: 'gpt-4', label: 'GPT-4' }, { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }, { value: 'o1-mini', label: 'o1 mini' }, { value: 'o1', label: 'o1' }, { value: 'custom', label: 'Custom...' }];
+const GEMINI_MODEL_PRESET_OPTIONS = [{ value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }, { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }, { value: 'gemini-1.5-flash-8b', label: 'Gemini 1.5 Flash 8B' }, { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }, { value: 'gemini-2.5-flash-preview', label: 'Gemini 2.5 Flash' }, { value: 'custom', label: 'Custom...' }];
+const GROQ_MODEL_PRESET_OPTIONS = [{ value: 'llama-3.3-70b-versatile', label: 'Llama 3.3 70B' }, { value: 'llama-3.1-8b-instant', label: 'Llama 3.1 8B Instant' }, { value: 'llama-3.1-70b-versatile', label: 'Llama 3.1 70B' }, { value: 'mixtral-8x7b-32768', label: 'Mixtral 8x7B' }, { value: 'custom', label: 'Custom...' }];
+const MISTRAL_MODEL_PRESET_OPTIONS = [{ value: 'mistral-small-latest', label: 'Mistral Small' }, { value: 'mistral-large-latest', label: 'Mistral Large' }, { value: 'codestral-latest', label: 'Codestral' }, { value: 'pixtral-12b', label: 'Pixtral 12B' }, { value: 'custom', label: 'Custom...' }];
 const PREFERRED_EDITOR_OPTIONS = [{ value: '', label: 'Default (Cursor, then VS Code)' }, { value: 'cursor', label: 'Cursor' }, { value: 'code', label: 'VS Code' }];
 const PREFERRED_TERMINAL_OPTIONS = [
   { value: 'default', label: 'Default (macOS: Terminal.app)' },
@@ -90,6 +106,10 @@ const SYNCABLE_KEYS = [
   'appearanceReducedMotion', 'appearanceReduceTransparency', 'appearanceHighContrast',
   'defaultView', 'checkForUpdates', 'notificationsEnabled', 'notificationSound',
   'notificationsOnlyWhenNotFocused', 'doubleClickToOpenProject', 'confirmDestructiveActions',
+  'confirmBeforeDiscard', 'confirmBeforeForcePush', 'openLinksInExternalBrowser',
+  'projectSortOrder', 'sidebarWidthLocked', 'openProjectInNewTab', 'compactSidebar',
+  'showProjectPathInSidebar', 'rememberLastDetailTab', 'debugBarVisible',
+  'notifyOnRelease', 'notifyOnSyncComplete',
   'autoRefreshIntervalSeconds', 'recentListLength', 'showTips', 'gitDefaultBranch',
   'gitAutoFetchIntervalMinutes', 'signCommits', 'detailUseTabs', 'preferredEditor',
   'preferredTerminal', 'aiProvider', 'ollamaBaseUrl', 'ollamaModel', 'claudeModel',
@@ -123,17 +143,24 @@ export function useSettings() {
   const geminiApiKey = ref('');
   const geminiModel = ref('');
   const geminiModelPreset = ref('gemini-1.5-flash');
+  const groqApiKey = ref('');
+  const groqModel = ref('');
+  const groqModelPreset = ref('llama-3.3-70b-versatile');
+  const mistralApiKey = ref('');
+  const mistralModel = ref('');
+  const mistralModelPreset = ref('mistral-small-latest');
+  const lmStudioBaseUrl = ref('');
+  const lmStudioModel = ref('');
+  const lmStudioModels = ref([]);
+  const lmStudioListLoading = ref(false);
+  const lmStudioListError = ref('');
+  const aiOnboardingDismissed = ref(false);
+  const aiTemperature = ref(0.7);
+  const aiMaxTokens = ref(2048);
+  const aiTopP = ref(0.9);
   const preferredEditor = ref('');
   const preferredTerminal = ref('default');
   const phpPath = ref('');
-  const codeseerTcpPort = ref(23523);
-  const codeseerProxyTcpPort = ref(23524);
-  const codeseerProxyHttpPort = ref(23525);
-  const codeseerSshEnabled = ref(false);
-  const codeseerSshPort = ref(23526);
-  const codeseerMcpEnabled = ref(false);
-  const codeseerMcpPort = ref(3000);
-  const codeseerMcpLimit = ref(300);
   const useDetailTabs = ref(true);
   const debugLogging = ref(false);
   const theme = ref('dark');
@@ -156,6 +183,18 @@ export function useSettings() {
   const notificationsOnlyWhenNotFocused = ref(false);
   const doubleClickToOpenProject = ref(false);
   const confirmDestructiveActions = ref(true);
+  const confirmBeforeDiscard = ref(true);
+  const confirmBeforeForcePush = ref(true);
+  const openLinksInExternalBrowser = ref(false);
+  const projectSortOrder = ref('lastOpened');
+  const sidebarWidthLocked = ref(false);
+  const openProjectInNewTab = ref(false);
+  const compactSidebar = ref(false);
+  const showProjectPathInSidebar = ref(false);
+  const rememberLastDetailTab = ref(true);
+  const debugBarVisible = ref(false);
+  const notifyOnRelease = ref(true);
+  const notifyOnSyncComplete = ref(false);
   const autoRefreshIntervalSeconds = ref(0);
   const recentListLength = ref(10);
   const showTips = ref(true);
@@ -217,6 +256,24 @@ export function useSettings() {
     if (current && !list.includes(current)) options.unshift({ label: `${current} (current)`, value: current });
     return options;
   });
+  const lmStudioModelOptions = computed(() => {
+    const list = lmStudioModels.value || [];
+    const current = (lmStudioModel.value || '').trim();
+    const options = list.map((m) => ({ label: m, value: m }));
+    if (current && !list.includes(current)) options.unshift({ label: `${current} (current)`, value: current });
+    return options;
+  });
+  const showAiOnboarding = computed(() => {
+    if (aiOnboardingDismissed.value) return false;
+    const p = aiProvider.value;
+    if (p === 'ollama') return !(ollamaModel.value || '').trim();
+    if (p === 'lmstudio') return !(lmStudioModel.value || '').trim();
+    return false;
+  });
+  function dismissAiOnboarding() {
+    aiOnboardingDismissed.value = true;
+    api.setPreference?.('aiOnboardingDismissed', true);
+  }
 
   function applyAppearance() {
     const el = document.documentElement;
@@ -235,6 +292,7 @@ export function useSettings() {
     theme.value = value;
     if (api.setTheme) api.setTheme(value);
     debouncedPush();
+    showSettingSavedToast();
   }
 
   function setAccent(value) {
@@ -242,34 +300,57 @@ export function useSettings() {
     api.setPreference?.('appearanceAccent', value);
     applyAppearance();
     debouncedPush();
+    showSettingSavedToast();
   }
 
   function saveLaunchAtLogin() {
     const res = api.setLaunchAtLogin?.(launchAtLogin.value);
     if (res && !res.ok) dataPrivacyMessage.value = res.error || 'Failed';
+    else showSettingSavedToast();
   }
-  function saveDefaultView() { api.setPreference?.('defaultView', defaultView.value); debouncedPush(); }
-  function saveCheckForUpdates() { api.setPreference?.('checkForUpdates', checkForUpdates.value); debouncedPush(); }
-  function saveConfirmBeforeQuit() { api.setConfirmBeforeQuit?.(confirmBeforeQuit.value); }
-  function saveNotificationsEnabled() { api.setPreference?.('notificationsEnabled', notificationsEnabled.value); debouncedPush(); }
-  function saveNotificationSound() { api.setPreference?.('notificationSound', notificationSound.value); debouncedPush(); }
-  function saveNotificationsOnlyWhenNotFocused() { api.setPreference?.('notificationsOnlyWhenNotFocused', notificationsOnlyWhenNotFocused.value); debouncedPush(); }
-  function saveDoubleClickToOpenProject() { api.setPreference?.('doubleClickToOpenProject', doubleClickToOpenProject.value); debouncedPush(); }
-  function saveConfirmDestructiveActions() { api.setPreference?.('confirmDestructiveActions', confirmDestructiveActions.value); debouncedPush(); }
-  function saveAutoRefreshInterval() { api.setPreference?.('autoRefreshIntervalSeconds', autoRefreshIntervalSeconds.value); debouncedPush(); }
-  function saveRecentListLength() { api.setPreference?.('recentListLength', recentListLength.value); debouncedPush(); }
-  function saveShowTips() { api.setPreference?.('showTips', showTips.value); debouncedPush(); }
-  function saveGitDefaultBranch() { api.setPreference?.('gitDefaultBranch', gitDefaultBranch.value?.trim() || 'main'); debouncedPush(); }
-  function saveGitAutoFetchInterval() { api.setPreference?.('gitAutoFetchIntervalMinutes', gitAutoFetchIntervalMinutes.value); debouncedPush(); }
-  function saveGitSshKeyPath() { api.setPreference?.('gitSshKeyPath', gitSshKeyPath.value?.trim() ?? ''); }
-  function saveGitDiffTool() { api.setPreference?.('gitDiffTool', gitDiffTool.value?.trim() ?? ''); }
-  function saveGitUserName() { api.setGitGlobalConfig?.('user.name', gitUserName.value?.trim() ?? ''); }
-  function saveGitUserEmail() { api.setGitGlobalConfig?.('user.email', gitUserEmail.value?.trim() ?? ''); }
-  function saveGitGpgKeyId() { api.setGitGlobalConfig?.('user.signingkey', gitGpgKeyId.value?.trim() ?? ''); }
-  function saveGitGpgFormat() { api.setGitGlobalConfig?.('gpg.format', gitGpgFormat.value || 'openpgp'); }
-  function saveGitPullRebase() { api.setGitGlobalConfig?.('pull.rebase', gitPullRebase.value || ''); }
-  function saveGitAutoStash() { api.setGitGlobalConfig?.('rebase.autostash', gitAutoStash.value ? 'true' : 'false'); }
-  function saveGitCommitTemplate() { api.setGitGlobalConfig?.('commit.template', gitCommitTemplate.value?.trim() ?? ''); }
+  function saveDefaultView() { api.setPreference?.('defaultView', defaultView.value); debouncedPush(); showSettingSavedToast(); }
+  function saveCheckForUpdates() {
+    api.setPreference?.('checkForUpdates', checkForUpdates.value);
+    if (checkForUpdates.value === 'auto') {
+      api.startAutoUpdateCheck?.();
+    } else {
+      api.stopAutoUpdateCheck?.();
+    }
+    debouncedPush();
+    showSettingSavedToast();
+  }
+  function saveConfirmBeforeQuit() { api.setConfirmBeforeQuit?.(confirmBeforeQuit.value); showSettingSavedToast(); }
+  function saveNotificationsEnabled() { api.setPreference?.('notificationsEnabled', notificationsEnabled.value); debouncedPush(); showSettingSavedToast(); }
+  function saveNotificationSound() { api.setPreference?.('notificationSound', notificationSound.value); debouncedPush(); showSettingSavedToast(); }
+  function saveNotificationsOnlyWhenNotFocused() { api.setPreference?.('notificationsOnlyWhenNotFocused', notificationsOnlyWhenNotFocused.value); debouncedPush(); showSettingSavedToast(); }
+  function saveDoubleClickToOpenProject() { api.setPreference?.('doubleClickToOpenProject', doubleClickToOpenProject.value); debouncedPush(); showSettingSavedToast(); }
+  function saveConfirmDestructiveActions() { api.setPreference?.('confirmDestructiveActions', confirmDestructiveActions.value); store.setConfirmDestructiveActions?.(confirmDestructiveActions.value); debouncedPush(); showSettingSavedToast(); }
+  function saveConfirmBeforeDiscard() { api.setPreference?.('confirmBeforeDiscard', confirmBeforeDiscard.value); store.setConfirmBeforeDiscard?.(confirmBeforeDiscard.value); debouncedPush(); showSettingSavedToast(); }
+  function saveConfirmBeforeForcePush() { api.setPreference?.('confirmBeforeForcePush', confirmBeforeForcePush.value); store.setConfirmBeforeForcePush?.(confirmBeforeForcePush.value); debouncedPush(); showSettingSavedToast(); }
+  function saveOpenLinksInExternalBrowser() { api.setPreference?.('openLinksInExternalBrowser', openLinksInExternalBrowser.value); store.setOpenLinksInExternalBrowser?.(openLinksInExternalBrowser.value); debouncedPush(); showSettingSavedToast(); }
+  function saveProjectSortOrder() { api.setPreference?.('projectSortOrder', projectSortOrder.value); store.setProjectSortOrder?.(projectSortOrder.value); debouncedPush(); showSettingSavedToast(); }
+  function saveSidebarWidthLocked() { api.setPreference?.('sidebarWidthLocked', sidebarWidthLocked.value); store.setSidebarWidthLocked?.(sidebarWidthLocked.value); debouncedPush(); showSettingSavedToast(); }
+  function saveOpenProjectInNewTab() { api.setPreference?.('openProjectInNewTab', openProjectInNewTab.value); debouncedPush(); showSettingSavedToast(); }
+  function saveCompactSidebar() { api.setPreference?.('compactSidebar', compactSidebar.value); store.setCompactSidebar?.(compactSidebar.value); debouncedPush(); showSettingSavedToast(); }
+  function saveShowProjectPathInSidebar() { api.setPreference?.('showProjectPathInSidebar', showProjectPathInSidebar.value); store.setShowProjectPathInSidebar?.(showProjectPathInSidebar.value); debouncedPush(); showSettingSavedToast(); }
+  function saveRememberLastDetailTab() { api.setPreference?.('rememberLastDetailTab', rememberLastDetailTab.value); store.setRememberLastDetailTab?.(rememberLastDetailTab.value); debouncedPush(); showSettingSavedToast(); }
+  function saveDebugBarVisible() { api.setPreference?.('debugBarVisible', debugBarVisible.value); store.setDebugBarVisible?.(debugBarVisible.value); debouncedPush(); showSettingSavedToast(); }
+  function saveNotifyOnRelease() { api.setPreference?.('notifyOnRelease', notifyOnRelease.value); store.setNotifyOnRelease?.(notifyOnRelease.value); debouncedPush(); showSettingSavedToast(); }
+  function saveNotifyOnSyncComplete() { api.setPreference?.('notifyOnSyncComplete', notifyOnSyncComplete.value); store.setNotifyOnSyncComplete?.(notifyOnSyncComplete.value); debouncedPush(); showSettingSavedToast(); }
+  function saveAutoRefreshInterval() { api.setPreference?.('autoRefreshIntervalSeconds', autoRefreshIntervalSeconds.value); debouncedPush(); showSettingSavedToast(); }
+  function saveRecentListLength() { api.setPreference?.('recentListLength', recentListLength.value); debouncedPush(); showSettingSavedToast(); }
+  function saveShowTips() { api.setPreference?.('showTips', showTips.value); debouncedPush(); showSettingSavedToast(); }
+  function saveGitDefaultBranch() { api.setPreference?.('gitDefaultBranch', gitDefaultBranch.value?.trim() || 'main'); debouncedPush(); showSettingSavedToast(); }
+  function saveGitAutoFetchInterval() { api.setPreference?.('gitAutoFetchIntervalMinutes', gitAutoFetchIntervalMinutes.value); debouncedPush(); showSettingSavedToast(); }
+  function saveGitSshKeyPath() { api.setPreference?.('gitSshKeyPath', gitSshKeyPath.value?.trim() ?? ''); showSettingSavedToast(); }
+  function saveGitDiffTool() { api.setPreference?.('gitDiffTool', gitDiffTool.value?.trim() ?? ''); showSettingSavedToast(); }
+  function saveGitUserName() { api.setGitGlobalConfig?.('user.name', gitUserName.value?.trim() ?? ''); showSettingSavedToast(); }
+  function saveGitUserEmail() { api.setGitGlobalConfig?.('user.email', gitUserEmail.value?.trim() ?? ''); showSettingSavedToast(); }
+  function saveGitGpgKeyId() { api.setGitGlobalConfig?.('user.signingkey', gitGpgKeyId.value?.trim() ?? ''); showSettingSavedToast(); }
+  function saveGitGpgFormat() { api.setGitGlobalConfig?.('gpg.format', gitGpgFormat.value || 'openpgp'); showSettingSavedToast(); }
+  function saveGitPullRebase() { api.setGitGlobalConfig?.('pull.rebase', gitPullRebase.value || ''); showSettingSavedToast(); }
+  function saveGitAutoStash() { api.setGitGlobalConfig?.('rebase.autostash', gitAutoStash.value ? 'true' : 'false'); showSettingSavedToast(); }
+  function saveGitCommitTemplate() { api.setGitGlobalConfig?.('commit.template', gitCommitTemplate.value?.trim() ?? ''); showSettingSavedToast(); }
   async function loadGpgKeys() {
     gpgKeysError.value = '';
     gpgKeysLoading.value = true;
@@ -310,10 +391,16 @@ export function useSettings() {
       }
     } catch (_) {}
   }
-  function saveProxy() { api.setProxy?.(proxy.value?.trim() ?? ''); }
-  function saveRequestTimeout() { api.setPreference?.('requestTimeoutSeconds', requestTimeoutSeconds.value); }
-  function saveOfflineMode() { api.setPreference?.('offlineMode', offlineMode.value); }
-  function saveOfflineGraceDays() { api.setOfflineGraceDays?.(offlineGraceDays.value); }
+  function saveProxy() { api.setProxy?.(proxy.value?.trim() ?? ''); showSettingSavedToast(); }
+  function saveRequestTimeout() { api.setPreference?.('requestTimeoutSeconds', requestTimeoutSeconds.value); showSettingSavedToast(); }
+  async function saveOfflineMode() {
+    api.setPreference?.('offlineMode', offlineMode.value);
+    await checkConnectivity();
+    await loadOfflineGraceConfig();
+    await license.loadStatus?.();
+    showSettingSavedToast();
+  }
+  function saveOfflineGraceDays() { api.setOfflineGraceDays?.(offlineGraceDays.value); showSettingSavedToast(); }
   async function loadOfflineGraceConfig() {
     try {
       const config = await api.getOfflineGraceConfig?.();
@@ -355,39 +442,55 @@ export function useSettings() {
     }
   }
 
-  function saveTelemetry() { api.setPreference?.('telemetry', telemetry.value); api.sendTelemetry?.('settings.usage_data_toggled', { enabled: !!telemetry.value }); debouncedPush(); }
-  function saveTelemetryUserIdentifier() { api.setPreference?.('telemetryUserIdentifier', telemetryUserIdentifier.value?.trim() ?? ''); }
-  function saveCrashReports() { api.setPreference?.('crashReports', crashReports.value); api.sendTelemetry?.('settings.crash_reports_toggled', { enabled: !!crashReports.value }); debouncedPush(); }
-  function saveAlwaysOnTop() { api.setAlwaysOnTop?.(alwaysOnTop.value); }
-  function saveMinimizeToTray() { api.setMinimizeToTray?.(minimizeToTray.value); }
-  function saveFocusOutlineVisible() { api.setPreference?.('focusOutlineVisible', focusOutlineVisible.value); applyAppearance(); }
-  function saveLargeCursor() { api.setPreference?.('largeCursor', largeCursor.value); applyAppearance(); }
+  function saveTelemetry() { api.setPreference?.('telemetry', telemetry.value); api.sendTelemetry?.('settings.usage_data_toggled', { enabled: !!telemetry.value }); debouncedPush(); showSettingSavedToast(); }
+  function saveTelemetryUserIdentifier() { api.setPreference?.('telemetryUserIdentifier', telemetryUserIdentifier.value?.trim() ?? ''); showSettingSavedToast(); }
+  function saveCrashReports() { api.setPreference?.('crashReports', crashReports.value); api.sendTelemetry?.('settings.crash_reports_toggled', { enabled: !!crashReports.value }); debouncedPush(); showSettingSavedToast(); }
+  function saveAlwaysOnTop() { api.setAlwaysOnTop?.(alwaysOnTop.value); showSettingSavedToast(); }
+  function saveMinimizeToTray() { api.setMinimizeToTray?.(minimizeToTray.value); showSettingSavedToast(); }
+  function saveFocusOutlineVisible() { api.setPreference?.('focusOutlineVisible', focusOutlineVisible.value); applyAppearance(); showSettingSavedToast(); }
+  function saveLargeCursor() { api.setPreference?.('largeCursor', largeCursor.value); applyAppearance(); showSettingSavedToast(); }
   function saveScreenReaderSupport() {
     api.setPreference?.('screenReaderSupport', screenReaderSupport.value);
     applyAppearance();
     if (screenReaderSupport.value) {
       setTimeout(() => announcePolite('Screen reader support enabled'), 100);
     }
+    showSettingSavedToast();
   }
-  function saveFontSize() { api.setPreference?.('appearanceFontSize', fontSize.value); applyAppearance(); debouncedPush(); }
-  function saveBorderRadius() { api.setPreference?.('appearanceRadius', borderRadius.value); applyAppearance(); debouncedPush(); }
-  function saveReducedMotion() { api.setPreference?.('appearanceReducedMotion', reducedMotion.value); applyAppearance(); debouncedPush(); }
-  function saveZoomFactor() { api.setAppZoomFactor?.(typeof zoomFactor.value === 'number' ? zoomFactor.value : 1); }
-  function saveReduceTransparency() { api.setPreference?.('appearanceReduceTransparency', reduceTransparency.value); applyAppearance(); debouncedPush(); }
-  function saveHighContrast() { api.setPreference?.('appearanceHighContrast', highContrast.value); applyAppearance(); debouncedPush(); }
-  function saveToken() { debug.log('settings', 'save GitHub token'); api.setGitHubToken?.(githubToken.value?.trim() ?? ''); }
-  function saveSignCommits() { debug.log('settings', 'save signCommits', signCommits.value); api.setPreference?.('signCommits', signCommits.value); debouncedPush(); }
-  function saveOllama() { debug.log('settings', 'save Ollama'); api.setOllamaSettings?.(ollamaBaseUrl.value?.trim() || 'http://localhost:11434', ollamaModel.value?.trim() || 'llama3.2'); }
-  function saveClaude() { debug.log('settings', 'save Claude'); const model = claudeModelPreset.value === 'custom' ? (claudeModel.value?.trim() ?? '') : (claudeModelPreset.value || ''); api.setClaudeSettings?.(claudeApiKey.value?.trim() ?? '', model); }
+  function saveFontSize() { api.setPreference?.('appearanceFontSize', fontSize.value); applyAppearance(); debouncedPush(); showSettingSavedToast(); }
+  function saveBorderRadius() { api.setPreference?.('appearanceRadius', borderRadius.value); applyAppearance(); debouncedPush(); showSettingSavedToast(); }
+  function saveReducedMotion() { api.setPreference?.('appearanceReducedMotion', reducedMotion.value); applyAppearance(); debouncedPush(); showSettingSavedToast(); }
+  function saveZoomFactor() { api.setAppZoomFactor?.(typeof zoomFactor.value === 'number' ? zoomFactor.value : 1); showSettingSavedToast(); }
+  function saveReduceTransparency() { api.setPreference?.('appearanceReduceTransparency', reduceTransparency.value); applyAppearance(); debouncedPush(); showSettingSavedToast(); }
+  function saveHighContrast() { api.setPreference?.('appearanceHighContrast', highContrast.value); applyAppearance(); debouncedPush(); showSettingSavedToast(); }
+  function saveToken() { debug.log('settings', 'save GitHub token'); api.setGitHubToken?.(githubToken.value?.trim() ?? ''); showSettingSavedToast(); }
+  function saveSignCommits() { debug.log('settings', 'save signCommits', signCommits.value); api.setPreference?.('signCommits', signCommits.value); debouncedPush(); showSettingSavedToast(); }
+  function saveOllama() { debug.log('settings', 'save Ollama'); api.setOllamaSettings?.(ollamaBaseUrl.value?.trim() || 'http://localhost:11434', ollamaModel.value?.trim() || 'llama3.2'); showSettingSavedToast(); }
+  function saveClaude() { debug.log('settings', 'save Claude'); const model = claudeModelPreset.value === 'custom' ? (claudeModel.value?.trim() ?? '') : (claudeModelPreset.value || ''); api.setClaudeSettings?.(claudeApiKey.value?.trim() ?? '', model); showSettingSavedToast(); }
   function onClaudeModelPresetChange() { if (claudeModelPreset.value !== 'custom') claudeModel.value = claudeModelPreset.value; saveClaude(); }
-  function saveOpenAI() { debug.log('settings', 'save OpenAI'); const model = openaiModelPreset.value === 'custom' ? (openaiModel.value?.trim() ?? '') : (openaiModelPreset.value || ''); api.setOpenAISettings?.(openaiApiKey.value?.trim() ?? '', model); }
+  function saveOpenAI() { debug.log('settings', 'save OpenAI'); const model = openaiModelPreset.value === 'custom' ? (openaiModel.value?.trim() ?? '') : (openaiModelPreset.value || ''); api.setOpenAISettings?.(openaiApiKey.value?.trim() ?? '', model); showSettingSavedToast(); }
   function onOpenAiModelPresetChange() { if (openaiModelPreset.value !== 'custom') openaiModel.value = openaiModelPreset.value; saveOpenAI(); }
-  function saveGemini() { debug.log('settings', 'save Gemini'); const model = geminiModelPreset.value === 'custom' ? (geminiModel.value?.trim() ?? '') : (geminiModelPreset.value || ''); api.setGeminiSettings?.(geminiApiKey.value?.trim() ?? '', model); }
+  function saveGemini() { debug.log('settings', 'save Gemini'); const model = geminiModelPreset.value === 'custom' ? (geminiModel.value?.trim() ?? '') : (geminiModelPreset.value || ''); api.setGeminiSettings?.(geminiApiKey.value?.trim() ?? '', model); showSettingSavedToast(); }
   function onGeminiModelPresetChange() { if (geminiModelPreset.value !== 'custom') geminiModel.value = geminiModelPreset.value; saveGemini(); }
-  function saveAiProvider() { debug.log('settings', 'save aiProvider', aiProvider.value); api.setAiProvider?.(aiProvider.value); api.sendTelemetry?.('settings.ai_provider_changed', { provider: aiProvider.value }); debouncedPush(); }
+  function saveGroq() { debug.log('settings', 'save Groq'); const model = groqModelPreset.value === 'custom' ? (groqModel.value?.trim() ?? '') : (groqModelPreset.value || ''); api.setGroqSettings?.(groqApiKey.value?.trim() ?? '', model); showSettingSavedToast(); }
+  function onGroqModelPresetChange() { if (groqModelPreset.value !== 'custom') groqModel.value = groqModelPreset.value; saveGroq(); }
+  function saveMistral() { debug.log('settings', 'save Mistral'); const model = mistralModelPreset.value === 'custom' ? (mistralModel.value?.trim() ?? '') : (mistralModelPreset.value || ''); api.setMistralSettings?.(mistralApiKey.value?.trim() ?? '', model); showSettingSavedToast(); }
+  function onMistralModelPresetChange() { if (mistralModelPreset.value !== 'custom') mistralModel.value = mistralModelPreset.value; saveMistral(); }
+  function saveLmStudio() { debug.log('settings', 'save LM Studio'); api.setLmStudioSettings?.(lmStudioBaseUrl.value?.trim() || 'http://localhost:1234/v1', lmStudioModel.value?.trim() || 'local-model'); showSettingSavedToast(); }
+  async function listLmStudioModels() {
+    lmStudioListError.value = ''; lmStudioModels.value = []; lmStudioListLoading.value = true;
+    try {
+      const result = await api.lmStudioListModels?.(lmStudioBaseUrl.value?.trim() || 'http://localhost:1234/v1');
+      if (result?.ok && Array.isArray(result.models)) lmStudioModels.value = result.models;
+      else { lmStudioModels.value = []; lmStudioListError.value = result?.error || 'No models returned.'; }
+    } catch (e) { lmStudioListError.value = e?.message || 'Failed to list models.'; }
+    finally { lmStudioListLoading.value = false; }
+  }
+  function saveAiParams() { debug.log('settings', 'save AI params'); api.setAiParams?.(aiTemperature.value, aiMaxTokens.value, aiTopP.value); debouncedPush(); showSettingSavedToast(); }
+  function saveAiProvider() { debug.log('settings', 'save aiProvider', aiProvider.value); api.setAiProvider?.(aiProvider.value); api.sendTelemetry?.('settings.ai_provider_changed', { provider: aiProvider.value }); debouncedPush(); showSettingSavedToast(); }
   function openUrl(url) { if (url && api.openUrl) api.openUrl(url); }
-  function savePreferredEditor() { debug.log('settings', 'save preferredEditor', preferredEditor.value || ''); api.setPreference?.('preferredEditor', preferredEditor.value || ''); debouncedPush(); }
-  function savePreferredTerminal() { debug.log('settings', 'save preferredTerminal', preferredTerminal.value || 'default'); api.setPreference?.('preferredTerminal', preferredTerminal.value || 'default'); debouncedPush(); }
+  function savePreferredEditor() { debug.log('settings', 'save preferredEditor', preferredEditor.value || ''); api.setPreference?.('preferredEditor', preferredEditor.value || ''); debouncedPush(); showSettingSavedToast(); }
+  function savePreferredTerminal() { debug.log('settings', 'save preferredTerminal', preferredTerminal.value || 'default'); api.setPreference?.('preferredTerminal', preferredTerminal.value || 'default'); debouncedPush(); showSettingSavedToast(); }
   async function listOllamaModels() {
     ollamaListError.value = ''; ollamaModels.value = []; ollamaListLoading.value = true;
     try {
@@ -397,54 +500,7 @@ export function useSettings() {
     } catch (e) { ollamaListError.value = e?.message || 'Failed to list models.'; }
     finally { ollamaListLoading.value = false; }
   }
-  function savePhpPath() { debug.log('settings', 'save phpPath'); api.setPreference?.('phpPath', phpPath.value?.trim() ?? ''); }
-  function saveCodeseerTcpPort() {
-    const n = parseInt(String(codeseerTcpPort.value), 10);
-    const port = Number.isFinite(n) && n >= 1024 && n <= 65535 ? n : 23523;
-    codeseerTcpPort.value = port;
-    api.setPreference?.('codeseerTcpPort', port);
-    api.codeseerRestartServer?.();
-  }
-  function saveCodeseerProxyTcpPort() {
-    const n = parseInt(String(codeseerProxyTcpPort.value), 10);
-    const port = Number.isFinite(n) && n >= 1024 && n <= 65535 ? n : 23524;
-    codeseerProxyTcpPort.value = port;
-    api.setPreference?.('codeseerProxyTcpPort', port);
-  }
-  function saveCodeseerProxyHttpPort() {
-    const n = parseInt(String(codeseerProxyHttpPort.value), 10);
-    const port = Number.isFinite(n) && n >= 1024 && n <= 65535 ? n : 23525;
-    codeseerProxyHttpPort.value = port;
-    api.setPreference?.('codeseerProxyHttpPort', port);
-  }
-  function saveCodeseerSshEnabled() {
-    api.setPreference?.('codeseerSshEnabled', codeseerSshEnabled.value);
-    notifications.add({ title: 'Restart required', message: 'Restart the app to apply SSH server changes.', type: 'info' });
-  }
-  function saveCodeseerSshPort() {
-    const n = parseInt(String(codeseerSshPort.value), 10);
-    const port = Number.isFinite(n) && n >= 1024 && n <= 65535 ? n : 23526;
-    codeseerSshPort.value = port;
-    api.setPreference?.('codeseerSshPort', port);
-    notifications.add({ title: 'Restart required', message: 'Restart the app to apply SSH port changes.', type: 'info' });
-  }
-  function saveCodeseerMcpEnabled() {
-    api.setPreference?.('codeseerMcpEnabled', codeseerMcpEnabled.value);
-    notifications.add({ title: 'Restart required', message: 'Restart the app to apply MCP server changes.', type: 'info' });
-  }
-  function saveCodeseerMcpPort() {
-    const n = parseInt(String(codeseerMcpPort.value), 10);
-    const port = Number.isFinite(n) && n >= 1024 && n <= 65535 ? n : 3000;
-    codeseerMcpPort.value = port;
-    api.setPreference?.('codeseerMcpPort', port);
-    notifications.add({ title: 'Restart required', message: 'Restart the app to apply MCP port changes.', type: 'info' });
-  }
-  function saveCodeseerMcpLimit() {
-    const n = parseInt(String(codeseerMcpLimit.value), 10);
-    const limit = Number.isFinite(n) && n >= 1 && n <= 500 ? n : 300;
-    codeseerMcpLimit.value = limit;
-    api.setPreference?.('codeseerMcpLimit', limit);
-  }
+  function savePhpPath() { debug.log('settings', 'save phpPath'); api.setPreference?.('phpPath', phpPath.value?.trim() ?? ''); showSettingSavedToast(); }
   async function listPhpVersions() {
     phpListError.value = '';
     phpListLoading.value = true;
@@ -467,14 +523,15 @@ export function useSettings() {
     }
     return opts.filter((o) => o != null);
   });
-  function saveUseTabs() { debug.log('settings', 'save detailUseTabs', useDetailTabs.value); store.setUseDetailTabs(useDetailTabs.value); api.setPreference?.('detailUseTabs', useDetailTabs.value); debouncedPush(); }
-  function saveTerminalPopoutSize() { api.setPreference?.('terminalPopoutSize', terminalPopoutSize.value); }
-  function saveTerminalPopoutAlwaysOnTop() { api.setPreference?.('terminalPopoutAlwaysOnTop', terminalPopoutAlwaysOnTop.value); }
-  function saveTerminalPopoutFullscreenable() { api.setPreference?.('terminalPopoutFullscreenable', terminalPopoutFullscreenable.value); }
-  function saveDebugLogging() { api.setPreference?.('debug', debugLogging.value); debug.setEnabled(debugLogging.value); debug.log('settings', 'debug logging', debugLogging.value ? 'on' : 'off'); }
+  function saveUseTabs() { debug.log('settings', 'save detailUseTabs', useDetailTabs.value); store.setUseDetailTabs(useDetailTabs.value); api.setPreference?.('detailUseTabs', useDetailTabs.value); debouncedPush(); showSettingSavedToast(); }
+  function saveTerminalPopoutSize() { api.setPreference?.('terminalPopoutSize', terminalPopoutSize.value); showSettingSavedToast(); }
+  function saveTerminalPopoutAlwaysOnTop() { api.setPreference?.('terminalPopoutAlwaysOnTop', terminalPopoutAlwaysOnTop.value); showSettingSavedToast(); }
+  function saveTerminalPopoutFullscreenable() { api.setPreference?.('terminalPopoutFullscreenable', terminalPopoutFullscreenable.value); showSettingSavedToast(); }
+  function saveDebugLogging() { api.setPreference?.('debug', debugLogging.value); debug.setEnabled(debugLogging.value); debug.log('settings', 'debug logging', debugLogging.value ? 'on' : 'off'); showSettingSavedToast(); }
   function saveLicenseServerEnvironment() {
     api.setLicenseServerConfig?.({ environment: licenseServerEnvironment.value });
     license.loadStatus?.();
+    showSettingSavedToast();
   }
 
   async function loadCustomTelemetryEvents() {
@@ -485,6 +542,7 @@ export function useSettings() {
   }
   function saveCustomTelemetryEvents() {
     api.setCustomTelemetryEvents?.(customTelemetryEvents.value);
+    showSettingSavedToast();
   }
   async function downloadExtensionTemplate() {
     try {
@@ -541,6 +599,18 @@ export function useSettings() {
       notificationsOnlyWhenNotFocused: notificationsOnlyWhenNotFocused.value,
       doubleClickToOpenProject: doubleClickToOpenProject.value,
       confirmDestructiveActions: confirmDestructiveActions.value,
+      confirmBeforeDiscard: confirmBeforeDiscard.value,
+      confirmBeforeForcePush: confirmBeforeForcePush.value,
+      openLinksInExternalBrowser: openLinksInExternalBrowser.value,
+      projectSortOrder: projectSortOrder.value,
+      sidebarWidthLocked: sidebarWidthLocked.value,
+      openProjectInNewTab: openProjectInNewTab.value,
+      compactSidebar: compactSidebar.value,
+      showProjectPathInSidebar: showProjectPathInSidebar.value,
+      rememberLastDetailTab: rememberLastDetailTab.value,
+      debugBarVisible: debugBarVisible.value,
+      notifyOnRelease: notifyOnRelease.value,
+      notifyOnSyncComplete: notifyOnSyncComplete.value,
       autoRefreshIntervalSeconds: autoRefreshIntervalSeconds.value,
       recentListLength: recentListLength.value,
       showTips: showTips.value,
@@ -553,9 +623,16 @@ export function useSettings() {
       aiProvider: aiProvider.value,
       ollamaBaseUrl: ollamaBaseUrl.value,
       ollamaModel: ollamaModel.value,
+      lmStudioBaseUrl: lmStudioBaseUrl.value,
+      lmStudioModel: lmStudioModel.value,
       claudeModel: claudeModel.value,
       openaiModel: openaiModel.value,
       geminiModel: geminiModel.value,
+      groqModel: groqModel.value,
+      mistralModel: mistralModel.value,
+      aiTemperature: aiTemperature.value,
+      aiMaxTokens: aiMaxTokens.value,
+      aiTopP: aiTopP.value,
       telemetry: telemetry.value,
       crashReports: crashReports.value,
     };
@@ -607,6 +684,18 @@ export function useSettings() {
       if (typeof remote.notificationsOnlyWhenNotFocused === 'boolean' && remote.notificationsOnlyWhenNotFocused !== notificationsOnlyWhenNotFocused.value) { notificationsOnlyWhenNotFocused.value = remote.notificationsOnlyWhenNotFocused; api.setPreference?.('notificationsOnlyWhenNotFocused', remote.notificationsOnlyWhenNotFocused); }
       if (typeof remote.doubleClickToOpenProject === 'boolean' && remote.doubleClickToOpenProject !== doubleClickToOpenProject.value) { doubleClickToOpenProject.value = remote.doubleClickToOpenProject; api.setPreference?.('doubleClickToOpenProject', remote.doubleClickToOpenProject); }
       if (typeof remote.confirmDestructiveActions === 'boolean' && remote.confirmDestructiveActions !== confirmDestructiveActions.value) { confirmDestructiveActions.value = remote.confirmDestructiveActions; api.setPreference?.('confirmDestructiveActions', remote.confirmDestructiveActions); }
+      if (typeof remote.confirmBeforeDiscard === 'boolean' && remote.confirmBeforeDiscard !== confirmBeforeDiscard.value) { confirmBeforeDiscard.value = remote.confirmBeforeDiscard; api.setPreference?.('confirmBeforeDiscard', remote.confirmBeforeDiscard); }
+      if (typeof remote.confirmBeforeForcePush === 'boolean' && remote.confirmBeforeForcePush !== confirmBeforeForcePush.value) { confirmBeforeForcePush.value = remote.confirmBeforeForcePush; api.setPreference?.('confirmBeforeForcePush', remote.confirmBeforeForcePush); }
+      if (typeof remote.openLinksInExternalBrowser === 'boolean' && remote.openLinksInExternalBrowser !== openLinksInExternalBrowser.value) { openLinksInExternalBrowser.value = remote.openLinksInExternalBrowser; api.setPreference?.('openLinksInExternalBrowser', remote.openLinksInExternalBrowser); }
+      if (remote.projectSortOrder && remote.projectSortOrder !== projectSortOrder.value) { projectSortOrder.value = remote.projectSortOrder; api.setPreference?.('projectSortOrder', remote.projectSortOrder); }
+      if (typeof remote.sidebarWidthLocked === 'boolean' && remote.sidebarWidthLocked !== sidebarWidthLocked.value) { sidebarWidthLocked.value = remote.sidebarWidthLocked; api.setPreference?.('sidebarWidthLocked', remote.sidebarWidthLocked); }
+      if (typeof remote.openProjectInNewTab === 'boolean' && remote.openProjectInNewTab !== openProjectInNewTab.value) { openProjectInNewTab.value = remote.openProjectInNewTab; api.setPreference?.('openProjectInNewTab', remote.openProjectInNewTab); }
+      if (typeof remote.compactSidebar === 'boolean' && remote.compactSidebar !== compactSidebar.value) { compactSidebar.value = remote.compactSidebar; api.setPreference?.('compactSidebar', remote.compactSidebar); }
+      if (typeof remote.showProjectPathInSidebar === 'boolean' && remote.showProjectPathInSidebar !== showProjectPathInSidebar.value) { showProjectPathInSidebar.value = remote.showProjectPathInSidebar; api.setPreference?.('showProjectPathInSidebar', remote.showProjectPathInSidebar); }
+      if (typeof remote.rememberLastDetailTab === 'boolean' && remote.rememberLastDetailTab !== rememberLastDetailTab.value) { rememberLastDetailTab.value = remote.rememberLastDetailTab; api.setPreference?.('rememberLastDetailTab', remote.rememberLastDetailTab); }
+      if (typeof remote.debugBarVisible === 'boolean' && remote.debugBarVisible !== debugBarVisible.value) { debugBarVisible.value = remote.debugBarVisible; api.setPreference?.('debugBarVisible', remote.debugBarVisible); }
+      if (typeof remote.notifyOnRelease === 'boolean' && remote.notifyOnRelease !== notifyOnRelease.value) { notifyOnRelease.value = remote.notifyOnRelease; api.setPreference?.('notifyOnRelease', remote.notifyOnRelease); }
+      if (typeof remote.notifyOnSyncComplete === 'boolean' && remote.notifyOnSyncComplete !== notifyOnSyncComplete.value) { notifyOnSyncComplete.value = remote.notifyOnSyncComplete; api.setPreference?.('notifyOnSyncComplete', remote.notifyOnSyncComplete); }
       if (typeof remote.autoRefreshIntervalSeconds === 'number' && remote.autoRefreshIntervalSeconds !== autoRefreshIntervalSeconds.value) { autoRefreshIntervalSeconds.value = remote.autoRefreshIntervalSeconds; api.setPreference?.('autoRefreshIntervalSeconds', remote.autoRefreshIntervalSeconds); }
       if (typeof remote.recentListLength === 'number' && remote.recentListLength !== recentListLength.value) { recentListLength.value = remote.recentListLength; api.setPreference?.('recentListLength', remote.recentListLength); }
       if (typeof remote.showTips === 'boolean' && remote.showTips !== showTips.value) { showTips.value = remote.showTips; api.setPreference?.('showTips', remote.showTips); }
@@ -619,9 +708,16 @@ export function useSettings() {
       if (remote.aiProvider && remote.aiProvider !== aiProvider.value) { aiProvider.value = remote.aiProvider; api.setAiProvider?.(remote.aiProvider); }
       if (typeof remote.ollamaBaseUrl === 'string' && remote.ollamaBaseUrl !== ollamaBaseUrl.value) ollamaBaseUrl.value = remote.ollamaBaseUrl;
       if (typeof remote.ollamaModel === 'string' && remote.ollamaModel !== ollamaModel.value) ollamaModel.value = remote.ollamaModel;
+      if (typeof remote.lmStudioBaseUrl === 'string' && remote.lmStudioBaseUrl !== lmStudioBaseUrl.value) lmStudioBaseUrl.value = remote.lmStudioBaseUrl;
+      if (typeof remote.lmStudioModel === 'string' && remote.lmStudioModel !== lmStudioModel.value) lmStudioModel.value = remote.lmStudioModel;
       if (typeof remote.claudeModel === 'string' && remote.claudeModel !== claudeModel.value) claudeModel.value = remote.claudeModel;
       if (typeof remote.openaiModel === 'string' && remote.openaiModel !== openaiModel.value) openaiModel.value = remote.openaiModel;
       if (typeof remote.geminiModel === 'string' && remote.geminiModel !== geminiModel.value) geminiModel.value = remote.geminiModel;
+      if (typeof remote.groqModel === 'string' && remote.groqModel !== groqModel.value) groqModel.value = remote.groqModel;
+      if (typeof remote.mistralModel === 'string' && remote.mistralModel !== mistralModel.value) mistralModel.value = remote.mistralModel;
+      if (typeof remote.aiTemperature === 'number' && remote.aiTemperature !== aiTemperature.value) { aiTemperature.value = remote.aiTemperature; api.setAiParams?.(remote.aiTemperature, aiMaxTokens.value, aiTopP.value); }
+      if (typeof remote.aiMaxTokens === 'number' && remote.aiMaxTokens !== aiMaxTokens.value) { aiMaxTokens.value = remote.aiMaxTokens; api.setAiParams?.(aiTemperature.value, remote.aiMaxTokens, aiTopP.value); }
+      if (typeof remote.aiTopP === 'number' && remote.aiTopP !== aiTopP.value) { aiTopP.value = remote.aiTopP; api.setAiParams?.(aiTemperature.value, aiMaxTokens.value, remote.aiTopP); }
       if (typeof remote.telemetry === 'boolean' && remote.telemetry !== telemetry.value) { telemetry.value = remote.telemetry; api.setPreference?.('telemetry', remote.telemetry); }
       if (typeof remote.crashReports === 'boolean' && remote.crashReports !== crashReports.value) { crashReports.value = remote.crashReports; api.setPreference?.('crashReports', remote.crashReports); }
 
@@ -639,37 +735,48 @@ export function useSettings() {
     _pushDebounce = setTimeout(() => pushSettingsToRemote(), 2000);
   }
 
+  let _toastDebounce = null;
+  function showSettingSavedToast() {
+    if (_toastDebounce) clearTimeout(_toastDebounce);
+    _toastDebounce = setTimeout(() => {
+      notifications.add({ title: 'Setting saved', type: 'success' });
+      _toastDebounce = null;
+    }, 300);
+  }
+
   async function load() {
     try {
-      const [token, ollama, claude, openai, geminiSettings, provider, editor, preferredTerminalP, php, codeseerPort, codeseerProxyTcpP, codeseerProxyHttpP, codeseerSshEnabledP, codeseerSshPortP, codeseerMcpEnabledP, codeseerMcpPortP, codeseerMcpLimitP, sign, tabs, debugLoad, themeRes, appearanceAccent, appearanceFontSize, appearanceRadius, appearanceReducedMotion, appearanceZoomFactor, appearanceReduceTransparency, appearanceHighContrast, terminalSize, terminalAlwaysOnTop, terminalFullscreenable, launchAtLoginRes, defaultViewP, checkForUpdatesP, confirmBeforeQuitP, notificationsEnabledP, notificationSoundP, notificationsOnlyWhenNotFocusedP, doubleClickToOpenProjectP, confirmDestructiveActionsP, autoRefreshIntervalSecondsP, recentListLengthP, showTipsP, gitDefaultBranchP, gitAutoFetchIntervalMinutesP, gitSshKeyPathP, gitDiffToolP, proxyP, requestTimeoutSecondsP, offlineModeP, telemetryP, telemetryUserIdentifierP, crashReportsP, alwaysOnTopP, minimizeToTrayP, focusOutlineVisibleP, largeCursorP, screenReaderSupportP, licenseServerConfigP, licenseServerEnvironmentsP] = await Promise.all([
-        api.getGitHubToken?.() ?? '', api.getOllamaSettings?.() ?? {}, api.getClaudeSettings?.() ?? {}, api.getOpenAISettings?.() ?? {}, api.getGeminiSettings?.().catch(() => ({ apiKey: '', model: '' })),
-        api.getAiProvider?.().catch(() => 'ollama'), api.getPreference?.('preferredEditor').catch(() => ''), api.getPreference?.('preferredTerminal').catch(() => 'default'), api.getPreference?.('phpPath').catch(() => ''), api.getPreference?.('codeseerTcpPort').catch(() => 23523), api.getPreference?.('codeseerProxyTcpPort').catch(() => 23524), api.getPreference?.('codeseerProxyHttpPort').catch(() => 23525), api.getPreference?.('codeseerSshEnabled').catch(() => false), api.getPreference?.('codeseerSshPort').catch(() => 23526), api.getPreference?.('codeseerMcpEnabled').catch(() => false), api.getPreference?.('codeseerMcpPort').catch(() => 3000), api.getPreference?.('codeseerMcpLimit').catch(() => 300), api.getPreference?.('signCommits').catch(() => false), api.getPreference?.('detailUseTabs').catch(() => true), api.getPreference?.('debug').catch(() => undefined),
+      const [token, ollama, claude, openai, geminiSettings, groqSettings, mistralSettings, lmStudioSettings, aiParams, provider, editor, preferredTerminalP, php, sign, tabs, debugLoad, themeRes, appearanceAccent, appearanceFontSize, appearanceRadius, appearanceReducedMotion, appearanceZoomFactor, appearanceReduceTransparency, appearanceHighContrast, terminalSize, terminalAlwaysOnTop, terminalFullscreenable, launchAtLoginRes, defaultViewP, checkForUpdatesP, confirmBeforeQuitP, notificationsEnabledP, notificationSoundP, notificationsOnlyWhenNotFocusedP, doubleClickToOpenProjectP, confirmDestructiveActionsP, autoRefreshIntervalSecondsP, recentListLengthP, showTipsP, gitDefaultBranchP, gitAutoFetchIntervalMinutesP, gitSshKeyPathP, gitDiffToolP, proxyP, requestTimeoutSecondsP, offlineModeP, telemetryP, telemetryUserIdentifierP, crashReportsP, alwaysOnTopP, minimizeToTrayP, focusOutlineVisibleP, largeCursorP, screenReaderSupportP, aiOnboardingDismissedP, licenseServerConfigP, licenseServerEnvironmentsP] = await Promise.all([
+        api.getGitHubToken?.() ?? '', api.getOllamaSettings?.() ?? {}, api.getClaudeSettings?.() ?? {}, api.getOpenAISettings?.() ?? {}, api.getGeminiSettings?.().catch(() => ({ apiKey: '', model: '' })), api.getGroqSettings?.().catch(() => ({ apiKey: '', model: '' })), api.getMistralSettings?.().catch(() => ({ apiKey: '', model: '' })), api.getLmStudioSettings?.().catch(() => ({ baseUrl: '', model: '' })), api.getAiParams?.().catch(() => ({ temperature: 0.7, max_tokens: 2048, top_p: 0.9 })),
+        api.getAiProvider?.().catch(() => 'ollama'), api.getPreference?.('preferredEditor').catch(() => ''), api.getPreference?.('preferredTerminal').catch(() => 'default'), api.getPreference?.('phpPath').catch(() => ''), api.getPreference?.('signCommits').catch(() => false), api.getPreference?.('detailUseTabs').catch(() => true), api.getPreference?.('debug').catch(() => undefined),
         api.getTheme?.().catch(() => ({ theme: 'dark' })), api.getPreference?.('appearanceAccent').catch(() => 'green'), api.getPreference?.('appearanceFontSize').catch(() => 'comfortable'), api.getPreference?.('appearanceRadius').catch(() => 'sharp'), api.getPreference?.('appearanceReducedMotion').catch(() => false), api.getAppZoomFactor?.().catch(() => 1), api.getPreference?.('appearanceReduceTransparency').catch(() => false), api.getPreference?.('appearanceHighContrast').catch(() => false), api.getPreference?.('terminalPopoutSize').catch(() => 'default'), api.getPreference?.('terminalPopoutAlwaysOnTop').catch(() => false), api.getPreference?.('terminalPopoutFullscreenable').catch(() => true),
-        api.getLaunchAtLogin?.().catch(() => ({ openAtLogin: false })), api.getPreference?.('defaultView').catch(() => 'last'), api.getPreference?.('checkForUpdates').catch(() => 'auto'), api.getConfirmBeforeQuit?.().catch(() => false), api.getPreference?.('notificationsEnabled').catch(() => true), api.getPreference?.('notificationSound').catch(() => false), api.getPreference?.('notificationsOnlyWhenNotFocused').catch(() => false), api.getPreference?.('doubleClickToOpenProject').catch(() => false), api.getPreference?.('confirmDestructiveActions').catch(() => true), api.getPreference?.('autoRefreshIntervalSeconds').catch(() => 0), api.getPreference?.('recentListLength').catch(() => 10), api.getPreference?.('showTips').catch(() => true), api.getPreference?.('gitDefaultBranch').catch(() => 'main'), api.getPreference?.('gitAutoFetchIntervalMinutes').catch(() => 0), api.getPreference?.('gitSshKeyPath').catch(() => ''), api.getPreference?.('gitDiffTool').catch(() => ''), api.getProxy?.().catch(() => ''), api.getPreference?.('requestTimeoutSeconds').catch(() => 30), api.getPreference?.('offlineMode').catch(() => false), api.getPreference?.('telemetry').catch(() => false), api.getPreference?.('telemetryUserIdentifier').catch(() => ''), api.getPreference?.('crashReports').catch(() => false), api.getAlwaysOnTop?.().catch(() => false), api.getMinimizeToTray?.().catch(() => false),         api.getPreference?.('focusOutlineVisible').catch(() => false), api.getPreference?.('largeCursor').catch(() => false), api.getPreference?.('screenReaderSupport').catch(() => false),
+        api.getLaunchAtLogin?.().catch(() => ({ openAtLogin: false })), api.getPreference?.('defaultView').catch(() => 'last'), api.getPreference?.('checkForUpdates').catch(() => 'auto'), api.getConfirmBeforeQuit?.().catch(() => false), api.getPreference?.('notificationsEnabled').catch(() => true), api.getPreference?.('notificationSound').catch(() => false), api.getPreference?.('notificationsOnlyWhenNotFocused').catch(() => false), api.getPreference?.('doubleClickToOpenProject').catch(() => false), api.getPreference?.('confirmDestructiveActions').catch(() => true), api.getPreference?.('autoRefreshIntervalSeconds').catch(() => 0), api.getPreference?.('recentListLength').catch(() => 10), api.getPreference?.('showTips').catch(() => true), api.getPreference?.('gitDefaultBranch').catch(() => 'main'), api.getPreference?.('gitAutoFetchIntervalMinutes').catch(() => 0), api.getPreference?.('gitSshKeyPath').catch(() => ''), api.getPreference?.('gitDiffTool').catch(() => ''), api.getProxy?.().catch(() => ''), api.getPreference?.('requestTimeoutSeconds').catch(() => 30), api.getPreference?.('offlineMode').catch(() => false), api.getPreference?.('telemetry').catch(() => false), api.getPreference?.('telemetryUserIdentifier').catch(() => ''), api.getPreference?.('crashReports').catch(() => false), api.getAlwaysOnTop?.().catch(() => false), api.getMinimizeToTray?.().catch(() => false),         api.getPreference?.('focusOutlineVisible').catch(() => false), api.getPreference?.('largeCursor').catch(() => false), api.getPreference?.('screenReaderSupport').catch(() => false), api.getPreference?.('aiOnboardingDismissed').catch(() => false),
         api.getLicenseServerConfig?.().catch(() => ({})), api.getLicenseServerEnvironments?.().catch(() => []),
       ]);
       githubToken.value = token || '';
       ollamaBaseUrl.value = ollama?.baseUrl || ''; ollamaModel.value = ollama?.model || '';
       claudeApiKey.value = claude?.apiKey || ''; claudeModel.value = claude?.model || ''; openaiApiKey.value = openai?.apiKey || ''; openaiModel.value = openai?.model || '';
       geminiApiKey.value = geminiSettings?.apiKey || ''; geminiModel.value = geminiSettings?.model || '';
-      const claudePresets = ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229'];
+      groqApiKey.value = groqSettings?.apiKey || ''; groqModel.value = groqSettings?.model || '';
+      mistralApiKey.value = mistralSettings?.apiKey || ''; mistralModel.value = mistralSettings?.model || '';
+      lmStudioBaseUrl.value = lmStudioSettings?.baseUrl || ''; lmStudioModel.value = lmStudioSettings?.model || '';
+      aiTemperature.value = typeof aiParams?.temperature === 'number' ? aiParams.temperature : 0.7;
+      aiMaxTokens.value = typeof aiParams?.max_tokens === 'number' && aiParams.max_tokens > 0 ? aiParams.max_tokens : 2048;
+      aiTopP.value = typeof aiParams?.top_p === 'number' && aiParams.top_p >= 0 && aiParams.top_p <= 1 ? aiParams.top_p : 0.9;
+      const claudePresets = ['claude-sonnet-4-20250514', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022', 'claude-3-opus-20240229', 'claude-3-haiku-20240307'];
       claudeModelPreset.value = claudePresets.includes(claude?.model?.trim()) ? claude.model.trim() : 'custom';
-      const openaiPresets = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-3.5-turbo', 'o1-mini'];
+      const openaiPresets = ['gpt-4o-mini', 'gpt-4o', 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo', 'o1-mini', 'o1'];
       openaiModelPreset.value = openaiPresets.includes(openai?.model?.trim()) ? openai.model.trim() : 'custom';
-      const geminiPresets = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-8b', 'gemini-2.0-flash'];
+      const geminiPresets = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-1.5-flash-8b', 'gemini-2.0-flash', 'gemini-2.5-flash-preview'];
       geminiModelPreset.value = geminiPresets.includes(geminiSettings?.model?.trim()) ? geminiSettings.model.trim() : 'custom';
-      aiProvider.value = provider === 'claude' ? 'claude' : provider === 'openai' ? 'openai' : provider === 'gemini' ? 'gemini' : 'ollama';
+      const groqPresets = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'llama-3.1-70b-versatile', 'mixtral-8x7b-32768'];
+      groqModelPreset.value = groqPresets.includes(groqSettings?.model?.trim()) ? groqSettings.model.trim() : 'custom';
+      const mistralPresets = ['mistral-small-latest', 'mistral-large-latest', 'codestral-latest', 'pixtral-12b'];
+      mistralModelPreset.value = mistralPresets.includes(mistralSettings?.model?.trim()) ? mistralSettings.model.trim() : 'custom';
+      aiProvider.value = provider === 'claude' ? 'claude' : provider === 'openai' ? 'openai' : provider === 'gemini' ? 'gemini' : provider === 'groq' ? 'groq' : provider === 'mistral' ? 'mistral' : provider === 'lmstudio' ? 'lmstudio' : 'ollama';
       preferredEditor.value = editor === 'cursor' || editor === 'code' ? editor : '';
       preferredTerminal.value = (preferredTerminalP === 'Terminal' || preferredTerminalP === 'iTerm' || preferredTerminalP === 'Warp') ? preferredTerminalP : 'default';
       phpPath.value = php || '';
-      codeseerTcpPort.value = typeof codeseerPort === 'number' && codeseerPort >= 1024 && codeseerPort <= 65535 ? codeseerPort : 23523;
-      codeseerProxyTcpPort.value = typeof codeseerProxyTcpP === 'number' && codeseerProxyTcpP >= 1024 && codeseerProxyTcpP <= 65535 ? codeseerProxyTcpP : 23524;
-      codeseerProxyHttpPort.value = typeof codeseerProxyHttpP === 'number' && codeseerProxyHttpP >= 1024 && codeseerProxyHttpP <= 65535 ? codeseerProxyHttpP : 23525;
-      codeseerSshEnabled.value = !!codeseerSshEnabledP;
-      codeseerSshPort.value = typeof codeseerSshPortP === 'number' && codeseerSshPortP >= 1024 && codeseerSshPortP <= 65535 ? codeseerSshPortP : 23526;
-      codeseerMcpEnabled.value = !!codeseerMcpEnabledP;
-      codeseerMcpPort.value = typeof codeseerMcpPortP === 'number' && codeseerMcpPortP >= 1024 && codeseerMcpPortP <= 65535 ? codeseerMcpPortP : 3000;
-      codeseerMcpLimit.value = typeof codeseerMcpLimitP === 'number' && codeseerMcpLimitP >= 1 && codeseerMcpLimitP <= 500 ? codeseerMcpLimitP : 300;
       listPhpVersions();
       signCommits.value = !!sign; useDetailTabs.value = tabs !== false; debugLogging.value = debugLoad !== false;
       debug.setEnabled(debugLoad !== false); store.setUseDetailTabs(tabs !== false);
@@ -693,10 +800,28 @@ export function useSettings() {
       telemetry.value = !!telemetryP;
       telemetryUserIdentifier.value = typeof telemetryUserIdentifierP === 'string' ? telemetryUserIdentifierP : '';
       crashReports.value = !!crashReportsP;
-      alwaysOnTop.value = !!alwaysOnTopP; minimizeToTray.value = !!minimizeToTrayP; focusOutlineVisible.value = !!focusOutlineVisibleP; largeCursor.value = !!largeCursorP; screenReaderSupport.value = !!screenReaderSupportP;
+      alwaysOnTop.value = !!alwaysOnTopP; minimizeToTray.value = !!minimizeToTrayP;       focusOutlineVisible.value = !!focusOutlineVisibleP; largeCursor.value = !!largeCursorP; screenReaderSupport.value = !!screenReaderSupportP;
+      aiOnboardingDismissed.value = !!aiOnboardingDismissedP;
       licenseServerEnvironments.value = Array.isArray(licenseServerEnvironmentsP) ? licenseServerEnvironmentsP : [];
       const env = licenseServerConfigP?.environment;
       licenseServerEnvironment.value = env && licenseServerEnvironments.value.some((e) => e.id === env) ? env : 'dev';
+
+      const [confirmBeforeDiscardP, confirmBeforeForcePushP, openLinksInExternalBrowserP, projectSortOrderP, sidebarWidthLockedP, openProjectInNewTabP, compactSidebarP, showProjectPathInSidebarP, rememberLastDetailTabP, debugBarVisibleP, notifyOnReleaseP, notifyOnSyncCompleteP] = await Promise.all([
+        api.getPreference?.('confirmBeforeDiscard').catch(() => true), api.getPreference?.('confirmBeforeForcePush').catch(() => true), api.getPreference?.('openLinksInExternalBrowser').catch(() => false), api.getPreference?.('projectSortOrder').catch(() => 'lastOpened'), api.getPreference?.('sidebarWidthLocked').catch(() => false), api.getPreference?.('openProjectInNewTab').catch(() => false), api.getPreference?.('compactSidebar').catch(() => false), api.getPreference?.('showProjectPathInSidebar').catch(() => false), api.getPreference?.('rememberLastDetailTab').catch(() => true), api.getPreference?.('debugBarVisible').catch(() => false), api.getPreference?.('notifyOnRelease').catch(() => true), api.getPreference?.('notifyOnSyncComplete').catch(() => false),
+      ]);
+      confirmBeforeDiscard.value = confirmBeforeDiscardP !== false;
+      confirmBeforeForcePush.value = confirmBeforeForcePushP !== false;
+      openLinksInExternalBrowser.value = !!openLinksInExternalBrowserP;
+      projectSortOrder.value = ['lastOpened', 'name', 'path', 'status'].includes(projectSortOrderP) ? projectSortOrderP : 'lastOpened';
+      sidebarWidthLocked.value = !!sidebarWidthLockedP;
+      openProjectInNewTab.value = !!openProjectInNewTabP;
+      compactSidebar.value = !!compactSidebarP;
+      showProjectPathInSidebar.value = !!showProjectPathInSidebarP;
+      rememberLastDetailTab.value = rememberLastDetailTabP !== false;
+      debugBarVisible.value = !!debugBarVisibleP;
+      notifyOnRelease.value = notifyOnReleaseP !== false;
+      notifyOnSyncComplete.value = !!notifyOnSyncCompleteP;
+
       applyAppearance();
       loadCustomTelemetryEvents();
       loadGitGlobalConfig();
@@ -707,12 +832,25 @@ export function useSettings() {
 
   onMounted(() => load());
 
-  const sections = computed(() =>
-    [...SECTIONS, ...getSettingsSections()].filter((s) => s != null && s.id != null)
-  );
+  const sections = computed(() => {
+    const all = [...SECTIONS, ...getSettingsSections()].filter((s) => s != null && s.id != null);
+    // Team section only for Team or Developer plan
+    if (!license.isTeam?.value) {
+      return all.filter((s) => s.id !== 'team');
+    }
+    return all;
+  });
+
+  function getSectionMeta(id) {
+    const s = SECTIONS.find((x) => x.id === id);
+    if (s) return { label: s.label, icon: s.icon, description: s.description || '' };
+    const ext = getSettingsSections().find((x) => x.id === id);
+    return { label: ext?.label || id, icon: ext?.icon || '', description: ext?.description || '' };
+  }
 
   return {
     sections,
+    getSectionMeta,
     settingsExtensionSections: getSettingsSections(),
     activeSection,
     license,
@@ -721,6 +859,7 @@ export function useSettings() {
     defaultViewOptions: DEFAULT_VIEW_OPTIONS,
     checkForUpdatesOptions: CHECK_FOR_UPDATES_OPTIONS,
     autoRefreshIntervalOptions: AUTO_REFRESH_INTERVAL_OPTIONS,
+    projectSortOptions: PROJECT_SORT_OPTIONS,
     recentListLengthOptions: RECENT_LIST_LENGTH_OPTIONS,
     gitAutoFetchIntervalOptions: GIT_AUTO_FETCH_INTERVAL_OPTIONS,
     gitPullStrategyOptions: GIT_PULL_STRATEGY_OPTIONS,
@@ -729,6 +868,8 @@ export function useSettings() {
     claudeModelPresetOptions: CLAUDE_MODEL_PRESET_OPTIONS,
     openaiModelPresetOptions: OPENAI_MODEL_PRESET_OPTIONS,
     geminiModelPresetOptions: GEMINI_MODEL_PRESET_OPTIONS,
+    groqModelPresetOptions: GROQ_MODEL_PRESET_OPTIONS,
+    mistralModelPresetOptions: MISTRAL_MODEL_PRESET_OPTIONS,
     preferredEditorOptions: PREFERRED_EDITOR_OPTIONS,
     preferredTerminalOptions: PREFERRED_TERMINAL_OPTIONS,
     fontSizeOptions: FONT_SIZE_OPTIONS,
@@ -741,6 +882,11 @@ export function useSettings() {
     aiProvider,
     ollamaBaseUrl,
     ollamaModel,
+    lmStudioBaseUrl,
+    lmStudioModel,
+    aiTemperature,
+    aiMaxTokens,
+    aiTopP,
     claudeApiKey,
     claudeModel,
     claudeModelPreset,
@@ -750,26 +896,16 @@ export function useSettings() {
     geminiApiKey,
     geminiModel,
     geminiModelPreset,
+    groqApiKey,
+    groqModel,
+    groqModelPreset,
+    mistralApiKey,
+    mistralModel,
+    mistralModelPreset,
     preferredEditor,
     preferredTerminal,
     savePreferredTerminal,
     phpPath,
-    codeseerTcpPort,
-    saveCodeseerTcpPort,
-    codeseerProxyTcpPort,
-    codeseerProxyHttpPort,
-    saveCodeseerProxyTcpPort,
-    saveCodeseerProxyHttpPort,
-    codeseerSshEnabled,
-    codeseerSshPort,
-    saveCodeseerSshEnabled,
-    saveCodeseerSshPort,
-    codeseerMcpEnabled,
-    codeseerMcpPort,
-    codeseerMcpLimit,
-    saveCodeseerMcpEnabled,
-    saveCodeseerMcpPort,
-    saveCodeseerMcpLimit,
     phpVersionOptions,
     phpVersionSelectOptions,
     listPhpVersions,
@@ -797,6 +933,18 @@ export function useSettings() {
     notificationsOnlyWhenNotFocused,
     doubleClickToOpenProject,
     confirmDestructiveActions,
+    confirmBeforeDiscard,
+    confirmBeforeForcePush,
+    openLinksInExternalBrowser,
+    projectSortOrder,
+    sidebarWidthLocked,
+    openProjectInNewTab,
+    compactSidebar,
+    showProjectPathInSidebar,
+    rememberLastDetailTab,
+    debugBarVisible,
+    notifyOnRelease,
+    notifyOnSyncComplete,
     autoRefreshIntervalSeconds,
     recentListLength,
     showTips,
@@ -838,6 +986,15 @@ export function useSettings() {
     ollamaModels,
     ollamaListLoading,
     ollamaListError,
+    lmStudioModelOptions,
+    lmStudioModels,
+    lmStudioListLoading,
+    lmStudioListError,
+    listLmStudioModels,
+    saveLmStudio,
+    saveAiParams,
+    showAiOnboarding,
+    dismissAiOnboarding,
     setTheme,
     setAccent,
     saveLaunchAtLogin,
@@ -849,6 +1006,18 @@ export function useSettings() {
     saveNotificationsOnlyWhenNotFocused,
     saveDoubleClickToOpenProject,
     saveConfirmDestructiveActions,
+    saveConfirmBeforeDiscard,
+    saveConfirmBeforeForcePush,
+    saveOpenLinksInExternalBrowser,
+    saveProjectSortOrder,
+    saveSidebarWidthLocked,
+    saveOpenProjectInNewTab,
+    saveCompactSidebar,
+    saveShowProjectPathInSidebar,
+    saveRememberLastDetailTab,
+    saveDebugBarVisible,
+    saveNotifyOnRelease,
+    saveNotifyOnSyncComplete,
     saveAutoRefreshInterval,
     saveRecentListLength,
     saveShowTips,
@@ -872,10 +1041,14 @@ export function useSettings() {
     saveClaude,
     saveOpenAI,
     saveGemini,
+    saveGroq,
+    saveMistral,
     saveAiProvider,
     onClaudeModelPresetChange,
     onOpenAiModelPresetChange,
     onGeminiModelPresetChange,
+    onGroqModelPresetChange,
+    onMistralModelPresetChange,
     listOllamaModels,
     savePreferredEditor,
     savePhpPath,
@@ -893,6 +1066,7 @@ export function useSettings() {
   saveRequestTimeout,
   saveOfflineMode,
   saveOfflineGraceDays,
+  loadOfflineGraceConfig,
   checkConnectivity,
   saveTelemetry,
     saveTelemetryUserIdentifier,

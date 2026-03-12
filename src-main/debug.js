@@ -6,11 +6,11 @@
  */
 
 function isEnabled(getStore) {
-  if (process.env.NODE_ENV === 'development') return true;
   try {
     const prefs = getStore?.().get?.('preferences');
-    if (typeof prefs !== 'object' || prefs === null) return true;
-    return prefs.debug !== false;
+    if (typeof prefs === 'object' && prefs !== null && prefs.debug === false) return false;
+    if (process.env.NODE_ENV === 'development') return true;
+    return prefs?.debug === true;
   } catch (_) {
     return true;
   }

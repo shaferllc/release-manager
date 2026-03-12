@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 
 describe('extensions/index', () => {
-  it('loads built-in codeseer extension without error', async () => {
+  it('loads without error', async () => {
     const mod = await import('./index.js');
     expect(mod).toBeDefined();
   });

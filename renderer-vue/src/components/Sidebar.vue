@@ -1,5 +1,5 @@
 <template>
-  <div class="sidebar-wrapper flex shrink-0 h-full">
+  <div class="sidebar-wrapper flex shrink-0 h-full" :class="{ 'sidebar-compact': store.compactSidebar }">
   <aside class="aside-panel" :style="sidebarStyle">
     <button
       class="sidebar-dashboard-btn"
@@ -91,6 +91,7 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </Button>
           </div>
+          <div v-if="store.showProjectPathInSidebar && p.path" class="px-3 pb-1 pt-0 text-[10px] text-rm-muted truncate" :title="p.path">{{ p.path }}</div>
           <div v-if="runningAgentsForProject(p.path).length" class="sidebar-running-agents px-3 pb-2 pt-0 flex flex-wrap gap-1">
             <span
               v-for="slot in runningAgentsForProject(p.path)"
@@ -105,7 +106,7 @@
       </ul>
     </div>
   </aside>
-  <div class="sidebar-resizer" aria-label="Resize sidebar" @pointerdown="onResizerPointerDown" />
+  <div v-show="!store.sidebarWidthLocked" class="sidebar-resizer" role="separator" aria-label="Resize sidebar" @pointerdown="onResizerPointerDown" />
   </div>
 </template>
 
@@ -152,6 +153,7 @@ const { sidebarStyle, onResizerPointerDown } = useResizableSidebar({
   defaultWidth: 256,
   minWidth: 180,
   maxWidth: 420,
+  useStoreLock: true,
 });
 const batchCount = computed(() => store.selectedPaths?.size ?? 0);
 
@@ -320,5 +322,34 @@ async function removeProject(p) {
   font-weight: 600;
   color: rgb(var(--rm-text));
   margin-bottom: 0.75rem;
+}
+
+/* Compact sidebar: smaller icons and labels */
+.sidebar-compact .sidebar-dashboard-btn {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.75rem;
+}
+.sidebar-compact .sidebar-dashboard-btn svg {
+  width: 12px;
+  height: 12px;
+}
+.sidebar-compact .aside-header {
+  padding: 0.5rem 0.75rem;
+}
+.sidebar-compact .aside-title {
+  font-size: 10px;
+}
+.sidebar-compact .project-list-item .flex.items-center {
+  padding: 0.375rem 0.75rem;
+  font-size: 0.8125rem;
+}
+.sidebar-compact .project-list-item .flex.items-center svg,
+.sidebar-compact .project-star-btn svg,
+.sidebar-compact .project-remove-btn svg {
+  width: 12px;
+  height: 12px;
+}
+.sidebar-compact .project-list {
+  padding: 0.5rem;
 }
 </style>

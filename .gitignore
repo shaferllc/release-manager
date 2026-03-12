@@ -31,3 +31,6 @@ temp/
 *.tmp
 *.bak
 *.swp
+
+# Extracted extensions (each lives in its own repo under shaferllc/shipwell-ext-*)
+extracted-extensions/

@@ -3,8 +3,8 @@
     <template #content>
     <div class="extensions-view-inner py-6 px-6 space-y-6">
 
-      <!-- Analytics summary -->
-      <div v-if="license.isLoggedIn?.value && analytics.overview.value" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <!-- Analytics summary (Pro/Team only) -->
+      <div v-if="license.isLoggedIn?.value && license.hasFeature?.('usage_analytics') && analytics.overview.value" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div class="analytics-stat rounded-rm border border-rm-border bg-rm-surface/30 px-4 py-3">
           <span class="text-[10px] uppercase tracking-wider text-rm-muted block">Available</span>
           <span class="text-lg font-bold text-rm-text">{{ analytics.totalExtensions.value ?? '—' }}</span>
@@ -131,7 +131,7 @@
                 <!-- Installed and plan allows -->
                 <template v-else-if="isInstalled(item.slug || item.id)">
                   <label class="flex items-center gap-1.5 cursor-pointer">
-                    <InputSwitch
+                    <ToggleSwitch
                       :modelValue="extPrefs.isEnabled(item.slug || item.id)"
                       @update:modelValue="(v) => extPrefs.setEnabled(item.slug || item.id, v)"
                       class="ext-switch"
@@ -188,7 +188,7 @@ import Panel from 'primevue/panel';
 import Tag from 'primevue/tag';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
-import InputSwitch from 'primevue/inputswitch';
+import ToggleSwitch from 'primevue/toggleswitch';
 import SelectButton from 'primevue/selectbutton';
 import { useLicense } from '../composables/useLicense';
 import { useExtensionPrefs } from '../composables/useExtensionPrefs';
@@ -258,7 +258,7 @@ let previousTier = null;
 onMounted(async () => {
   previousTier = license.tier?.value || 'free';
   await refresh();
-  if (license.isLoggedIn?.value) analytics.fetchOverview();
+  if (license.isLoggedIn?.value && license.hasFeature?.('usage_analytics')) analytics.fetchOverview();
   window.releaseManager?.sendTelemetry?.('view.extensions_opened', {});
 });
 
@@ -271,6 +271,7 @@ watch(() => license.tier?.value, async (newTier) => {
 async function refresh() {
   syncing.value = true;
   registryError.value = '';
+  await extPrefs.fetchFromWeb();
   try {
     await window.releaseManager.syncPlanExtensions?.();
   } catch (_) {}
@@ -289,7 +290,7 @@ async function refresh() {
   } finally {
     syncing.value = false;
   }
-  if (license.isLoggedIn?.value) analytics.fetchOverview();
+  if (license.isLoggedIn?.value && license.hasFeature?.('usage_analytics')) analytics.fetchOverview();
 }
 
 function openUpgrade() {
@@ -383,11 +384,11 @@ async function uninstallById(extId) {
   font-size: 0.7rem;
   padding: 0.25rem 0.5rem;
 }
-.ext-switch :deep(.p-inputswitch) {
+.ext-switch :deep(.p-toggleswitch) {
   width: 2rem;
   height: 1rem;
 }
-.ext-switch :deep(.p-inputswitch-slider:before) {
+.ext-switch :deep(.p-toggleswitch-slider:before) {
   width: 0.75rem;
   height: 0.75rem;
 }

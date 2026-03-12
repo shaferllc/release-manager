@@ -10,5 +10,17 @@
     "author": "Release Manager",
     "homepage": "",
     "updated_at": "2025-03-05T00:00:00Z"
+  },
+  {
+    "id": "codeseer",
+    "slug": "codeseer",
+    "name": "CodeSeer",
+    "description": "PHP debugging: receive dumps, traces, and logs from your PHP app via TCP. Laradumps/Ray-style.",
+    "version": "1.0.0",
+    "download_url": "https://github.com/shaferllc/shipwell-ext-codeseer/releases/download/v1.0.0/index.js",
+    "icon": "",
+    "author": "Shipwell",
+    "homepage": "https://github.com/shaferllc/shipwell-ext-codeseer",
+    "updated_at": "2025-03-09T00:00:00Z"
   }
 ]

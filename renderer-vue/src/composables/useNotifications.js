@@ -28,7 +28,7 @@ export function useNotifications() {
       setTimeout(() => remove(id), duration);
     }
 
-    if (typeof api.showSystemNotification === 'function') {
+    if (options?.systemNotification !== false && typeof api.showSystemNotification === 'function') {
       const body = message || title;
       api.showSystemNotification(title, body).catch(() => {});
     }

@@ -7,7 +7,18 @@ GH="command gh"
 
 cd "$EXT_DIR"
 
-for dir in shipwell-ext-*; do
+# Optional: pass extension name to deploy only that one (e.g. shipwell-ext-codeseer or codeseer)
+FILTER="${1:-}"
+if [ -n "$FILTER" ]; then
+  if [[ "$FILTER" != shipwell-ext-* ]]; then
+    FILTER="shipwell-ext-$FILTER"
+  fi
+  DIRS=("$FILTER")
+else
+  DIRS=(shipwell-ext-*)
+fi
+
+for dir in "${DIRS[@]}"; do
   [ -d "$dir" ] || continue
   ext_name="$dir"
   repo_name="$ORG/$ext_name"

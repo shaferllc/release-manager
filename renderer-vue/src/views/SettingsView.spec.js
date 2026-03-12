@@ -1,11 +1,22 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import SettingsView from './SettingsView.vue';
+import { flushPromises, goToAccountSection, goToApplicationSection } from './SettingsView.spec-helpers';
 
 describe('SettingsView', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
+    vi.clearAllMocks();
+    window.releaseManager = {
+      ...window.releaseManager,
+      getLicenseStatus: vi.fn().mockResolvedValue({ hasLicense: false }),
+      logoutFromLicenseServer: vi.fn().mockResolvedValue(),
+      getLicenseServerConfig: vi.fn().mockResolvedValue({}),
+      getLicenseServerEnvironments: vi.fn().mockResolvedValue([]),
+      setLicenseServerConfig: vi.fn().mockResolvedValue(),
+      switchPlan: vi.fn().mockResolvedValue({ ok: true }),
+    };
   });
 
   it('renders settings content', () => {
@@ -30,10 +41,7 @@ describe('SettingsView', () => {
 
   it('shows Account section when Account nav clicked', async () => {
     const wrapper = mount(SettingsView, { global: { plugins: [createPinia()] } });
-    const accountBtn = wrapper.findAll('button.settings-nav-btn').find((b) => b.text().includes('Account'));
-    expect(accountBtn).toBeDefined();
-    await accountBtn.trigger('click');
-    expect(accountBtn.classes()).toContain('settings-nav-btn-active');
+    await goToAccountSection(wrapper);
     expect(wrapper.text()).toMatch(/Account/);
   });
 

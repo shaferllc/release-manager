@@ -53,7 +53,7 @@ window.__registerDetailTabExtension({
 });
 ```
 
-Extensions must not import PrimeVue components directly. Use plain HTML/CSS or access `window.Vue` for Vue APIs.
+Extensions use PrimeVue via `window.PrimeVue` (e.g. `window.PrimeVue['button']`, `window.PrimeVue['panel']`). Do not import PrimeVue directly — use the host-provided components. Use `window.Vue` for Vue runtime APIs.
 
 ## Plan gating
 

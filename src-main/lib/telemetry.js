@@ -67,6 +67,7 @@ function buildCommonPayload(getPreference) {
  */
 async function sendSingleEvent(getPreference, event, properties, fetchImpl) {
   if (!getPreference || !getPreference('telemetry')) return { ok: false, error: 'Telemetry is disabled in settings.' };
+  if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled' };
   const url = getTelemetryEndpoint();
   const body = {
     ...buildCommonPayload(getPreference),
@@ -104,6 +105,7 @@ async function sendSingleEvent(getPreference, event, properties, fetchImpl) {
  */
 async function sendBatch(getPreference, events, fetchImpl) {
   if (!getPreference || !getPreference('telemetry')) return { ok: false, error: 'Telemetry is disabled in settings.' };
+  if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled' };
   const url = getTelemetryEndpoint();
   if (!Array.isArray(events) || events.length === 0) return { ok: true, accepted_count: 0, events: [] };
   const batch = events.slice(0, BATCH_MAX).map((e) => {
@@ -146,6 +148,7 @@ async function sendBatch(getPreference, events, fetchImpl) {
  */
 function track(getPreference, event, properties) {
   if (!getPreference || !getPreference('telemetry')) return;
+  if (getPreference('offlineMode')) return;
   const url = getTelemetryEndpoint();
   if (!url) return;
   queue.push({ event: String(event), properties: properties != null && typeof properties === 'object' ? properties : undefined });

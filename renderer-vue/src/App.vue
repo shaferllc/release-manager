@@ -233,11 +233,18 @@ let offInstallExtensionDeeplink = null;
 
 watch(() => store.selectedPath, (path) => {
   if (path && api.setPreference) api.setPreference('selectedProjectPath', path);
+  if (path && api.touchProjectOpened) api.touchProjectOpened(path);
 }, { immediate: false });
 
-watch(() => store.detailTab, (tab) => {
+watch(() => store.detailTab, async (tab) => {
   if (tab && api.setPreference) api.setPreference('state.detailTab', tab);
   if (tab && store.viewMode === 'detail') api.sendTelemetry?.('detail_tab.viewed', { tab });
+  if (tab && store.selectedPath && store.rememberLastDetailTab && api.getPreference && api.setPreference) {
+    const map = (await api.getPreference('detailTabByProject').catch(() => null)) || {};
+    if (typeof map === 'object') {
+      api.setPreference('detailTabByProject', { ...map, [store.selectedPath]: tab });
+    }
+  }
 }, { immediate: false });
 
 watch(() => store.viewMode, (view) => {
@@ -278,7 +285,8 @@ async function handleShortcut(e) {
     e.metaKey,
     e.ctrlKey,
     isInputFocused(),
-    store.detailTab
+    store.detailTab,
+    e.altKey
   );
   if (!action) return;
   e.preventDefault();
@@ -315,6 +323,7 @@ onMounted(async () => {
   if (!isTerminalPopout.value) {
     await Promise.all([license.loadStatus(), extPrefs.load()]);
     if (showFullApp.value) {
+      extPrefs.fetchFromWeb();
       loadProjects();
       api.syncProjectsToShipwell?.().then(() => api.syncReleasesToShipwell?.().catch(() => {})).catch(() => {});
       syncExtensions();
@@ -322,6 +331,7 @@ onMounted(async () => {
     offLicenseStatusChanged = api.onLicenseStatusChanged?.(async () => {
       await license.loadStatus();
       if (showFullApp.value) {
+        await extPrefs.fetchFromWeb();
         loadProjects();
         api.syncProjectsToShipwell?.().then(() => api.syncReleasesToShipwell?.().catch(() => {})).catch(() => {});
         syncExtensions();
@@ -343,6 +353,17 @@ onMounted(async () => {
         notifications.add({ title: 'Install failed', message: e?.message || 'Could not install extension.', type: 'error' });
       }
     }) ?? null;
+    api.onUpdateAvailable?.((data) => {
+      store.setUpdateAvailableVersion(data?.version || 'new version');
+    });
+    api.onUpdateDownloaded?.(() => {
+      store.setUpdateDownloaded(true);
+      notifications.add({ title: 'Update ready', message: 'Restart the app to install the update.', type: 'success' });
+    });
+    api.onUpdateError?.((msg) => {
+      store.clearUpdateState();
+      notifications.add({ title: 'Update check failed', message: msg || 'Could not check for updates.', type: 'error' });
+    });
     window.addEventListener('focus', onWindowFocusForLicense);
     registerBuiltinCommands({
       store,
@@ -417,6 +438,7 @@ onMounted(async () => {
 async function onWindowFocusForLicense() {
   if (isTerminalPopout.value) return;
   await license.loadStatus();
+  if (showFullApp.value) extPrefs.fetchFromWeb();
 }
 
 onUnmounted(() => {

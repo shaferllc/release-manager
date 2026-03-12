@@ -2,6 +2,7 @@ import { ref } from 'vue';
 import { useAppStore } from '../stores/app';
 import { useApi } from './useApi';
 import { useNotifications } from './useNotifications';
+import { useExtensionPrefs } from './useExtensionPrefs';
 import * as debug from '../utils/debug';
 
 const LOAD_PROJECTS_MAX_RETRIES = 2;
@@ -30,6 +31,10 @@ export function useProjectLoader(options = {}) {
           message: `${result.installed} extension${result.installed > 1 ? 's' : ''} installed. Restart the app to load them.`,
           type: 'success',
         });
+      }
+      if (Array.isArray(result?.disabledSlugs) && result.disabledSlugs.length > 0) {
+        const extPrefs = useExtensionPrefs();
+        extPrefs.applyWebState(result.disabledSlugs.map((s) => ({ slug: s, enabled: false })));
       }
     } catch (_) {}
   }
@@ -87,13 +92,46 @@ export function useProjectLoader(options = {}) {
       const savedPath = await api.getPreference?.('selectedProjectPath').catch(() => null);
       const savedView = await api.getPreference?.('state.viewMode').catch(() => null);
       const savedDetailTab = await api.getPreference?.('state.detailTab').catch(() => null);
+      const detailTabByProject = await api.getPreference?.('detailTabByProject').catch(() => null);
+      const rememberLastDetailTab = await api.getPreference?.('rememberLastDetailTab').catch(() => true);
       const normPath = (p) => (p && typeof p === 'string' ? p.trim().replace(/[/\\]+$/, '') : '');
       const pathStillInList = typeof savedPath === 'string' && savedPath && store.projects.some((p) => normPath(p.path) === normPath(savedPath));
       if (pathStillInList) store.setSelectedPath(savedPath);
       else if (store.projects.length > 0 && !store.selectedPath) store.setSelectedPath(store.projects[0].path);
       else store.setSelectedPath(null);
       if (savedView && ['detail', 'dashboard', 'settings', 'extensions', 'docs', 'changelog', 'api'].includes(savedView)) store.setViewMode(savedView);
-      if (typeof savedDetailTab === 'string' && savedDetailTab) store.setDetailTab(savedDetailTab);
+      const effectivePath = pathStillInList ? savedPath : (store.selectedPath || '');
+      const perProjectTab = rememberLastDetailTab && detailTabByProject && typeof detailTabByProject === 'object' && effectivePath ? detailTabByProject[effectivePath] : null;
+      const tabToUse = (typeof perProjectTab === 'string' && perProjectTab) ? perProjectTab : (typeof savedDetailTab === 'string' && savedDetailTab ? savedDetailTab : null);
+      if (tabToUse) store.setDetailTab(tabToUse);
+
+      const behaviorPrefs = await Promise.all([
+        api.getPreference?.('projectSortOrder').catch(() => null),
+        api.getPreference?.('confirmDestructiveActions').catch(() => null),
+        api.getPreference?.('confirmBeforeDiscard').catch(() => null),
+        api.getPreference?.('confirmBeforeForcePush').catch(() => null),
+        api.getPreference?.('openLinksInExternalBrowser').catch(() => null),
+        api.getPreference?.('sidebarWidthLocked').catch(() => null),
+        api.getPreference?.('compactSidebar').catch(() => null),
+        api.getPreference?.('showProjectPathInSidebar').catch(() => null),
+        api.getPreference?.('rememberLastDetailTab').catch(() => null),
+        api.getPreference?.('debugBarVisible').catch(() => null),
+        api.getPreference?.('notifyOnRelease').catch(() => null),
+        api.getPreference?.('notifyOnSyncComplete').catch(() => null),
+      ]).catch(() => []);
+      const [ps, cda, cbd, cbfp, oleb, swl, cs, sps, rldt, dbv, nor, nosc] = behaviorPrefs;
+      if (ps != null) store.setProjectSortOrder(ps);
+      if (cda != null) store.setConfirmDestructiveActions(cda);
+      if (cbd != null) store.setConfirmBeforeDiscard(cbd);
+      if (cbfp != null) store.setConfirmBeforeForcePush(cbfp);
+      if (oleb != null) store.setOpenLinksInExternalBrowser(oleb);
+      if (swl != null) store.setSidebarWidthLocked(swl);
+      if (cs != null) store.setCompactSidebar(cs);
+      if (sps != null) store.setShowProjectPathInSidebar(sps);
+      if (rldt != null) store.setRememberLastDetailTab(rldt);
+      if (dbv != null) store.setDebugBarVisible(dbv);
+      if (nor != null) store.setNotifyOnRelease(nor);
+      if (nosc != null) store.setNotifyOnSyncComplete(nosc);
       if (store.selectedPath) {
         const current = store.projects.find((p) => p.path === store.selectedPath);
         if (current) store.setCurrentInfo(current);
@@ -151,8 +189,14 @@ export function useProjectLoader(options = {}) {
         await api.syncReleasesToShipwell?.();
       } catch (_) {}
       syncExtensions();
+      if (store.notifyOnSyncComplete) {
+        notifications.add({ title: 'Sync complete', message: 'Projects synced.', type: 'success', systemNotification: store.notifyOnSyncComplete });
+      }
     } catch (e) {
       debug.warn('git', 'syncAll.failed', e?.message ?? e);
+      if (store.notifyOnSyncComplete) {
+        notifications.add({ title: 'Sync failed', message: e?.message || 'Project sync failed.', type: 'error', systemNotification: store.notifyOnSyncComplete });
+      }
     } finally {
       navBarRef?.value?.finishSync?.();
     }

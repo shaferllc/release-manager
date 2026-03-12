@@ -34,7 +34,7 @@ describe('useLoginGate', () => {
   function createGate(overrides = {}) {
     const api = overrides.api ?? globalThis.window?.releaseManager;
     const license = overrides.license ?? { loadStatus: vi.fn(), offlineGraceExpired: { value: false } };
-    return useLoginGate({ api, license });
+    return useLoginGate({ api, license, store: overrides.store });
   }
 
   it('returns screen, email, password, loading, error, and handlers', () => {
@@ -200,7 +200,7 @@ describe('useLoginGate', () => {
   });
 
   it('toggleDebugBar toggles debugBarOpen', () => {
-    const gate = createGate();
+    const gate = createGate({ store: { debugBarVisible: true } });
     expect(gate.debugBarOpen.value).toBe(true);
     gate.toggleDebugBar();
     expect(gate.debugBarOpen.value).toBe(false);

@@ -21,6 +21,20 @@ export const useAppStore = defineStore('app', () => {
   const loadingOverlayVisible = ref(false);
   const loadingBarVisible = ref(false);
   const sidebarVisible = ref(true);
+  const projectSortOrder = ref('lastOpened');
+  const confirmDestructiveActions = ref(true);
+  const confirmBeforeDiscard = ref(true);
+  const confirmBeforeForcePush = ref(true);
+  const openLinksInExternalBrowser = ref(false);
+  const sidebarWidthLocked = ref(false);
+  const compactSidebar = ref(false);
+  const showProjectPathInSidebar = ref(false);
+  const rememberLastDetailTab = ref(true);
+  const debugBarVisible = ref(false);
+  const notifyOnRelease = ref(true);
+  const notifyOnSyncComplete = ref(false);
+  const updateAvailableVersion = ref(null);
+  const updateDownloaded = ref(false);
 
   const selectedProject = computed(() => {
     const path = selectedPath.value;
@@ -37,12 +51,27 @@ export const useAppStore = defineStore('app', () => {
       const tag = filterByTag.value.toLowerCase();
       list = list.filter((p) => (p.tags || []).some((t) => String(t).toLowerCase() === tag));
     }
-    // Sort: starred first, then by name
+    const sortBy = projectSortOrder.value || 'lastOpened';
     const sorted = [...list].sort((a, b) => {
       const aStarred = a.starred === true;
       const bStarred = b.starred === true;
       if (aStarred && !bStarred) return -1;
       if (!aStarred && bStarred) return 1;
+      if (sortBy === 'name') {
+        return String(projectDisplayName(a)).localeCompare(String(projectDisplayName(b)), undefined, { sensitivity: 'base' });
+      }
+      if (sortBy === 'path') {
+        return String(a.path || '').localeCompare(String(b.path || ''), undefined, { sensitivity: 'base' });
+      }
+      if (sortBy === 'status') {
+        const aStatus = (a.status || '').toLowerCase();
+        const bStatus = (b.status || '').toLowerCase();
+        return aStatus.localeCompare(bStatus) || String(projectDisplayName(a)).localeCompare(String(projectDisplayName(b)), undefined, { sensitivity: 'base' });
+      }
+      // lastOpened: use lastOpenedAt if available, else fall back to name
+      const aTime = a.lastOpenedAt != null ? a.lastOpenedAt : 0;
+      const bTime = b.lastOpenedAt != null ? b.lastOpenedAt : 0;
+      if (aTime !== bTime) return bTime - aTime;
       return String(projectDisplayName(a)).localeCompare(String(projectDisplayName(b)), undefined, { sensitivity: 'base' });
     });
     return sorted;
@@ -143,6 +172,22 @@ export const useAppStore = defineStore('app', () => {
     selectedPaths.value = set;
   }
 
+  function setProjectSortOrder(v) { projectSortOrder.value = v ?? 'lastOpened'; }
+  function setConfirmDestructiveActions(v) { confirmDestructiveActions.value = !!v; }
+  function setConfirmBeforeDiscard(v) { confirmBeforeDiscard.value = !!v; }
+  function setConfirmBeforeForcePush(v) { confirmBeforeForcePush.value = !!v; }
+  function setOpenLinksInExternalBrowser(v) { openLinksInExternalBrowser.value = !!v; }
+  function setSidebarWidthLocked(v) { sidebarWidthLocked.value = !!v; }
+  function setCompactSidebar(v) { compactSidebar.value = !!v; }
+  function setShowProjectPathInSidebar(v) { showProjectPathInSidebar.value = !!v; }
+  function setRememberLastDetailTab(v) { rememberLastDetailTab.value = !!v; }
+  function setDebugBarVisible(v) { debugBarVisible.value = !!v; }
+  function setNotifyOnRelease(v) { notifyOnRelease.value = !!v; }
+  function setNotifyOnSyncComplete(v) { notifyOnSyncComplete.value = !!v; }
+  function setUpdateAvailableVersion(v) { updateAvailableVersion.value = v ?? null; }
+  function setUpdateDownloaded(v) { updateDownloaded.value = !!v; }
+  function clearUpdateState() { updateAvailableVersion.value = null; updateDownloaded.value = false; }
+
   return {
     projects,
     selectedPath,
@@ -183,5 +228,34 @@ export const useAppStore = defineStore('app', () => {
     detailTab,
     pendingTerminalCommand,
     useDetailTabs,
+    projectSortOrder,
+    confirmDestructiveActions,
+    confirmBeforeDiscard,
+    confirmBeforeForcePush,
+    openLinksInExternalBrowser,
+    sidebarWidthLocked,
+    compactSidebar,
+    showProjectPathInSidebar,
+    rememberLastDetailTab,
+    debugBarVisible,
+    notifyOnRelease,
+    notifyOnSyncComplete,
+    updateAvailableVersion,
+    updateDownloaded,
+    setProjectSortOrder,
+    setConfirmDestructiveActions,
+    setConfirmBeforeDiscard,
+    setConfirmBeforeForcePush,
+    setOpenLinksInExternalBrowser,
+    setSidebarWidthLocked,
+    setCompactSidebar,
+    setShowProjectPathInSidebar,
+    setRememberLastDetailTab,
+    setDebugBarVisible,
+    setNotifyOnRelease,
+    setNotifyOnSyncComplete,
+    setUpdateAvailableVersion,
+    setUpdateDownloaded,
+    clearUpdateState,
   };
 });

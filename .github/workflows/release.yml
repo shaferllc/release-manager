@@ -61,6 +61,8 @@ jobs:
           LICENSE_PROD_CLIENT_SECRET: ${{ secrets.LICENSE_PROD_CLIENT_SECRET }}
           LICENSE_STAGING_CLIENT_ID: ${{ secrets.LICENSE_STAGING_CLIENT_ID }}
           LICENSE_STAGING_CLIENT_SECRET: ${{ secrets.LICENSE_STAGING_CLIENT_SECRET }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
         run: npm run build
 
       - name: List build output

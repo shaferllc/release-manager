@@ -1,4 +1,4 @@
-import { registerDetailTabExtension, registerDocSection } from './extensions/registry';
+import { registerDetailTabExtension, registerDocSection, getDetailTabExtensions } from './extensions/registry';
 import { registerCommand, unregisterCommand } from './commandPalette/registry';
 // Expose for user-installed extensions (loaded at runtime from userData/extensions)
 import { registerSettingsSection } from './extensions/settingsRegistry';
@@ -25,7 +25,71 @@ if (typeof window !== 'undefined') {
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
 import Tooltip from 'primevue/tooltip';
+import Accordion from 'primevue/accordion';
+import AccordionPanel from 'primevue/accordionpanel';
+import AccordionHeader from 'primevue/accordionheader';
+import AccordionContent from 'primevue/accordioncontent';
+import Breadcrumb from 'primevue/breadcrumb';
+import Button from 'primevue/button';
+import Checkbox from 'primevue/checkbox';
+import Column from 'primevue/column';
+import DataTable from 'primevue/datatable';
+import DatePicker from 'primevue/datepicker';
+import Dialog from 'primevue/dialog';
+import Divider from 'primevue/divider';
+import FileUpload from 'primevue/fileupload';
+import InputText from 'primevue/inputtext';
+import Menu from 'primevue/menu';
+import Message from 'primevue/message';
+import Panel from 'primevue/panel';
+import Password from 'primevue/password';
+import ProgressBar from 'primevue/progressbar';
+import ProgressSpinner from 'primevue/progressspinner';
+import Select from 'primevue/select';
+import SelectButton from 'primevue/selectbutton';
+import Splitter from 'primevue/splitter';
+import SplitterPanel from 'primevue/splitterpanel';
+import Tag from 'primevue/tag';
+import Textarea from 'primevue/textarea';
+import ToggleSwitch from 'primevue/toggleswitch';
+import Toolbar from 'primevue/toolbar';
 import App from './App.vue';
+import { useNotifications } from './composables/useNotifications';
+
+// Expose PrimeVue components and composables for user-installed extensions
+if (typeof window !== 'undefined') {
+  window.PrimeVue = {
+    accordion: Accordion,
+    accordionpanel: AccordionPanel,
+    accordionheader: AccordionHeader,
+    accordioncontent: AccordionContent,
+    breadcrumb: Breadcrumb,
+    button: Button,
+    checkbox: Checkbox,
+    column: Column,
+    datatable: DataTable,
+    datepicker: DatePicker,
+    dialog: Dialog,
+    divider: Divider,
+    fileupload: FileUpload,
+    inputtext: InputText,
+    menu: Menu,
+    message: Message,
+    panel: Panel,
+    password: Password,
+    progressbar: ProgressBar,
+    progressspinner: ProgressSpinner,
+    select: Select,
+    selectbutton: SelectButton,
+    splitter: Splitter,
+    splitterpanel: SplitterPanel,
+    tag: Tag,
+    textarea: Textarea,
+    toggleswitch: ToggleSwitch,
+    toolbar: Toolbar,
+  };
+  window.__useNotifications = useNotifications;
+}
 import './input.css';
 import 'primeicons/primeicons.css';
 import 'katex/dist/katex.min.css';
@@ -65,12 +129,16 @@ app.mount('#app');
 // Load user-installed extensions (marketplace). They register via window.__registerDetailTabExtension
 ;(async function loadUserExtensions() {
   const api = typeof window !== 'undefined' && window.releaseManager;
-  if (!api?.getInstalledUserExtensions || !api?.getExtensionScriptContent) return;
+  if (!api?.getInstalledUserExtensions || !api?.getExtensionScriptContent) {
+    console.warn('[extensions] API not available for loading user extensions');
+    return;
+  }
   try {
     const list = await api.getInstalledUserExtensions();
+    console.log('[extensions] Found', list.length, 'installed user extensions:', list.map((u) => u.id));
+    const beforeCount = getDetailTabExtensions().length;
     for (const u of list) {
       try {
-        // Inject extension CSS if present
         if (api.getExtensionCssContent) {
           const css = await api.getExtensionCssContent(u.id);
           if (css) {
@@ -81,22 +149,33 @@ app.mount('#app');
           }
         }
         const content = await api.getExtensionScriptContent(u.id);
-        if (content) {
-          const blob = new Blob([content], { type: 'application/javascript' });
-          const url = URL.createObjectURL(blob);
-          await new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = url;
-            script.setAttribute('data-ext', u.id);
-            script.onload = () => { URL.revokeObjectURL(url); resolve(); };
-            script.onerror = (err) => { URL.revokeObjectURL(url); reject(err); };
-            document.head.appendChild(script);
-          });
+        if (!content) {
+          console.warn('[extensions] No script content for:', u.id);
+          continue;
+        }
+        const blob = new Blob([content], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        const regCountBefore = getDetailTabExtensions().length;
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = url;
+          script.setAttribute('data-ext', u.id);
+          script.onload = () => { URL.revokeObjectURL(url); resolve(); };
+          script.onerror = (err) => { URL.revokeObjectURL(url); reject(err); };
+          document.head.appendChild(script);
+        });
+        const regCountAfter = getDetailTabExtensions().length;
+        if (regCountAfter > regCountBefore) {
+          console.log('[extensions] Loaded and registered:', u.id);
+        } else {
+          console.warn('[extensions] Script loaded but did NOT register:', u.id);
         }
       } catch (e) {
         console.error('[extensions] Failed to load user extension:', u.id, e);
       }
     }
+    const afterCount = getDetailTabExtensions().length;
+    console.log('[extensions] Total registered extensions:', afterCount, '(was', beforeCount, 'before user extensions)');
   } catch (e) {
     console.error('[extensions] Failed to load user extensions:', e);
   }

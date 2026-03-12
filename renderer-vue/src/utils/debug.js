@@ -7,9 +7,10 @@
 const PREFIX = '[RM Debug] [renderer]';
 
 export function isEnabled() {
-  if (import.meta.env?.DEV) return true;
   if (typeof window === 'undefined') return false;
-  return window.__rmDebug !== false;
+  if (window.__rmDebug === false) return false; // User explicitly disabled in Settings
+  if (import.meta.env?.DEV) return true;
+  return window.__rmDebug === true;
 }
 
 export function setEnabled(value) {

@@ -46,7 +46,11 @@
     "appId": "com.shipwell.app",
     "productName": "Shipwell",
     "copyright": "Copyright © Shipwell",
-    "publish": null,
+    "publish": {
+      "provider": "github",
+      "owner": "shaferllc",
+      "repo": "release-manager"
+    },
     "directories": {
       "output": "dist",
       "buildResources": "assets/icons"
@@ -64,7 +68,9 @@
     "protocols": [
       {
         "name": "Shipwell",
-        "schemes": ["shipwell"]
+        "schemes": [
+          "shipwell"
+        ]
       }
     ],
     "mac": {
@@ -114,14 +120,15 @@
     "basic-ftp": "^5.2.0",
     "dotenv": "^17.3.1",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.8.3",
     "extract-zip": "^2.0.1",
     "localtunnel": "^2.0.2",
     "mailparser": "^3.6.5",
     "marked": "^15.0.0",
     "sanitize-html": "^2.13.0",
     "smtp-server": "^3.13.0",
-    "ws": "^8.18.0",
-    "ssh2": "^1.15.0"
+    "ssh2": "^1.15.0",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

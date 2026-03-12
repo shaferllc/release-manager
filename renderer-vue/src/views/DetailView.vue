@@ -63,7 +63,9 @@
             <DetailPullRequestsCard :info="info" @refresh="load" />
           </template>
           <template v-else-if="extensionComponent">
-            <component :is="extensionComponent" :info="info" />
+            <div class="detail-tab-panel flex-1 flex flex-col min-h-0 overflow-auto">
+              <component :is="extensionComponent" :info="info" />
+            </div>
           </template>
         </div>
       </div>

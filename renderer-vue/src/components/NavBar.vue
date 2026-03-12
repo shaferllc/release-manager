@@ -1,7 +1,7 @@
 <template>
   <nav class="nav-bar select-none">
     <div class="nav-left no-drag">
-      <h1 class="nav-brand">
+      <h1 class="nav-brand" aria-label="Shipwell">
         <img :src="logoUrl" alt="" class="nav-logo" @error="showLogoFallback" />
         <span ref="logoFallback" class="nav-logo-fallback hidden" aria-hidden="true">S</span>
       </h1>
@@ -24,6 +24,13 @@
     </div>
 
     <div class="nav-right no-drag">
+      <span
+        v-if="license.isLoggedIn?.value"
+        v-tooltip.bottom="connectivityTooltip"
+        class="nav-connectivity-indicator"
+        :class="license.isOfflineCache?.value ? 'nav-connectivity-offline' : 'nav-connectivity-online'"
+        aria-label="Connection status"
+      />
       <div class="nav-icon-group">
         <button v-tooltip.bottom="'Dark theme'" class="nav-icon-btn" :class="{ 'is-active': store.theme === 'dark' }" aria-label="Dark theme" @click="setTheme('dark')">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
@@ -51,6 +58,56 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       </button>
 
+      <template v-if="license.isLoggedIn?.value && license.isTeam?.value">
+        <div class="nav-separator" />
+        <template v-if="teamsList.length > 0">
+          <Select
+            :model-value="activeTeamId"
+            :options="teamsList"
+            option-label="name"
+            option-value="id"
+            placeholder="Team"
+            class="nav-team-select"
+            :disabled="teamsList.length <= 1"
+            v-tooltip.bottom="teamsList.length <= 1 ? 'You have one team' : 'Switch team'"
+            @update:model-value="onTeamChange"
+          />
+          <button v-tooltip.bottom="'Create team'" class="nav-icon-btn nav-create-team-btn" aria-label="Create team" @click="openCreateTeamModal">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          </button>
+        </template>
+        <Button v-else severity="secondary" size="small" class="nav-create-team-btn-text" @click="openCreateTeamModal">
+          Create team
+        </Button>
+      </template>
+
+      <Dialog
+        v-model:visible="createTeamVisible"
+        header="Create team"
+        modal
+        :style="{ width: '360px' }"
+        :dismissableMask="true"
+        class="nav-create-team-dialog"
+        @hide="closeCreateTeamModal"
+      >
+        <div class="space-y-3">
+          <label class="block text-sm font-medium text-rm-text" for="nav-create-team-name">Team name</label>
+          <InputText
+            id="nav-create-team-name"
+            v-model="newTeamName"
+            placeholder="e.g. My Team"
+            class="w-full"
+            autofocus
+            @keydown.enter="handleCreateTeam"
+          />
+          <p v-if="createTeamError" class="text-sm text-red-500 m-0">{{ createTeamError }}</p>
+        </div>
+        <template #footer>
+          <Button variant="text" size="small" label="Cancel" @click="closeCreateTeamModal" />
+          <Button severity="primary" size="small" label="Create" :loading="createTeamLoading" :disabled="!newTeamName.trim()" @click="handleCreateTeam" />
+        </template>
+      </Dialog>
+
       <div class="nav-separator" />
 
       <Button v-tooltip.bottom="'Add a project'" severity="primary" size="small" class="nav-add-btn" @click="toggleAddMenu">
@@ -68,8 +125,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
 import Menu from 'primevue/menu';
 import Select from 'primevue/select';
 import { useAppStore } from '../stores/app';
@@ -80,7 +139,7 @@ import { useAnnouncer } from '../composables/useAnnouncer';
 import { useNotifications } from '../composables/useNotifications';
 import * as debug from '../utils/debug';
 
-const emit = defineEmits(['refresh', 'sync-all', 'add-project', 'add-from-shipwell', 'bulk-import']);
+const emit = defineEmits(['refresh', 'sync-all', 'add-project', 'add-from-shipwell', 'bulk-import', 'team-changed']);
 
 const store = useAppStore();
 const api = useApi();
@@ -96,6 +155,82 @@ const logoFallback = ref(null);
 const isRefreshing = ref(false);
 const syncingAll = ref(false);
 const navStatus = ref('');
+const teamsList = ref([]);
+const activeTeamId = ref(null);
+const createTeamVisible = ref(false);
+const newTeamName = ref('');
+const createTeamError = ref('');
+const createTeamLoading = ref(false);
+
+function openCreateTeamModal() {
+  newTeamName.value = '';
+  createTeamError.value = '';
+  createTeamVisible.value = true;
+}
+
+function closeCreateTeamModal() {
+  createTeamVisible.value = false;
+  newTeamName.value = '';
+  createTeamError.value = '';
+}
+
+async function handleCreateTeam() {
+  const name = newTeamName.value?.trim();
+  if (!name || !api.createTeam) return;
+  createTeamLoading.value = true;
+  createTeamError.value = '';
+  try {
+    const res = await api.createTeam(name);
+    if (res?.ok) {
+      closeCreateTeamModal();
+      await loadTeams();
+      if (res.team?.id) {
+        await api.setActiveTeamId?.(res.team.id);
+        activeTeamId.value = res.team.id;
+      }
+      await license.loadStatus?.();
+      emit('team-changed');
+      announcePolite('Team created');
+    } else {
+      createTeamError.value = res?.error || 'Failed to create team';
+    }
+  } catch (e) {
+    createTeamError.value = e?.message || 'Failed to create team';
+  } finally {
+    createTeamLoading.value = false;
+  }
+}
+
+async function loadTeams() {
+  if (!license.isLoggedIn?.value || !api.getTeams) return;
+  try {
+    const [res, id] = await Promise.all([
+      api.getTeams?.().catch(() => ({ teams: [] })),
+      api.getActiveTeamId?.().catch(() => null),
+    ]);
+    teamsList.value = res?.teams || [];
+    activeTeamId.value = id || null;
+    if (teamsList.value.length && !activeTeamId.value) {
+      activeTeamId.value = teamsList.value[0]?.id ?? null;
+    }
+  } catch (_) {
+    teamsList.value = [];
+  }
+}
+
+async function onTeamChange(teamId) {
+  if (teamId == null) return;
+  try {
+    await api.setActiveTeamId?.(teamId);
+    emit('team-changed');
+    announcePolite('Team switched');
+  } catch (_) {}
+}
+
+watch(() => license.isLoggedIn?.value, (loggedIn) => {
+  if (loggedIn) loadTeams();
+  else { teamsList.value = []; activeTeamId.value = null; }
+}, { immediate: true });
 const logoUrl = 'icon-128.png';
 function showLogoFallback(e) {
   e.target.style.display = 'none';
@@ -119,6 +254,14 @@ const viewOptions = [
   { value: 'changelog', label: VIEW_LABELS.changelog },
   { value: 'api', label: VIEW_LABELS.api },
 ];
+
+const connectivityTooltip = computed(() => {
+  if (license.isOfflineCache?.value && license.offlineGrace?.value?.daysRemaining != null) {
+    const d = license.offlineGrace.value.daysRemaining;
+    return `Offline — ${d} day${d === 1 ? '' : 's'} remaining before sign-in required`;
+  }
+  return license.isOfflineCache?.value ? 'Offline' : 'Online';
+});
 
 const viewOptionsForSelect = computed(() => {
   if (!license.isLoggedIn?.value) {
@@ -205,6 +348,7 @@ onMounted(() => {
       });
   }
   if (api.onTheme) api.onTheme((effective) => { store.setTheme(effective); document.documentElement.setAttribute('data-theme', effective); });
+  loadTeams();
 });
 </script>
 
@@ -264,6 +408,24 @@ onMounted(() => {
   min-width: 7rem;
   font-size: 0.8125rem;
 }
+.nav-team-select {
+  min-width: 6rem;
+  max-width: 10rem;
+  font-size: 0.75rem;
+}
+.nav-team-select :deep(.p-select) {
+  padding: 0.2rem 0.5rem;
+  min-height: 1.75rem;
+}
+.nav-create-team-btn {
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+}
+.nav-create-team-btn-text {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
 
 .nav-icon-group {
   display: flex;
@@ -310,6 +472,19 @@ onMounted(() => {
 }
 .nav-icon-btn.refreshing .refresh-icon {
   animation: nav-spin 0.7s linear infinite;
+}
+
+.nav-connectivity-indicator {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.nav-connectivity-online {
+  background: rgb(var(--rm-success));
+}
+.nav-connectivity-offline {
+  background: rgb(var(--rm-warning));
 }
 
 .nav-separator {

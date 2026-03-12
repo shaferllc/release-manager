@@ -8,7 +8,7 @@
 
         <!-- Hidden environment switcher (tap title 7 times to reveal) -->
         <div v-if="gate.showEnvSwitcher" class="env-switcher">
-          <select v-model="gate.selectedEnv" class="env-switcher-select" @change="gate.switchEnv">
+          <select v-model="gate.selectedEnv" class="env-switcher-select" aria-label="License server environment" @change="gate.switchEnv">
             <option v-for="env in gate.environments" :key="env.id" :value="env.id">{{ env.label }}</option>
           </select>
           <span class="env-switcher-hint">{{ gate.currentEnvUrl }}</span>

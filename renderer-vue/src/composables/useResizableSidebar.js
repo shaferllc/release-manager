@@ -1,5 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { useApi } from './useApi';
+import { useAppStore } from '../stores/app';
 
 const DEFAULT_MIN = 160;
 const DEFAULT_MAX = 480;
@@ -12,6 +13,8 @@ const DEFAULT_MAX = 480;
  * @param {number} [options.minWidth] - Minimum width in px
  * @param {number} [options.maxWidth] - Maximum width in px
  * @param {boolean} [options.rightSide] - If true, handle is on the left of the panel (right sidebar); drag right = narrower
+ * @param {boolean} [options.useStoreLock] - If true, respect store.sidebarWidthLocked (main sidebar only)
+ * @param {Object} [options.store] - App store (for tests); when useStoreLock and not provided, uses useAppStore()
  * @returns {{ sidebarWidth: import('vue').Ref<number>, sidebarStyle: import('vue').ComputedRef<{ width: string }>, onResizerPointerDown: (e: PointerEvent) => void }}
  */
 export function useResizableSidebar({
@@ -20,8 +23,11 @@ export function useResizableSidebar({
   minWidth = DEFAULT_MIN,
   maxWidth = DEFAULT_MAX,
   rightSide = false,
+  useStoreLock = false,
+  store: storeOption = null,
 }) {
   const api = useApi();
+  const store = storeOption ?? (useStoreLock ? useAppStore() : null);
   const sidebarWidth = ref(defaultWidth);
   const resizeListenersRef = ref(null);
 
@@ -44,6 +50,7 @@ export function useResizableSidebar({
 
   function onResizerPointerDown(e) {
     if (e.button !== 0) return;
+    if (useStoreLock && store?.sidebarWidthLocked) return;
     e.preventDefault();
     const startX = e.clientX;
     const startW = sidebarWidth.value;

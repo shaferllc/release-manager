@@ -26,6 +26,7 @@ export function registerSettingsSection(def) {
     id: def.id,
     label: def.label,
     icon: def.icon ?? '',
+    description: def.description ?? '',
     component: def.component,
   });
 }

@@ -13,6 +13,7 @@
  *   window.__sendTelemetry(event, properties) - Fire a usage/telemetry event
  *   window.releaseManager                     - IPC API (preferences, git, etc.)
  *   window.Vue                                - Vue runtime (h, ref, reactive, etc.)
+ *   window.PrimeVue                           - PrimeVue components (button, panel, dialog, inputtext, etc.)
  */
 import ExtensionPanel from './ExtensionPanel.vue';
 

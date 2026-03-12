@@ -64,11 +64,13 @@ function formatOllamaError(rawError, model) {
  * @param {string} baseUrl - e.g. http://localhost:11434
  * @param {string} model - e.g. llama3.2
  * @param {string} prompt
+ * @param {object} [options] - temperature, max_tokens (num_predict), top_p
  * @param {object} [fetchImpl] - optional fetch for testing
  * @returns {Promise<{ ok: boolean, text?: string, error?: string }>}
  */
-async function generate(baseUrl, model, prompt, fetchImpl) {
-  const fetchFn = fetchImpl || globalThis.fetch;
+async function generate(baseUrl, model, prompt, optionsOrFetchImpl, fetchImplArg) {
+  const options = optionsOrFetchImpl && typeof optionsOrFetchImpl !== 'function' ? optionsOrFetchImpl : {};
+  const fetchFn = typeof optionsOrFetchImpl === 'function' ? optionsOrFetchImpl : (fetchImplArg || globalThis.fetch);
   const base = normalizeBaseUrl(baseUrl);
   const url = `${base}/api/generate`;
   const body = {
@@ -76,6 +78,17 @@ async function generate(baseUrl, model, prompt, fetchImpl) {
     prompt: typeof prompt === 'string' ? prompt.slice(0, MAX_PROMPT_LENGTH) : '',
     stream: false,
   };
+  const opts = {};
+  if (typeof options.temperature === 'number' && options.temperature >= 0 && options.temperature <= 2) {
+    opts.temperature = options.temperature;
+  }
+  if (typeof options.max_tokens === 'number' && options.max_tokens > 0) {
+    opts.num_predict = options.max_tokens;
+  }
+  if (typeof options.top_p === 'number' && options.top_p >= 0 && options.top_p <= 1) {
+    opts.top_p = options.top_p;
+  }
+  if (Object.keys(opts).length > 0) body.options = opts;
   try {
     const res = await fetchFn(url, {
       method: 'POST',

@@ -1,5 +1,6 @@
 import { ref, computed, watch } from 'vue';
 import { useApi } from './useApi';
+import { useAppStore } from '../stores/app';
 
 /**
  * Composable for Diff Side-by-Side modal: load structured diff, rows with insert hints,
@@ -7,6 +8,7 @@ import { useApi } from './useApi';
  */
 export function useDiffSideBySide(getDirPath, getFilePath, getCommitSha, getStaged, getTitle, emit) {
   const api = useApi();
+  const store = useAppStore();
 
   const loading = ref(true);
   const error = ref('');
@@ -152,7 +154,7 @@ export function useDiffSideBySide(getDirPath, getFilePath, getCommitSha, getStag
     const d = dirPath.value;
     const f = filePath.value;
     if (!d || !f || !api.discardFile) return;
-    if (!window.confirm(`Discard all changes in "${f}"? This cannot be undone.`)) return;
+    if (store.confirmDestructiveActions && store.confirmBeforeDiscard && !window.confirm(`Discard all changes in "${f}"? This cannot be undone.`)) return;
     revertStatus.value = null;
     try {
       await api.discardFile(d, f);

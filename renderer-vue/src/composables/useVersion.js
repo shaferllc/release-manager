@@ -268,21 +268,21 @@ export function useVersion(store, getInfo, modals, runWithOverlay, notifications
           releaseStatus.value = msg;
           releaseStatusSuccess.value = true;
           if (result.actionsUrl) actionsUrl.value = result.actionsUrl;
-          notifications.add({ title: 'Release created', message: result.tag ? `Tag ${result.tag} created and pushed.` : msg, type: 'success' });
+          notifications.add({ title: 'Release created', message: result.tag ? `Tag ${result.tag} created and pushed.` : msg, type: 'success', systemNotification: store.notifyOnRelease });
           onRefresh?.();
           loadReleasedVersions();
         } else {
           const err = result?.error || 'Release failed.';
           releaseStatus.value = err;
           releaseStatusSuccess.value = false;
-          notifications.add({ title: 'Release failed', message: err, type: 'error' });
+          notifications.add({ title: 'Release failed', message: err, type: 'error', systemNotification: store.notifyOnRelease });
         }
       })
       .catch((e) => {
         const err = e?.message || 'Release failed.';
         releaseStatus.value = err;
         releaseStatusSuccess.value = false;
-        notifications.add({ title: 'Release failed', message: err, type: 'error' });
+        notifications.add({ title: 'Release failed', message: err, type: 'error', systemNotification: store.notifyOnRelease });
       });
   }
 
@@ -296,7 +296,7 @@ export function useVersion(store, getInfo, modals, runWithOverlay, notifications
       .then(() => {
         releaseStatus.value = 'Tag pushed.';
         releaseStatusSuccess.value = true;
-        notifications.add({ title: 'Tag pushed', message: 'Tag created and pushed.', type: 'success' });
+        notifications.add({ title: 'Tag pushed', message: 'Tag created and pushed.', type: 'success', systemNotification: store.notifyOnRelease });
         onRefresh?.();
         loadReleasedVersions();
       })
@@ -304,7 +304,7 @@ export function useVersion(store, getInfo, modals, runWithOverlay, notifications
         const err = e?.message || 'Failed.';
         releaseStatus.value = err;
         releaseStatusSuccess.value = false;
-        notifications.add({ title: 'Tag push failed', message: err, type: 'error' });
+        notifications.add({ title: 'Tag push failed', message: err, type: 'error', systemNotification: store.notifyOnRelease });
       });
   }
 

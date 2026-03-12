@@ -1,7 +1,11 @@
 import { vi } from 'vitest';
+import { expect } from 'vitest';
 import { config } from '@vue/test-utils';
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
+import { toHaveNoViolations } from 'jest-axe';
+
+expect.extend(toHaveNoViolations);
 
 // PrimeVue is required by Button, Select, Dialog, Checkbox, etc. Use styled theme to match app.
 config.global.plugins = config.global.plugins || [];

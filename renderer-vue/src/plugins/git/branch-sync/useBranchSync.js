@@ -55,7 +55,7 @@ export function useBranchSync({ onRefresh = () => {} } = {}) {
   }
 
   async function runForcePush() {
-    if (!window.confirm('Force push? This can overwrite remote history.')) return;
+    if (store.confirmDestructiveActions && store.confirmBeforeForcePush && !window.confirm('Force push? This can overwrite remote history.')) return;
     const path = store.selectedPath;
     if (!path || !api.gitPushForce) return;
     status.value = '';

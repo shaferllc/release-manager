@@ -1,6 +1,7 @@
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useApi } from './useApi';
 import { useLicense } from './useLicense';
+import { useAppStore } from '../stores/app';
 import * as debug from '../utils/debug';
 
 /**
@@ -13,6 +14,7 @@ import * as debug from '../utils/debug';
 export function useLoginGate(options = {}) {
   const api = options.api ?? useApi();
   const license = options.license ?? useLicense();
+  const store = options.store ?? useAppStore();
 
   const screen = ref('login'); // 'login' | 'register' | 'forgot'
   const name = ref('');
@@ -35,8 +37,13 @@ export function useLoginGate(options = {}) {
 
   const resetSent = ref(false);
   const resetDebug = ref(null);
-  const debugBarOpen = ref(true);
+  const debugBarOpen = ref(store?.debugBarVisible === false ? false : true);
   const debugTab = ref('request');
+
+  watch(() => store.debugBarVisible, (v) => {
+    if (v === true) debugBarOpen.value = true;
+    else if (v === false) debugBarOpen.value = false;
+  }, { immediate: false });
 
   const traceFrames = computed(() => {
     const body = resetDebug.value?.body;

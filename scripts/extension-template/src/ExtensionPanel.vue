@@ -1,28 +1,35 @@
 <template>
-  <div class="p-4">
-    <h2 class="text-lg font-semibold mb-2">__EXT_NAME__</h2>
-    <p class="text-sm text-gray-500">__EXT_DESCRIPTION__</p>
-    <p class="mt-4 text-sm">Project: {{ info?.name || info?.path || 'none' }}</p>
+  <div class="detail-tab-panel flex flex-col min-h-0 p-4">
+    <Panel class="flex-1">
+      <template #header>
+        <h2 class="text-lg font-semibold m-0">__EXT_NAME__</h2>
+      </template>
+      <p class="text-sm text-rm-muted m-0 mb-4">__EXT_DESCRIPTION__</p>
+      <p class="text-sm m-0 mb-4">Project: {{ info?.name || info?.path || 'none' }}</p>
 
-    <div class="mt-6 space-y-3">
-      <h3 class="text-sm font-semibold">Telemetry example</h3>
-      <p class="text-xs text-gray-500">
-        Extensions can fire usage events via <code>window.__sendTelemetry(event, properties)</code>.
-        Define custom events in <strong>Settings &gt; Data &amp; privacy &gt; Custom events</strong>.
-      </p>
-      <button
-        class="px-3 py-1.5 text-sm rounded bg-blue-600 text-white hover:bg-blue-700"
-        @click="fireEvent"
-      >
-        Fire custom event
-      </button>
-      <p v-if="lastFired" class="text-xs text-green-500">Fired: {{ lastFired }}</p>
-    </div>
+      <div class="space-y-3">
+        <h3 class="text-sm font-semibold text-rm-text m-0">Telemetry example</h3>
+        <p class="text-xs text-rm-muted m-0">
+          Extensions can fire usage events via <code class="bg-rm-surface px-1 py-0.5 rounded text-xs">window.__sendTelemetry(event, properties)</code>.
+          Define custom events in <strong>Settings &gt; Data &amp; privacy &gt; Custom events</strong>.
+        </p>
+        <Button
+          severity="primary"
+          size="small"
+          label="Fire custom event"
+          @click="fireEvent"
+        />
+        <p v-if="lastFired" class="text-xs text-rm-success m-0">Fired: {{ lastFired }}</p>
+      </div>
+    </Panel>
   </div>
 </template>
 
 <script setup>
 import { ref } from 'vue';
+
+const Button = window.PrimeVue?.['button'] ?? { name: 'Button', template: '<button><slot /></button>' };
+const Panel = window.PrimeVue?.['panel'] ?? { name: 'Panel', template: '<div class="p-4"><slot /></div>' };
 
 defineProps({
   info: { type: Object, default: () => ({}) },

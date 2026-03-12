@@ -41,6 +41,14 @@ const {
 const { generate: claudeGenerate, DEFAULT_MODEL: CLAUDE_DEFAULT_MODEL } = require('./lib/claude');
 const { generate: openaiGenerate, DEFAULT_MODEL: OPENAI_DEFAULT_MODEL } = require('./lib/openai');
 const { generate: geminiGenerate, DEFAULT_MODEL: GEMINI_DEFAULT_MODEL } = require('./lib/gemini');
+const { generate: groqGenerate, DEFAULT_MODEL: GROQ_DEFAULT_MODEL } = require('./lib/groq');
+const { generate: mistralGenerate, DEFAULT_MODEL: MISTRAL_DEFAULT_MODEL } = require('./lib/mistral');
+const {
+  generate: lmStudioGenerate,
+  listModels: lmStudioListModels,
+  DEFAULT_BASE_URL: LMSTUDIO_DEFAULT_BASE_URL,
+  DEFAULT_MODEL: LMSTUDIO_DEFAULT_MODEL,
+} = require('./lib/lmstudio');
 const {
   parseStashList: parseStashListLib,
   parseRemoteBranches: parseRemoteBranchesLib,
@@ -82,6 +90,7 @@ const codeseerMcpServer = require('./codeseer/mcp-server');
 const { generateSamples: codeseerGenerateSamples } = require('./codeseer/debug-samples');
 const { detectProject: codeseerDetectProject, runInstallForProject: codeseerRunInstall } = require('./codeseer/project-detect');
 const appSettings = require('./lib/appSettings');
+const updater = require('./lib/updater');
 const { sendCrashReport: sendCrashReportToIngestion, setBaseUrlProvider: setCrashReportsBaseUrl, setAccessTokenProvider: setCrashReportsTokenProvider } = require('./lib/crashReports');
 const { track: telemetryTrack, flush: telemetryFlush, startFlushTimer: telemetryStartFlushTimer, stopFlushTimer: telemetryStopFlushTimer, setBaseUrlProvider: setTelemetryBaseUrl } = require('./lib/telemetry');
 const extractZip = require(path.join(appRoot, 'node_modules', 'extract-zip'));
@@ -340,7 +349,7 @@ function getProjects() {
   }
 }
 
-const DEFAULT_PLAN_LIMITS = { max_projects: 5, max_extensions: 5 };
+const DEFAULT_PLAN_LIMITS = { max_projects: 3, max_extensions: 3 };
 
 function getPlanLimits() {
   const stored = appAuthServer.getStoredToken();
@@ -369,7 +378,7 @@ function setProjects(projects) {
   if (skipped) return { ok: false, saved: current.length, skipped: true };
 
   const limits = getPlanLimits();
-  const max = limits.max_projects ?? 5;
+  const max = limits.max_projects ?? 3;
   if (max > 0 && normalized.length > max) {
     debug.log(getStore, 'project', 'setProjects exceeds plan limit', { count: normalized.length, max });
     return { ok: false, saved: current.length, limitExceeded: true, max };
@@ -485,17 +494,19 @@ async function getLicenseStatus() {
   appAuthServer.stampLastVerified();
   const session = await appAuthServer.getRemoteSession();
   const tier = session?.tier ?? 'free';
+  const plan = session?.plan ?? null;
   const plan_label = session?.plan_label ?? null;
   const permissions = session?.permissions ?? null;
   const features = session?.features ?? null;
   const limits = session?.limits ?? null;
   const email = session?.email ?? null;
-  debug.log(getStore, 'license', 'getLicenseStatus ok', { email, tier, hasPermissions: !!permissions?.tabs });
+  debug.log(getStore, 'license', 'getLicenseStatus ok', { email, tier, plan, hasPermissions: !!permissions?.tabs });
   return {
     hasLicense: true,
     source: 'remote',
     email,
     tier,
+    plan,
     plan_label,
     permissions,
     features,
@@ -922,6 +933,7 @@ async function showDirectoryDialog() {
 }
 
 async function fetchShipwellProjects() {
+  if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled', data: [] };
   const { url } = appAuthServer.getConfig();
   if (!url) return { ok: false, error: 'Not configured', data: [] };
   const stored = appAuthServer.getStoredToken();
@@ -941,6 +953,7 @@ async function fetchShipwellProjects() {
 }
 
 async function cloneGitHubRepo(repoOrUrl, targetDir) {
+  if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled' };
   const cloneUrl = repoOrUrl.startsWith('http') ? repoOrUrl : `https://github.com/${repoOrUrl}.git`;
   const repoName = repoOrUrl.replace(/\.git$/, '').split('/').pop();
 
@@ -973,6 +986,7 @@ function extractGitHubRepo(remoteUrl) {
 }
 
 async function syncProjectsToShipwell() {
+  if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled' };
   const { url } = appAuthServer.getConfig();
   if (!url) return { ok: false, error: 'Not configured' };
   const stored = appAuthServer.getStoredToken();
@@ -1029,6 +1043,7 @@ async function syncProjectsToShipwell() {
 
 
 async function syncReleasesToShipwell() {
+  if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled' };
   const { url } = appAuthServer.getConfig();
   if (!url) return { ok: false, error: 'Not configured' };
   const stored = appAuthServer.getStoredToken();
@@ -1383,9 +1398,6 @@ function createWindow(opts = {}) {
     const zoom = getPreference('appearanceZoomFactor');
     if (typeof zoom === 'number' && zoom > 0) win.webContents.setZoomFactor(zoom);
     else win.webContents.setZoomFactor(1);
-    if (process.env.NODE_ENV === 'development') {
-      win.webContents.openDevTools({ mode: 'detach' });
-    }
   });
 }
 
@@ -1648,12 +1660,27 @@ app.whenReady().then(() => {
     if (typeof fn !== 'function') throw new Error('Unknown method: ' + method);
     return fn(...params);
   }
+  function getAiParams() {
+    const prefs = getStore().get('preferences') || {};
+    return {
+      temperature: typeof prefs.aiTemperature === 'number' ? prefs.aiTemperature : 0.7,
+      max_tokens: typeof prefs.aiMaxTokens === 'number' && prefs.aiMaxTokens > 0 ? prefs.aiMaxTokens : 2048,
+      top_p: typeof prefs.aiTopP === 'number' && prefs.aiTopP >= 0 && prefs.aiTopP <= 1 ? prefs.aiTopP : 0.9,
+    };
+  }
+
   async function generateWithProvider(prompt) {
     const provider = getStore().get('aiProvider') || 'ollama';
+    const params = getAiParams();
     if (provider === 'ollama') {
       const baseUrl = getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
       const model = getStore().get('ollamaModel') || DEFAULT_MODEL;
-      return ollamaGenerate(baseUrl, model, prompt);
+      return ollamaGenerate(baseUrl, model, prompt, params);
+    }
+    if (provider === 'lmstudio') {
+      const baseUrl = getStore().get('lmStudioBaseUrl') || LMSTUDIO_DEFAULT_BASE_URL;
+      const model = getStore().get('lmStudioModel') || LMSTUDIO_DEFAULT_MODEL;
+      return lmStudioGenerate(baseUrl, model, prompt, params);
     }
     if (provider === 'claude') {
       const apiKey = getStore().get('claudeApiKey') || '';
@@ -1670,9 +1697,19 @@ app.whenReady().then(() => {
       const model = getStore().get('geminiModel') || GEMINI_DEFAULT_MODEL;
       return geminiGenerate(apiKey, model, prompt);
     }
+    if (provider === 'groq') {
+      const apiKey = getStore().get('groqApiKey') || '';
+      const model = getStore().get('groqModel') || GROQ_DEFAULT_MODEL;
+      return groqGenerate(apiKey, model, prompt);
+    }
+    if (provider === 'mistral') {
+      const apiKey = getStore().get('mistralApiKey') || '';
+      const model = getStore().get('mistralModel') || MISTRAL_DEFAULT_MODEL;
+      return mistralGenerate(apiKey, model, prompt);
+    }
     const baseUrl = getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL;
     const model = getStore().get('ollamaModel') || DEFAULT_MODEL;
-    return ollamaGenerate(baseUrl, model, prompt);
+    return ollamaGenerate(baseUrl, model, prompt, params);
   }
 
   // ── GitHub Extension Helpers ──────────────────────────────────────────────
@@ -1721,6 +1758,7 @@ app.whenReady().then(() => {
    * version, download_url, github_repo, installed, installed_version.
    */
   async function fetchGitHubExtensionRegistry() {
+    if (getPreference('offlineMode')) return { ok: true, data: [] };
     const { url } = appAuthServer.getConfig();
     if (!url) return { ok: false, error: 'License server not configured', data: [] };
 
@@ -1760,6 +1798,7 @@ app.whenReady().then(() => {
    * POST /api/extensions/github { repo: "owner/repo" }
    */
   async function registerGitHubExtension(repo) {
+    if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled' };
     const { url } = appAuthServer.getConfig();
     if (!url) return { ok: false, error: 'License server not configured' };
     if (!repo || !/^[a-zA-Z0-9._-]+\/[a-zA-Z0-9._-]+$/.test(repo)) {
@@ -1786,6 +1825,7 @@ app.whenReady().then(() => {
    * Accepts either: { repo: "owner/repo" } or { slug, download_url, github_repo, name, description }
    */
   async function installExtensionFromGitHub(extensionIdOrInfo, { skipLimitCheck = false } = {}) {
+    if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled' };
     let extensionId, repo, name, description;
     if (typeof extensionIdOrInfo === 'object') {
       extensionId = extensionIdOrInfo.slug || extensionIdOrInfo.id;
@@ -1800,7 +1840,7 @@ app.whenReady().then(() => {
 
     if (!skipLimitCheck) {
       const limits = getPlanLimits();
-      const maxExt = limits.max_extensions ?? 5;
+      const maxExt = limits.max_extensions ?? 3;
       if (maxExt > 0) {
         const installed = getInstalledUserExtensionsSync();
         const alreadyInstalled = installed.some((e) => e.id === extensionId);
@@ -1902,6 +1942,7 @@ app.whenReady().then(() => {
   }
 
   async function syncPlanExtensions() {
+    if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled', installed: 0, removed: 0 };
     const { url } = appAuthServer.getConfig();
     if (!url) return { ok: false, error: 'License server not configured', installed: 0, removed: 0 };
     const baseUrl = url.replace(/\/+$/, '');
@@ -1993,7 +2034,17 @@ app.whenReady().then(() => {
         }).catch(() => {});
       }
 
-      return { ok: true, installed, removed, failed, total: toInstall.size + toRemoveFromWeb.length };
+      let disabledSlugs = [];
+      try {
+        const userExtRes = await fetch(`${baseUrl}/api/user/extensions`, { headers, signal: AbortSignal.timeout(10000) });
+        if (userExtRes.ok) {
+          const userExtJson = await userExtRes.json();
+          const userExts = Array.isArray(userExtJson.data) ? userExtJson.data : [];
+          disabledSlugs = userExts.filter((e) => e.enabled === false).map((e) => e.slug);
+        }
+      } catch (_) {}
+
+      return { ok: true, installed, removed, failed, total: toInstall.size + toRemoveFromWeb.length, disabledSlugs };
     } catch (e) {
       return { ok: false, error: e.message || 'Failed to sync plan extensions', installed: 0, removed: 0 };
     }
@@ -2032,13 +2083,22 @@ app.whenReady().then(() => {
     getProjects: () => getProjects(),
     getAllProjectsInfo: async () => {
       const list = getProjects();
+      const lastOpened = getPreference('projectLastOpened') || {};
       const results = await Promise.all(
         list.map(async (p) => {
           const info = await getProjectInfoAsync(p.path);
-          return { path: p.path, name: p.name, ...info };
+          const lastOpenedAt = lastOpened[p.path] ?? null;
+          return { path: p.path, name: p.name, lastOpenedAt, ...info };
         })
       );
       return results;
+    },
+    touchProjectOpened: (dirPath) => {
+      if (!dirPath || typeof dirPath !== 'string') return;
+      const prefs = getStore().get('preferences') || {};
+      const current = prefs.projectLastOpened || {};
+      const next = { ...current, [dirPath]: Date.now() };
+      setPreference('projectLastOpened', next);
     },
     setProjects: (projects) => {
       const prev = getProjects().length;
@@ -2147,8 +2207,8 @@ app.whenReady().then(() => {
     getCommitSubject: (dirPath, ref) => getGitApi().getCommitSubject(dirPath, ref),
     getRecentCommits: (dirPath, n) => getGitApi().getRecentCommits(dirPath, n),
     getSuggestedBump: (commits) => suggestBumpFromCommits(commits),
-    getShortcutAction: (viewMode, selectedPath, key, metaKey, ctrlKey, inInput, detailTab) =>
-      getShortcutAction(viewMode, selectedPath, key, metaKey, ctrlKey, inInput, detailTab),
+    getShortcutAction: (viewMode, selectedPath, key, metaKey, ctrlKey, inInput, detailTab, altKey) =>
+      getShortcutAction(viewMode, selectedPath, key, metaKey, ctrlKey, inInput, detailTab, altKey),
     getActionsUrl: (gitRemote) => getActionsUrl(gitRemote) || null,
     getGitHubToken: () => getStore().get('githubToken') || '',
     setGitHubToken: (token) => {
@@ -2191,6 +2251,42 @@ app.whenReady().then(() => {
       getStore().set('geminiModel', model || '');
       return null;
     },
+    getGroqSettings: () => ({
+      apiKey: getStore().get('groqApiKey') || '',
+      model: getStore().get('groqModel') || GROQ_DEFAULT_MODEL,
+    }),
+    setGroqSettings: (apiKey, model) => {
+      getStore().set('groqApiKey', apiKey || '');
+      getStore().set('groqModel', model || '');
+      return null;
+    },
+    getMistralSettings: () => ({
+      apiKey: getStore().get('mistralApiKey') || '',
+      model: getStore().get('mistralModel') || MISTRAL_DEFAULT_MODEL,
+    }),
+    setMistralSettings: (apiKey, model) => {
+      getStore().set('mistralApiKey', apiKey || '');
+      getStore().set('mistralModel', model || '');
+      return null;
+    },
+    getLmStudioSettings: () => ({
+      baseUrl: getStore().get('lmStudioBaseUrl') || LMSTUDIO_DEFAULT_BASE_URL,
+      model: getStore().get('lmStudioModel') || LMSTUDIO_DEFAULT_MODEL,
+    }),
+    setLmStudioSettings: (baseUrl, model) => {
+      getStore().set('lmStudioBaseUrl', baseUrl || '');
+      getStore().set('lmStudioModel', model || '');
+      return null;
+    },
+    getAiParams: () => getAiParams(),
+    setAiParams: (temperature, maxTokens, topP) => {
+      const prefs = getStore().get('preferences') || {};
+      if (typeof temperature === 'number') prefs.aiTemperature = temperature;
+      if (typeof maxTokens === 'number') prefs.aiMaxTokens = maxTokens;
+      if (typeof topP === 'number') prefs.aiTopP = topP;
+      getStore().set('preferences', prefs);
+      return null;
+    },
     getAiProvider: () => getStore().get('aiProvider') || 'ollama',
     setAiProvider: (provider) => {
       getStore().set('aiProvider', provider || 'ollama');
@@ -2201,9 +2297,13 @@ app.whenReady().then(() => {
       if (provider === 'openai') return !!((getStore().get('openaiApiKey') || '').trim());
       if (provider === 'claude') return !!((getStore().get('claudeApiKey') || '').trim());
       if (provider === 'gemini') return !!((getStore().get('geminiApiKey') || '').trim());
+      if (provider === 'groq') return !!((getStore().get('groqApiKey') || '').trim());
+      if (provider === 'mistral') return !!((getStore().get('mistralApiKey') || '').trim());
+      if (provider === 'lmstudio') return true;
       return true;
     },
     ollamaListModels: async (baseUrl) => ollamaListModels(baseUrl || getStore().get('ollamaBaseUrl') || DEFAULT_BASE_URL),
+    lmStudioListModels: async (baseUrl) => lmStudioListModels(baseUrl || getStore().get('lmStudioBaseUrl') || LMSTUDIO_DEFAULT_BASE_URL),
     ollamaGenerateCommitMessage: async (dirPath) => {
       telemetryTrack(getPreference, 'ai.generate', { feature: 'commit_message' });
       const diff = await getGitApi().getGitDiffForCommit(dirPath);
@@ -2785,6 +2885,43 @@ app.whenReady().then(() => {
         return { ok: false, error: e.message || 'Uninstall failed' };
       }
     },
+    getExtensionEnabledState: async () => {
+      if (getPreference('offlineMode')) return { ok: true, data: [] };
+      const { url } = appAuthServer.getConfig();
+      if (!url) return { ok: false, error: 'Not configured' };
+      try {
+        const res = await fetch(`${url.replace(/\/+$/, '')}/api/user/extensions`, {
+          headers: getShipwellApiHeaders(),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+        const json = await res.json();
+        const data = Array.isArray(json.data) ? json.data : [];
+        return { ok: true, data: data.map((e) => ({ slug: e.slug, enabled: e.enabled ?? true })) };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Failed to fetch' };
+      }
+    },
+    syncExtensionEnabled: async (extensionId, enabled) => {
+      if (getPreference('offlineMode')) return { ok: true };
+      const { url } = appAuthServer.getConfig();
+      if (!url) return { ok: false, error: 'Not configured' };
+      try {
+        const base = url.replace(/\/+$/, '');
+        const headers = getShipwellApiHeaders();
+        const res = await fetch(`${base}/api/extensions/${extensionId}/toggle-enabled`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ enabled: !!enabled }),
+          signal: AbortSignal.timeout(10000),
+        });
+        if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+        const json = await res.json();
+        return { ok: true, enabled: json.enabled };
+      } catch (e) {
+        return { ok: false, error: e.message || 'Failed to sync' };
+      }
+    },
     uploadExtensionToMarketplace: async (baseUrl, filePath) => {
       telemetryTrack(getPreference, 'extension.uploaded', {});
       if (!baseUrl || !filePath) return { ok: false, error: 'Base URL and file path are required' };
@@ -2827,6 +2964,7 @@ app.whenReady().then(() => {
     }),
     setOfflineGraceDays: (days) => { appAuthServer.setOfflineGraceDays(days); return null; },
     checkConnectivity: async () => {
+      if (getPreference('offlineMode')) return { online: false, error: 'Offline mode enabled' };
       const { url } = appAuthServer.getConfig();
       if (!url) return { online: false, error: 'No server URL configured' };
       try {
@@ -2890,6 +3028,17 @@ app.whenReady().then(() => {
     setAppZoomFactor: (factor) => { telemetryTrack(getPreference, 'settings.zoom_changed', { factor }); return setAppZoomFactor(factor); },
     getLaunchAtLogin: () => appSettings.getLaunchAtLogin(),
     setLaunchAtLogin: (open) => { telemetryTrack(getPreference, 'settings.launch_at_login', { enabled: !!open }); return appSettings.setLaunchAtLogin(open); },
+    checkForUpdatesNow: async () => updater.checkForUpdatesNow({ getPreference }),
+    downloadUpdate: () => { updater.downloadUpdate(); return null; },
+    quitAndInstall: () => { updater.quitAndInstall(); return null; },
+    stopAutoUpdateCheck: () => { updater.stopAutoCheck(); return null; },
+    startAutoUpdateCheck: () => {
+      updater.runAutoCheckIfEnabled({
+        getPreference,
+        checkForUpdatesNow: () => updater.checkForUpdatesNow({ getPreference }),
+      });
+      return null;
+    },
     getConfirmBeforeQuit: () => appSettings.getConfirmBeforeQuit(),
     setConfirmBeforeQuit: (value) => appSettings.setConfirmBeforeQuit(value),
     getProxy: () => appSettings.getProxy(),
@@ -3093,6 +3242,104 @@ app.whenReady().then(() => {
         return { ok: true };
       } catch (e) { return { ok: false, error: e.message || 'Failed' }; }
     },
+    updateSharedNote: async (noteId, title, content) => {
+      const stored = appAuthServer.getStoredToken();
+      if (!stored?.accessToken) return { ok: false, error: 'Not signed in' };
+      const base = appAuthServer.getConfig().url;
+      if (!base) return { ok: false, error: 'No backend configured' };
+      try {
+        const res = await fetch(`${base.replace(/\/+$/, '')}/api/shared-notes/${noteId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${stored.accessToken}` },
+          body: JSON.stringify({ title: title ?? undefined, content: content ?? undefined }),
+        });
+        if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: t || `HTTP ${res.status}` }; }
+        return { ok: true, ...(await res.json().catch(() => ({}))) };
+      } catch (e) { return { ok: false, error: e.message || 'Failed' }; }
+    },
+    getTeams: async () => {
+      const stored = appAuthServer.getStoredToken();
+      if (!stored?.accessToken) return { teams: [] };
+      const base = appAuthServer.getConfig().url;
+      if (!base) return { teams: [] };
+      try {
+        const res = await fetch(`${base.replace(/\/+$/, '')}/api/teams`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${stored.accessToken}` },
+        });
+        if (res.ok) return await res.json();
+        const teamRes = await fetch(`${base.replace(/\/+$/, '')}/api/team`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${stored.accessToken}` },
+        });
+        if (!teamRes.ok) return { teams: [] };
+        const data = await teamRes.json();
+        const team = data?.team;
+        return { teams: team ? [team] : [] };
+      } catch { return { teams: [] }; }
+    },
+    getActiveTeamId: () => Promise.resolve(getPreference('activeTeamId') || null),
+    setActiveTeamId: async (teamId) => {
+      setPreference('activeTeamId', teamId || null);
+      sendToAllWindows('rm-active-team-changed');
+      return { ok: true };
+    },
+    getSharedWikiPages: async (projectPath) => {
+      const stored = appAuthServer.getStoredToken();
+      if (!stored?.accessToken) return { pages: [] };
+      const base = appAuthServer.getConfig().url;
+      if (!base) return { pages: [] };
+      const qs = projectPath ? `?project_path=${encodeURIComponent(projectPath)}` : '';
+      try {
+        const res = await fetch(`${base.replace(/\/+$/, '')}/api/shared-wiki${qs}`, {
+          headers: { Accept: 'application/json', Authorization: `Bearer ${stored.accessToken}` },
+        });
+        if (!res.ok) return { pages: [] };
+        return await res.json();
+      } catch { return { pages: [] }; }
+    },
+    createSharedWikiPage: async (page, projectPath) => {
+      const stored = appAuthServer.getStoredToken();
+      if (!stored?.accessToken) return { ok: false, error: 'Not signed in' };
+      const base = appAuthServer.getConfig().url;
+      if (!base) return { ok: false, error: 'No backend configured' };
+      try {
+        const res = await fetch(`${base.replace(/\/+$/, '')}/api/shared-wiki`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${stored.accessToken}` },
+          body: JSON.stringify({ ...page, project_path: projectPath || null }),
+        });
+        if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: t || `HTTP ${res.status}` }; }
+        return { ok: true, ...(await res.json()) };
+      } catch (e) { return { ok: false, error: e.message || 'Failed' }; }
+    },
+    updateSharedWikiPage: async (pageId, page, projectPath) => {
+      const stored = appAuthServer.getStoredToken();
+      if (!stored?.accessToken) return { ok: false, error: 'Not signed in' };
+      const base = appAuthServer.getConfig().url;
+      if (!base) return { ok: false, error: 'No backend configured' };
+      try {
+        const res = await fetch(`${base.replace(/\/+$/, '')}/api/shared-wiki/${pageId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json', Authorization: `Bearer ${stored.accessToken}` },
+          body: JSON.stringify({ ...page, project_path: projectPath || null }),
+        });
+        if (!res.ok) { const t = await res.text().catch(() => ''); return { ok: false, error: t || `HTTP ${res.status}` }; }
+        return { ok: true, ...(await res.json().catch(() => ({}))) };
+      } catch (e) { return { ok: false, error: e.message || 'Failed' }; }
+    },
+    deleteSharedWikiPage: async (pageId) => {
+      const stored = appAuthServer.getStoredToken();
+      if (!stored?.accessToken) return { ok: false, error: 'Not signed in' };
+      const base = appAuthServer.getConfig().url;
+      if (!base) return { ok: false, error: 'No backend configured' };
+      try {
+        const res = await fetch(`${base.replace(/\/+$/, '')}/api/shared-wiki/${pageId}`, {
+          method: 'DELETE',
+          headers: { Accept: 'application/json', Authorization: `Bearer ${stored.accessToken}` },
+        });
+        if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+        return { ok: true };
+      } catch (e) { return { ok: false, error: e.message || 'Failed' }; }
+    },
     fetchRemoteSettings: async () => {
       const stored = appAuthServer.getStoredToken();
       if (!stored?.accessToken) return { ok: false, error: 'Not signed in' };
@@ -3122,6 +3369,7 @@ app.whenReady().then(() => {
       } catch (e) { return { ok: false, error: e.message || 'Failed' }; }
     },
     fetchGitHubHealth: async () => {
+      if (getPreference('offlineMode')) return { ok: false, error: 'Offline mode enabled' };
       const stored = appAuthServer.getStoredToken();
       if (!stored?.accessToken) return { ok: false, error: 'Not signed in' };
       const base = appAuthServer.getConfig().url;
@@ -3881,6 +4129,7 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-invoke-api': 'invokeApi',
     'rm-get-projects': 'getProjects',
     'rm-get-all-projects-info': 'getAllProjectsInfo',
+    'rm-touch-project-opened': 'touchProjectOpened',
     'rm-set-projects': 'setProjects',
     'rm-show-directory-dialog': 'showDirectoryDialog',
     'rm-bulk-import-projects': 'bulkImportProjects',
@@ -3916,10 +4165,19 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-set-openai-settings': 'setOpenAISettings',
     'rm-get-gemini-settings': 'getGeminiSettings',
     'rm-set-gemini-settings': 'setGeminiSettings',
+    'rm-get-groq-settings': 'getGroqSettings',
+    'rm-set-groq-settings': 'setGroqSettings',
+    'rm-get-mistral-settings': 'getMistralSettings',
+    'rm-set-mistral-settings': 'setMistralSettings',
+    'rm-get-lmstudio-settings': 'getLmStudioSettings',
+    'rm-set-lmstudio-settings': 'setLmStudioSettings',
+    'rm-get-ai-params': 'getAiParams',
+    'rm-set-ai-params': 'setAiParams',
     'rm-get-ai-provider': 'getAiProvider',
     'rm-set-ai-provider': 'setAiProvider',
     'rm-get-ai-generate-available': 'getAiGenerateAvailable',
     'rm-ollama-list-models': 'ollamaListModels',
+    'rm-lmstudio-list-models': 'lmStudioListModels',
     'rm-ollama-generate-commit-message': 'ollamaGenerateCommitMessage',
     'rm-ollama-generate-release-notes': 'ollamaGenerateReleaseNotes',
     'rm-ollama-generate-tag-message': 'ollamaGenerateTagMessage',
@@ -4099,6 +4357,11 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-set-app-zoom-factor': 'setAppZoomFactor',
     'rm-get-launch-at-login': 'getLaunchAtLogin',
     'rm-set-launch-at-login': 'setLaunchAtLogin',
+    'rm-check-for-updates-now': 'checkForUpdatesNow',
+    'rm-download-update': 'downloadUpdate',
+    'rm-quit-and-install': 'quitAndInstall',
+    'rm-stop-auto-update-check': 'stopAutoUpdateCheck',
+    'rm-start-auto-update-check': 'startAutoUpdateCheck',
     'rm-get-confirm-before-quit': 'getConfirmBeforeQuit',
     'rm-set-confirm-before-quit': 'setConfirmBeforeQuit',
     'rm-get-proxy': 'getProxy',
@@ -4124,6 +4387,8 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-get-installed-user-extensions': 'getInstalledUserExtensions',
     'rm-get-extension-script-content': 'getExtensionScriptContent',
     'rm-uninstall-extension': 'uninstallExtension',
+    'rm-get-extension-enabled-state': 'getExtensionEnabledState',
+    'rm-sync-extension-enabled': 'syncExtensionEnabled',
     'rm-upload-extension-to-marketplace': 'uploadExtensionToMarketplace',
     'rm-send-crash-report': 'sendCrashReport',
     'rm-send-telemetry': 'sendTelemetry',
@@ -4147,6 +4412,14 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
     'rm-get-shared-notes': 'getSharedNotes',
     'rm-create-shared-note': 'createSharedNote',
     'rm-delete-shared-note': 'deleteSharedNote',
+    'rm-update-shared-note': 'updateSharedNote',
+    'rm-get-teams': 'getTeams',
+    'rm-get-active-team-id': 'getActiveTeamId',
+    'rm-set-active-team-id': 'setActiveTeamId',
+    'rm-get-shared-wiki-pages': 'getSharedWikiPages',
+    'rm-create-shared-wiki-page': 'createSharedWikiPage',
+    'rm-update-shared-wiki-page': 'updateSharedWikiPage',
+    'rm-delete-shared-wiki-page': 'deleteSharedWikiPage',
     'rm-fetch-remote-settings': 'fetchRemoteSettings',
     'rm-push-remote-settings': 'pushRemoteSettings',
     'rm-fetch-github-health': 'fetchGitHubHealth',
@@ -4176,9 +4449,16 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
   });
   for (const [channel, methodName] of Object.entries(IPC_TO_METHOD)) {
     if (explicitlyHandled.has(channel)) continue;
-    ipcMain.handle(channel, (_e, ...args) => {
+    ipcMain.handle(channel, async (_e, ...args) => {
       debug.log(getStore, 'ipc', channel, 'args.length=', args?.length ?? 0);
-      return apiRegistry[methodName](...args);
+      const result = await apiRegistry[methodName](...args);
+      if (result === null || result === undefined || typeof result !== 'object') return result;
+      try {
+        return JSON.parse(JSON.stringify(result));
+      } catch (serErr) {
+        console.error(`[ipc] ${channel}: result not serializable`, serErr.message);
+        return { ok: false, error: 'Result could not be serialized' };
+      }
     });
   }
 
@@ -4196,6 +4476,12 @@ blockquote { border-left: 4px solid #475569; margin: 0.5rem 0; padding-left: 1re
   createWindow();
   debug.log(getStore, 'app', 'window created');
   telemetryStartFlushTimer(getPreference);
+
+  updater.initUpdater({ getPreference, sendToRenderer: sendToAllWindows });
+  updater.runAutoCheckIfEnabled({
+    getPreference,
+    checkForUpdatesNow: () => updater.checkForUpdatesNow({ getPreference }),
+  });
 
   // CodeSeer TCP server: receives PHP dumps on port 23523, forwards to codeseer extension
   const codeseerPort = (typeof getPreference('codeseerTcpPort') === 'number' ? getPreference('codeseerTcpPort') : null) || 23523;

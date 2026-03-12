@@ -1,9 +1,8 @@
 /**
  * Extension loader.
  *
- * User extensions live in their own GitHub repos and are installed from the
+ * Extensions live in their own GitHub repos and are installed from the
  * marketplace to userData/extensions/. They are built and loaded at runtime.
  *
- * Built-in extensions are imported here.
+ * No built-in extensions — all extensions (including CodeSeer) are external.
  */
-import './codeseer';

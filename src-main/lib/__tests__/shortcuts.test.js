@@ -54,6 +54,19 @@ describe('shortcuts', () => {
       expect(getShortcutAction('detail', '/path', 'k', true, false, false, 'git')).toBeNull();
       expect(getShortcutAction('detail', '/path', 'k', true, false, false)).toBeNull();
     });
+
+    it('returns focus-git-filter for Cmd+Alt+F when on git tab', () => {
+      expect(getShortcutAction('detail', '/path', 'f', true, false, false, 'git', true)).toBe('focus-git-filter');
+      expect(getShortcutAction('detail', '/path', 'F', true, false, false, 'git', true)).toBe('focus-git-filter');
+      expect(getShortcutAction('detail', '/path', 'f', false, true, false, 'git', true)).toBe('focus-git-filter');
+    });
+    it('returns null for Cmd+F without Alt when on git tab', () => {
+      expect(getShortcutAction('detail', '/path', 'f', true, false, false, 'git', false)).toBeNull();
+    });
+    it('returns null for Cmd+Alt+F when not on git tab', () => {
+      expect(getShortcutAction('detail', '/path', 'f', true, false, false, 'codeseer', true)).toBeNull();
+    });
+
     it('returns null for other keys', () => {
       expect(getShortcutAction('detail', '/path', 'x', true, false, false)).toBeNull();
       expect(getShortcutAction('detail', '/path', 'Enter', true, false, false)).toBeNull();

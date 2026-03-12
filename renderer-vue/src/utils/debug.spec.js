@@ -35,4 +35,9 @@ describe('debug', () => {
     expect(warnSpy).toHaveBeenCalled();
   });
 
+  it('log does not call console when disabled', () => {
+    setEnabled(false);
+    log('test', 'action');
+    expect(logSpy).not.toHaveBeenCalled();
+  });
 });
