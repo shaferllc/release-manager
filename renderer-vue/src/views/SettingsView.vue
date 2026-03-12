@@ -181,139 +181,7 @@
         </section>
 
         <!-- Git -->
-        <section v-show="activeSection === 'git'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('git').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('git').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('git').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-
-          <!-- Identity -->
-          <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-3">Identity</h4>
-          <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5 mb-6">
-            <div class="block">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">User name</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Your name for git commits (git config user.name).</p>
-              <InputText v-model="gitUserName" type="text" class="max-w-sm mt-2" placeholder="Your Name" @blur="saveGitUserName" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Email address</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Your email for git commits (git config user.email).</p>
-              <InputText v-model="gitUserEmail" type="email" class="max-w-sm mt-2" placeholder="you@example.com" @blur="saveGitUserEmail" />
-            </div>
-          </div>
-
-          <!-- Commit signing -->
-          <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-3">Commit Signing</h4>
-          <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5 mb-6">
-            <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Sign commits</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Use git commit -S when committing.</p>
-              </div>
-              <Checkbox v-model="signCommits" binary @update:model-value="saveSignCommits" class="shrink-0" />
-            </label>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Signing format</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Choose between GPG (OpenPGP) or SSH key signing.</p>
-              <Select v-model="gitGpgFormat" :options="gitGpgFormatOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveGitGpgFormat" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Signing key ID</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">GPG key ID or SSH key path used to sign commits.</p>
-              <div class="flex flex-wrap items-center gap-2 mt-2">
-                <InputText v-model="gitGpgKeyId" type="text" class="flex-1 min-w-0 max-w-sm" placeholder="e.g. 3AA5C34371567BD2" @blur="saveGitGpgKeyId" />
-                <Button v-if="gitGpgFormat === 'openpgp'" label="Detect keys" size="small" severity="secondary" :loading="gpgKeysLoading" @click="loadGpgKeys" />
-              </div>
-            </div>
-            <div v-if="gpgKeys.length" class="pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text text-sm mb-2 block">Available GPG keys</span>
-              <div class="space-y-2">
-                <div
-                  v-for="k in gpgKeys" :key="k.id"
-                  class="flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors"
-                  :class="gitGpgKeyId === k.id ? 'bg-rm-accent/10 border border-rm-accent/30' : 'bg-rm-bg/50 border border-rm-border hover:border-rm-muted'"
-                  @click="gitGpgKeyId = k.id; saveGitGpgKeyId()"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="shrink-0 text-rm-muted"><path d="m21 2-2 2m-7.73 7.73A6.5 6.5 0 1 0 13.26 18H15v2h2v2h4v-4l-7.73-7.73Z"/></svg>
-                  <div class="min-w-0 flex-1">
-                    <span class="text-xs font-mono text-rm-text block truncate">{{ k.id }}</span>
-                    <span v-if="k.uids?.length" class="text-xs text-rm-muted truncate block">{{ k.uids[0] }}</span>
-                  </div>
-                  <span v-if="gitGpgKeyId === k.id" class="text-xs text-rm-accent font-medium shrink-0">Selected</span>
-                </div>
-              </div>
-            </div>
-            <p v-if="gpgKeysError" class="text-xs text-rm-danger mt-1">{{ gpgKeysError }}</p>
-            <div v-if="gitGpgFormat === 'openpgp'" class="pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text text-sm">Generate new GPG key</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Creates an Ed25519 key using your name and email above. Expires in 2 years.</p>
-              <div class="flex items-center gap-2 mt-2">
-                <Button label="Generate GPG key" size="small" severity="secondary" :loading="gpgGenerating" :disabled="!gitUserName || !gitUserEmail" @click="generateGpgKey" />
-              </div>
-              <p v-if="gpgGenerateError" class="text-xs text-rm-danger mt-1">{{ gpgGenerateError }}</p>
-            </div>
-          </div>
-
-          <!-- Repository defaults -->
-          <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-3">Repository Defaults</h4>
-          <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5 mb-6">
-            <div class="block">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Default branch name</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Default branch to use when creating or referring to repos.</p>
-              <InputText v-model="gitDefaultBranch" type="text" class="max-w-xs mt-2" placeholder="main" @blur="saveGitDefaultBranch" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Pull strategy</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">How to reconcile divergent branches on pull.</p>
-              <Select v-model="gitPullRebase" :options="gitPullStrategyOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveGitPullRebase" />
-            </div>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Auto-stash before rebase</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Automatically stash uncommitted changes before rebasing, then pop after.</p>
-              </div>
-              <Checkbox v-model="gitAutoStash" binary @update:model-value="saveGitAutoStash" class="shrink-0" />
-            </label>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Auto-fetch interval</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">How often to run git fetch in the background (0 = off).</p>
-              <Select v-model="gitAutoFetchIntervalMinutes" :options="gitAutoFetchIntervalOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveGitAutoFetchInterval" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Commit message template (optional)</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Path to a file used as the default commit message template.</p>
-              <InputText v-model="gitCommitTemplate" type="text" class="mt-2" placeholder="~/.gitmessage" @blur="saveGitCommitTemplate" />
-            </div>
-          </div>
-
-          <!-- Tools & paths -->
-          <h4 class="text-xs font-semibold text-rm-muted uppercase tracking-wider mb-3">Tools &amp; Paths</h4>
-          <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5 mb-6">
-            <div class="block">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">SSH key path (optional)</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Path to SSH private key for Git operations. Leave empty for default.</p>
-              <InputText v-model="gitSshKeyPath" type="text" class="mt-2" placeholder="~/.ssh/id_rsa" @blur="saveGitSshKeyPath" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Diff / merge tool (optional)</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">External diff or merge tool command (e.g. code --diff).</p>
-              <InputText v-model="gitDiffTool" type="text" class="mt-2" placeholder="" @blur="saveGitDiffTool" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">GitHub token (default)</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Optional. Higher API limits and ability to create or update releases. Stored locally.</p>
-              <div class="flex flex-wrap items-center gap-2 mt-2">
-                <InputText v-model="githubToken" type="password" class="flex-1 min-w-0" placeholder="ghp_..." autocomplete="off" @blur="saveToken" />
-                <Button variant="link" label="Create token" class="text-xs text-rm-accent p-0 min-w-0 h-auto shrink-0" @click="openUrl('https://github.com/settings/tokens')" />
-              </div>
-            </div>
-          </div>
-          </div>
-        </section>
+        <SettingsSectionGit />
 
         <!-- GitHub -->
         <section v-show="activeSection === 'github'" class="settings-section">
@@ -846,130 +714,8 @@
           </div>
         </section>
 
-        <!-- Appearance & behavior -->
-        <section v-show="activeSection === 'appearance'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('appearance').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('appearance').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('appearance').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-          <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-            <div class="block">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Theme</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Light, dark, or follow your system.</p>
-              <div class="flex flex-wrap gap-2 mt-2">
-                <Button
-                  v-for="t in themeOptions"
-                  :key="t.value"
-                  :variant="theme === t.value ? 'outlined' : 'outlined'"
-                  size="small"
-                  class="px-3 py-2 rounded-rm text-sm font-medium min-w-0"
-                  :class="theme === t.value ? 'border-rm-accent bg-rm-accent/15 text-rm-accent' : 'border-rm-border bg-rm-surface hover:bg-rm-surface-hover text-rm-text'"
-                  @click="setTheme(t.value)"
-                >
-                  {{ t.label }}
-                </Button>
-              </div>
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Accent color</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Buttons, links, and highlights.</p>
-              <div class="flex flex-wrap gap-2 mt-2">
-                <Button
-                  v-for="a in accentOptions"
-                  :key="a.value"
-                  variant="text"
-                  size="small"
-                  class="w-9 h-9 min-w-[2.25rem] min-h-[2.25rem] p-0 rounded-full border-2 transition-all cursor-pointer border-transparent"
-                  :class="accentColor === a.value ? 'border-rm-text scale-110' : 'border-transparent hover:scale-105'"
-                  :style="{ backgroundColor: a.hex }"
-                  :title="a.label"
-                  :aria-label="`Accent ${a.label}`"
-                  @click="setAccent(a.value)"
-                />
-              </div>
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Density</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Base font and spacing. Tighter fits more on screen; relaxed is easier to read.</p>
-              <Select v-model="fontSize" :options="fontSizeOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveFontSize" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">UI zoom</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Scale the entire interface (Electron webContents). Useful for high-DPI or accessibility.</p>
-              <Select v-model="zoomFactor" :options="zoomOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveZoomFactor" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Corner style</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Sharp, rounded, or pill-shaped buttons and inputs.</p>
-              <Select v-model="borderRadius" :options="borderRadiusOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveBorderRadius" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Reduce motion</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Minimize animations and transitions. Aligns with system accessibility preferences.</p>
-              </div>
-              <Checkbox v-model="reducedMotion" binary @update:model-value="saveReducedMotion" class="shrink-0" />
-            </label>
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Reduce transparency</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Use solid backgrounds instead of semi-transparent panels. Improves readability (Electron / macOS-style).</p>
-              </div>
-              <Checkbox v-model="reduceTransparency" binary @update:model-value="saveReduceTransparency" class="shrink-0" />
-            </label>
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">High contrast</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Stronger borders and higher-contrast text. Helps with visibility (Electron / accessibility).</p>
-              </div>
-              <Checkbox v-model="highContrast" binary @update:model-value="saveHighContrast" class="shrink-0" />
-            </label>
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Use tabs in project detail</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Switch between Git, Version & release, and other sections with tabs.</p>
-              </div>
-              <Checkbox v-model="useDetailTabs" binary @update:model-value="saveUseTabs" class="shrink-0" />
-            </label>
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text block mb-1">Terminal popout</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] mb-3">When you open a terminal in a separate window, these options control its size and behavior (Electron window options).</p>
-              <div class="space-y-3">
-                <div>
-                  <label class="block text-xs font-medium text-rm-muted mb-1">Size</label>
-                  <Select v-model="terminalPopoutSize" :options="terminalPopoutSizeOptions" optionLabel="label" optionValue="value" class="max-w-xs" @change="saveTerminalPopoutSize" />
-                </div>
-                <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Always on top</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Keep the terminal window above other windows.</p>
-              </div>
-              <Checkbox v-model="terminalPopoutAlwaysOnTop" binary @update:model-value="saveTerminalPopoutAlwaysOnTop" class="shrink-0" />
-            </label>
-                <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Allow fullscreen</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Allow the terminal window to enter fullscreen (e.g. green traffic light on macOS).</p>
-              </div>
-              <Checkbox v-model="terminalPopoutFullscreenable" binary @update:model-value="saveTerminalPopoutFullscreenable" class="shrink-0" />
-            </label>
-              </div>
-            </div>
-          </div>
-          </div>
-        </section>
+        <!-- Appearance -->
+        <SettingsSectionAppearance />
 
         <!-- Network -->
         <section v-show="activeSection === 'network'" class="settings-section">
@@ -1335,40 +1081,7 @@
         </section>
 
         <!-- Accessibility -->
-        <section v-show="activeSection === 'accessibility'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('accessibility').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('accessibility').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('accessibility').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-          <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-            <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Always show focus outline</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Show a visible focus ring on keyboard focus.</p>
-              </div>
-              <Checkbox v-model="focusOutlineVisible" binary @update:model-value="saveFocusOutlineVisible" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Large cursor in inputs</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Use a larger text cursor in input fields.</p>
-              </div>
-              <Checkbox v-model="largeCursor" binary @update:model-value="saveLargeCursor" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Screen reader support</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Announce live regions for assistive technologies.</p>
-              </div>
-              <Checkbox v-model="screenReaderSupport" binary @update:model-value="saveScreenReaderSupport" class="shrink-0" />
-            </label>
-          </div>
-          </div>
-        </section>
+        <SettingsSectionAccessibility />
 
         <!-- Webhooks -->
         <section v-show="activeSection === 'webhooks'" class="settings-section">
@@ -1548,6 +1261,9 @@ import SettingsSectionTeam from '../components/settings/SettingsSectionTeam.vue'
 import SettingsSectionApplication from '../components/settings/SettingsSectionApplication.vue';
 import SettingsSectionNotifications from '../components/settings/SettingsSectionNotifications.vue';
 import SettingsSectionBehavior from '../components/settings/SettingsSectionBehavior.vue';
+import SettingsSectionGit from '../components/settings/SettingsSectionGit.vue';
+import SettingsSectionAppearance from '../components/settings/SettingsSectionAppearance.vue';
+import SettingsSectionAccessibility from '../components/settings/SettingsSectionAccessibility.vue';
 import { SETTINGS_INJECTION_KEY } from '../components/settings/settingsInjectionKey';
 
 const modals = useModals();
