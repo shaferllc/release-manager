@@ -4,8 +4,24 @@ import { config } from '@vue/test-utils';
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
 import { toHaveNoViolations } from 'jest-axe';
+import Button from 'primevue/button';
+import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
+import Panel from 'primevue/panel';
+import Textarea from 'primevue/textarea';
 
 expect.extend(toHaveNoViolations);
+
+// Expose PrimeVue components for user-installed extensions (e.g. bookmarks) that use window.PrimeVue
+if (typeof window !== 'undefined') {
+  window.PrimeVue = {
+    button: Button,
+    dialog: Dialog,
+    inputtext: InputText,
+    panel: Panel,
+    textarea: Textarea,
+  };
+}
 
 // PrimeVue is required by Button, Select, Dialog, Checkbox, etc. Use styled theme to match app.
 config.global.plugins = config.global.plugins || [];
