@@ -187,144 +187,16 @@
         <SettingsSectionGitHub />
 
         <!-- GitLab -->
-        <section v-show="activeSection === 'gitlab'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('gitlab').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('gitlab').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('gitlab').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 mb-5">
-              <div class="block pb-4">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block mb-1">Add from GitLab</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0">Browse your projects or search GitLab to clone and add.</p>
-              </div>
-              <Button label="Clone from GitLab" icon="pi pi-gitlab" size="small" @click="openCloneFromGit?.('gitlab')" />
-            </div>
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-              <div class="block">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Instance URL</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">GitLab instance URL. Leave empty for gitlab.com.</p>
-                <InputText v-model="gitlabUrl" type="text" class="max-w-md mt-2" placeholder="https://gitlab.com" @blur="saveGitLabUrl" />
-              </div>
-              <div class="block pt-2 border-t border-rm-border">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Personal access token</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Required for listing and searching your projects.</p>
-                <div class="flex flex-wrap items-center gap-2 mt-2">
-                  <InputText v-model="gitlabToken" type="password" class="flex-1 min-w-0" placeholder="glpat-..." autocomplete="off" @blur="saveGitLabToken" />
-                  <Button variant="link" label="Create token" class="text-xs text-rm-accent p-0 min-w-0 h-auto shrink-0" @click="openUrl('https://gitlab.com/-/user_settings/personal_access_tokens')" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <SettingsSectionGitLab />
 
         <!-- Bitbucket -->
-        <section v-show="activeSection === 'bitbucket'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('bitbucket').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('bitbucket').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('bitbucket').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 mb-5">
-              <div class="block pb-4">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block mb-1">Add from Bitbucket</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0">Browse your repositories or search Bitbucket to clone and add.</p>
-              </div>
-              <Button label="Clone from Bitbucket" icon="pi pi-bitbucket" size="small" @click="openCloneFromGit?.('bitbucket')" />
-            </div>
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-              <div class="block">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Username</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Your Bitbucket username or email (for API token auth).</p>
-                <InputText v-model="bitbucketUsername" type="text" class="max-w-md mt-2" placeholder="username" @blur="saveBitbucketUsername" />
-              </div>
-              <div class="block pt-2 border-t border-rm-border">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">API token</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Bitbucket API token with repository read scope. App passwords are deprecated; use API tokens.</p>
-                <div class="flex flex-wrap items-center gap-2 mt-2">
-                  <InputText v-model="bitbucketToken" type="password" class="flex-1 min-w-0" placeholder="API token" autocomplete="off" @blur="saveBitbucketToken" />
-                  <Button variant="link" label="Create API token" class="text-xs text-rm-accent p-0 min-w-0 h-auto shrink-0" @click="openUrl('https://id.atlassian.com/manage-profile/security/api-tokens')" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <SettingsSectionBitbucket />
 
         <!-- Gitea -->
-        <section v-show="activeSection === 'gitea'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('gitea').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('gitea').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('gitea').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 mb-5">
-              <div class="block pb-4">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block mb-1">Add from Gitea</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0">Browse your repositories or search Gitea/Forgejo to clone and add.</p>
-              </div>
-              <Button label="Clone from Gitea" icon="pi pi-box" size="small" @click="openCloneFromGit?.('gitea')" />
-            </div>
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-              <div class="block">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Instance URL</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Gitea or Forgejo instance URL. Leave empty for gitea.com.</p>
-                <InputText v-model="giteaUrl" type="text" class="max-w-md mt-2" placeholder="https://gitea.com" @blur="saveGiteaUrl" />
-              </div>
-              <div class="block pt-2 border-t border-rm-border">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Access token</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Required for listing and searching your repositories.</p>
-                <div class="flex flex-wrap items-center gap-2 mt-2">
-                  <InputText v-model="giteaToken" type="password" class="flex-1 min-w-0" placeholder="Token" autocomplete="off" @blur="saveGiteaToken" />
-                  <Button variant="link" label="Create token" class="text-xs text-rm-accent p-0 min-w-0 h-auto shrink-0" @click="openUrl(((giteaUrl || 'https://gitea.com').replace(/\/+$/, '')) + '/user/settings/applications')" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <SettingsSectionGitea />
 
         <!-- Azure DevOps -->
-        <section v-show="activeSection === 'azureDevOps'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('azureDevOps').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('azureDevOps').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('azureDevOps').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 mb-5">
-              <div class="block pb-4">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Add from Azure DevOps</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0">Browse your repositories across all projects to clone and add.</p>
-              </div>
-              <Button label="Clone from Azure DevOps" icon="pi pi-microsoft" size="small" @click="openCloneFromGit?.('azure-devops')" />
-            </div>
-            <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-              <div class="block">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Organization</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Your Azure DevOps organization name (e.g. from dev.azure.com/your-org).</p>
-                <InputText v-model="azureDevOpsOrg" type="text" class="max-w-md mt-2" placeholder="my-organization" @blur="saveAzureDevOpsOrg" />
-              </div>
-              <div class="block pt-2 border-t border-rm-border">
-                <span class="text-[0.8125rem] font-semibold text-rm-text">Personal access token</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">PAT with Code (Read) scope for listing repositories.</p>
-                <div class="flex flex-wrap items-center gap-2 mt-2">
-                  <InputText v-model="azureDevOpsToken" type="password" class="flex-1 min-w-0" placeholder="PAT" autocomplete="off" @blur="saveAzureDevOpsToken" />
-                  <Button variant="link" label="Create PAT" class="text-xs text-rm-accent p-0 min-w-0 h-auto shrink-0" @click="openUrl('https://dev.azure.com/_usersSettings/tokens')" />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <SettingsSectionAzureDevOps />
 
         <!-- AI -->
         <section v-show="activeSection === 'ai'" class="settings-section">
@@ -1139,6 +1011,10 @@ import SettingsSectionGit from '../components/settings/SettingsSectionGit.vue';
 import SettingsSectionAppearance from '../components/settings/SettingsSectionAppearance.vue';
 import SettingsSectionAccessibility from '../components/settings/SettingsSectionAccessibility.vue';
 import SettingsSectionGitHub from '../components/settings/SettingsSectionGitHub.vue';
+import SettingsSectionGitLab from '../components/settings/SettingsSectionGitLab.vue';
+import SettingsSectionBitbucket from '../components/settings/SettingsSectionBitbucket.vue';
+import SettingsSectionGitea from '../components/settings/SettingsSectionGitea.vue';
+import SettingsSectionAzureDevOps from '../components/settings/SettingsSectionAzureDevOps.vue';
 import { SETTINGS_INJECTION_KEY } from '../components/settings/settingsInjectionKey';
 
 const modals = useModals();
