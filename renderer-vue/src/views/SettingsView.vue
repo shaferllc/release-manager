@@ -32,276 +32,13 @@
         <SettingsSectionTeam />
 
         <!-- Application -->
-        <section v-show="activeSection === 'application'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('application').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('application').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('application').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-          <div class="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-            <!-- Startup -->
-            <div class="bg-rm-surface border border-rm-border/60 rounded-xl p-5 px-6 flex flex-col gap-0">
-              <h4 class="text-xs font-semibold uppercase tracking-wider text-rm-muted m-0 mb-4 pb-3 border-b border-rm-border/50">Startup</h4>
-              <label class="flex flex-col py-3 border-b border-rm-border/40 last:border-b-0 last:pb-0 flex-row items-center gap-4 cursor-pointer">
-                <div class="min-w-0 flex-1">
-                  <span class="text-[0.9375rem] font-semibold text-rm-text">Launch at login</span>
-                  <p class="text-[0.8125rem] text-rm-muted mt-1 m-0 leading-[1.45]">Start the app when you log in to your computer.</p>
-                </div>
-                <Checkbox v-model="launchAtLogin" binary @update:model-value="saveLaunchAtLogin" class="shrink-0" />
-              </label>
-              <div class="flex flex-col py-3 border-b border-rm-border/40 last:border-b-0 last:pb-0">
-                <span class="text-[0.9375rem] font-semibold text-rm-text">Open to</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 m-0 leading-[1.45]">Default view when the app starts.</p>
-                <Select v-model="defaultView" :options="defaultViewOptions" optionLabel="label" optionValue="value" class="max-w-full mt-2" @change="saveDefaultView" />
-              </div>
-            </div>
-
-            <!-- Updates -->
-            <div class="bg-rm-surface border border-rm-border/60 rounded-xl p-5 px-6 flex flex-col gap-0">
-              <h4 class="text-xs font-semibold uppercase tracking-wider text-rm-muted m-0 mb-4 pb-3 border-b border-rm-border/50">Updates</h4>
-              <div class="flex flex-col py-3 border-b border-rm-border/40 last:border-b-0 last:pb-0">
-                <span class="text-[0.9375rem] font-semibold text-rm-text">Check for updates</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 m-0 leading-[1.45]">When to look for new versions.</p>
-                <div class="flex flex-wrap items-center gap-2 mt-2">
-                  <Select v-model="checkForUpdates" :options="checkForUpdatesOptions" optionLabel="label" optionValue="value" class="min-w-[10rem] max-w-full" @change="saveCheckForUpdates" />
-                  <Button label="Check now" size="small" severity="secondary" :loading="updateCheckLoading" :disabled="updateCheckLoading" @click="checkForUpdatesNow" />
-                </div>
-                <p v-if="updateCheckMessage" class="text-[0.8125rem] text-rm-muted m-0 mt-2">{{ updateCheckMessage }}</p>
-                <div v-if="appStore.updateAvailableVersion && !appStore.updateDownloaded" class="flex flex-wrap items-center gap-2 mt-2">
-                  <span class="text-sm text-rm-success">Update available (v{{ appStore.updateAvailableVersion }})</span>
-                  <Button label="Download" size="small" severity="success" :loading="updateDownloading" :disabled="updateDownloading" @click="downloadUpdate" />
-                </div>
-                <div v-if="appStore.updateDownloaded" class="flex flex-wrap items-center gap-2 mt-2">
-                  <span class="text-sm text-rm-success">Update downloaded. Restart to install.</span>
-                  <Button label="Restart now" size="small" severity="success" @click="quitAndInstall" />
-                </div>
-              </div>
-            </div>
-
-            <!-- Quit & Setup -->
-            <div class="bg-rm-surface border border-rm-border/60 rounded-xl p-5 px-6 flex flex-col gap-0">
-              <h4 class="text-xs font-semibold uppercase tracking-wider text-rm-muted m-0 mb-4 pb-3 border-b border-rm-border/50">Quit & setup</h4>
-              <label class="flex flex-col py-3 border-b border-rm-border/40 last:border-b-0 last:pb-0 flex-row items-center gap-4 cursor-pointer">
-                <div class="min-w-0 flex-1">
-                  <span class="text-[0.9375rem] font-semibold text-rm-text">Confirm before closing</span>
-                  <p class="text-[0.8125rem] text-rm-muted mt-1 m-0 leading-[1.45]">Ask for confirmation when quitting the app.</p>
-                </div>
-                <Checkbox v-model="confirmBeforeQuit" binary @update:model-value="saveConfirmBeforeQuit" class="shrink-0" />
-              </label>
-              <div class="flex flex-col py-3 border-b border-rm-border/40 last:border-b-0 last:pb-0">
-                <span class="text-[0.9375rem] font-semibold text-rm-text">Setup wizard</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 m-0 leading-[1.45]">Walk through adding projects, Git, tests, and extensions.</p>
-                <Button label="Run setup wizard" size="small" severity="secondary" class="mt-2" @click="openSetupWizard" />
-              </div>
-            </div>
-          </div>
-          </div>
-        </section>
+        <SettingsSectionApplication />
 
         <!-- Notifications -->
-        <section v-show="activeSection === 'notifications'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('notifications').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('notifications').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('notifications').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-          <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-            <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Enable notifications</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Show in-app and system notifications for releases and errors.</p>
-              </div>
-              <Checkbox v-model="notificationsEnabled" binary @update:model-value="saveNotificationsEnabled" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Notification sound</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Play a sound when a notification appears.</p>
-              </div>
-              <Checkbox v-model="notificationSound" binary @update:model-value="saveNotificationSound" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Only when app is in background</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Show system notifications only when the app is not focused.</p>
-              </div>
-              <Checkbox v-model="notificationsOnlyWhenNotFocused" binary @update:model-value="saveNotificationsOnlyWhenNotFocused" class="shrink-0" />
-            </label>
-          </div>
-
-          <!-- Notification Preferences (web app API) -->
-          <template v-if="license.isLoggedIn?.value">
-            <h4 class="text-base font-semibold text-rm-text mt-8 mb-1">Notification preferences</h4>
-            <p class="text-sm text-rm-muted mb-4 m-0">Choose which notifications you receive from the web app.</p>
-
-            <div v-if="notifPrefsLoading" class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 py-6 flex items-center justify-center">
-              <span class="text-sm text-rm-muted">Loading preferences…</span>
-            </div>
-            <div v-else-if="notifPrefsError" class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 py-4">
-              <Message severity="error" :closable="false" class="m-0">{{ notifPrefsError }}</Message>
-            </div>
-            <template v-else>
-              <div v-for="cat in notifPrefsCategories" :key="cat.id" class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 mb-4">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text text-xs font-semibold uppercase tracking-wider mb-3">{{ cat.label }}</span>
-                <div class="space-y-4">
-                  <label
-                    v-for="(nt, ntIdx) in notifPrefsTypesForCategory(cat.id)"
-                    :key="nt.key"
-                    class="block settings-row-clickable settings-row-checkbox"
-                    :class="{ 'pt-3 border-t border-rm-border': ntIdx > 0 }"
-                  >
-                    <div class="min-w-0">
-                      <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">{{ nt.label }}</span>
-                      <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">{{ nt.description }}</p>
-                    </div>
-                    <Checkbox v-model="notifPrefs[nt.key]" binary @update:model-value="saveNotifPrefs" class="shrink-0" />
-                  </label>
-                </div>
-              </div>
-              <div v-if="notifPrefsSaveMessage" class="mt-2">
-                <Message severity="success" :closable="false" class="m-0">{{ notifPrefsSaveMessage }}</Message>
-              </div>
-              <div v-if="notifPrefsSaving" class="mt-2">
-                <span class="text-sm text-rm-muted">Saving…</span>
-              </div>
-            </template>
-          </template>
-          </div>
-        </section>
+        <SettingsSectionNotifications />
 
         <!-- Behavior -->
-        <section v-show="activeSection === 'behavior'" class="settings-section">
-          <div class="flex items-start gap-4 p-5 mb-4 rounded-xl border border-rm-accent/25 bg-gradient-to-br from-rm-accent/12 via-rm-accent/[0.04] to-transparent">
-            <div class="shrink-0 w-12 h-12 flex items-center justify-center rounded-[10px] bg-rm-accent/20 text-rm-accent" aria-hidden="true" v-html="getSectionMeta('behavior').icon"></div>
-            <div>
-              <h3 class="text-2xl font-bold text-rm-text tracking-[-0.03em] m-0 mb-1">{{ getSectionMeta('behavior').label }}</h3>
-              <p class="text-[0.9375rem] text-rm-muted m-0 leading-normal">{{ getSectionMeta('behavior').description }}</p>
-            </div>
-          </div>
-          <div class="settings-section-card">
-          <div class="bg-rm-surface border border-rm-border rounded-[10px] p-5 px-6 space-y-5">
-            <label class="block settings-row-clickable settings-row-checkbox">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Double-click to open project</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Require double-click to open a project in the sidebar (single-click to select only).</p>
-              </div>
-              <Checkbox v-model="doubleClickToOpenProject" binary @update:model-value="saveDoubleClickToOpenProject" class="shrink-0" />
-            </label>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Default project sort</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">How to order projects in the sidebar.</p>
-              <Select v-model="projectSortOrder" :options="projectSortOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveProjectSortOrder" />
-            </div>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Lock sidebar width</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Prevent resizing the sidebar (width stays fixed).</p>
-              </div>
-              <Checkbox v-model="sidebarWidthLocked" binary @update:model-value="saveSidebarWidthLocked" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Open project in new tab</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">When using tabs, open projects in a new tab instead of replacing the current one.</p>
-              </div>
-              <Checkbox v-model="openProjectInNewTab" binary @update:model-value="saveOpenProjectInNewTab" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Compact sidebar</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Smaller icons and labels in the project list.</p>
-              </div>
-              <Checkbox v-model="compactSidebar" binary @update:model-value="saveCompactSidebar" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Show project path in sidebar</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Display full path under each project name.</p>
-              </div>
-              <Checkbox v-model="showProjectPathInSidebar" binary @update:model-value="saveShowProjectPathInSidebar" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Remember last opened tab</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Per project, restore the last detail tab (Git, Tests, etc.) when reopening.</p>
-              </div>
-              <Checkbox v-model="rememberLastDetailTab" binary @update:model-value="saveRememberLastDetailTab" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Confirm destructive actions</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Ask for confirmation before delete, release, or batch release.</p>
-              </div>
-              <Checkbox v-model="confirmDestructiveActions" binary @update:model-value="saveConfirmDestructiveActions" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Confirm before discarding changes</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Extra confirmation before git discard or reset.</p>
-              </div>
-              <Checkbox v-model="confirmBeforeDiscard" binary @update:model-value="saveConfirmBeforeDiscard" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Confirm before force push</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Extra confirmation before git push --force.</p>
-              </div>
-              <Checkbox v-model="confirmBeforeForcePush" binary @update:model-value="saveConfirmBeforeForcePush" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Open links in default browser</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Open external links (docs, GitHub, etc.) in the system browser instead of in-app.</p>
-              </div>
-              <Checkbox v-model="openLinksInExternalBrowser" binary @update:model-value="saveOpenLinksInExternalBrowser" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Debug bar visible</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Show the debug bar by default (for developers).</p>
-              </div>
-              <Checkbox v-model="debugBarVisible" binary @update:model-value="saveDebugBarVisible" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Notify on release success/failure</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Show system notifications when a release finishes.</p>
-              </div>
-              <Checkbox v-model="notifyOnRelease" binary @update:model-value="saveNotifyOnRelease" class="shrink-0" />
-            </label>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Notify when project sync completes</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Alert when background sync finishes.</p>
-              </div>
-              <Checkbox v-model="notifyOnSyncComplete" binary @update:model-value="saveNotifyOnSyncComplete" class="shrink-0" />
-            </label>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Auto-refresh interval</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">How often to refresh project list and dashboard (0 = off).</p>
-              <Select v-model="autoRefreshIntervalSeconds" :options="autoRefreshIntervalOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveAutoRefreshInterval" />
-            </div>
-            <div class="block pt-2 border-t border-rm-border">
-              <span class="text-[0.8125rem] font-semibold text-rm-text">Recent projects list length</span>
-              <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4]">Maximum number of recent projects to remember.</p>
-              <Select v-model="recentListLength" :options="recentListLengthOptions" optionLabel="label" optionValue="value" class="max-w-xs mt-2" @change="saveRecentListLength" />
-            </div>
-            <label class="block settings-row-clickable settings-row-checkbox pt-2 border-t border-rm-border">
-              <div class="min-w-0">
-                <span class="text-[0.8125rem] font-semibold text-rm-text block text-rm-text">Show tips and onboarding</span>
-                <p class="text-[0.8125rem] text-rm-muted mt-1 leading-[1.4] m-0 text-sm text-rm-muted">Show first-run tips and occasional hints. Uncheck to hide permanently.</p>
-              </div>
-              <Checkbox v-model="showTips" binary @update:model-value="saveShowTips" class="shrink-0" />
-            </label>
-          </div>
-          </div>
-        </section>
+        <SettingsSectionBehavior />
 
         <!-- Extensions -->
         <section v-show="activeSection === 'extensions'" class="settings-section max-w-none -mr-8">
@@ -1808,6 +1545,9 @@ import { useAppStore } from '../stores/app';
 import SettingsSectionAccount from '../components/settings/SettingsSectionAccount.vue';
 import SettingsSectionSubscription from '../components/settings/SettingsSectionSubscription.vue';
 import SettingsSectionTeam from '../components/settings/SettingsSectionTeam.vue';
+import SettingsSectionApplication from '../components/settings/SettingsSectionApplication.vue';
+import SettingsSectionNotifications from '../components/settings/SettingsSectionNotifications.vue';
+import SettingsSectionBehavior from '../components/settings/SettingsSectionBehavior.vue';
 import { SETTINGS_INJECTION_KEY } from '../components/settings/settingsInjectionKey';
 
 const modals = useModals();
@@ -2676,6 +2416,22 @@ provide(SETTINGS_INJECTION_KEY, {
   isDeveloperPlan,
   openSubscriptionPage,
   currentPlanId,
+  updateCheckLoading,
+  updateCheckMessage,
+  updateDownloading,
+  checkForUpdatesNow,
+  downloadUpdate,
+  quitAndInstall,
+  openSetupWizard,
+  appStore,
+  notifPrefs,
+  notifPrefsLoading,
+  notifPrefsError,
+  notifPrefsSaveMessage,
+  notifPrefsSaving,
+  notifPrefsCategories,
+  notifPrefsTypesForCategory,
+  saveNotifPrefs,
   teamData,
   teamsList,
   activeTeamId,
